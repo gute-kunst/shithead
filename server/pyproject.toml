@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "shithead-server"
+version = "0.1.0"
+description = ""
+authors = [""]
+readme = "README.md"
+packages = [{ include = "shithead_server" }]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+websockets = "^10.4"
+
+[tool.poetry.dev-dependencies]
+black = "^22.10"
+isort = "^5.10"
+mypy = "^0.991"
+pylint = "^2.15"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
