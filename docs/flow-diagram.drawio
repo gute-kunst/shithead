@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2022-11-25T21:22:53.374Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36" etag="3q7w1j9dbzjZmX7Gl8-A" version="20.6.0" type="github">
+<mxfile host="app.diagrams.net" modified="2022-11-25T21:23:51.931Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36" etag="i86nil3nxsvcGMW8nONT" version="20.6.0" type="github">
   <diagram id="747tSipR186_xFjn_NJU" name="Seite-1">
     <mxGraphModel dx="4835" dy="898" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
@@ -1028,18 +1028,18 @@
           <mxGeometry y="52" width="200" height="38" as="geometry" />
         </mxCell>
         <mxCell id="h3u1zd87UOqwa6SvkUOy-57" value="&lt;b&gt;Card-Request&lt;/b&gt;" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=26;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;html=1;strokeColor=#82b366;" vertex="1" parent="1">
-          <mxGeometry x="1160" y="104" width="200" height="90" as="geometry" />
+          <mxGeometry x="973.25" y="104" width="200" height="90" as="geometry" />
         </mxCell>
         <mxCell id="h3u1zd87UOqwa6SvkUOy-58" value="list of cards" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="h3u1zd87UOqwa6SvkUOy-57">
           <mxGeometry y="26" width="200" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="h3u1zd87UOqwa6SvkUOy-59" value="should be easy to check if equal" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="h3u1zd87UOqwa6SvkUOy-57">
+        <mxCell id="h3u1zd87UOqwa6SvkUOy-59" value="check if equal" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="h3u1zd87UOqwa6SvkUOy-57">
           <mxGeometry y="52" width="200" height="38" as="geometry" />
         </mxCell>
         <mxCell id="h3u1zd87UOqwa6SvkUOy-61" value="&lt;div style=&quot;&quot;&gt;&lt;span style=&quot;background-color: initial; font-size: 10px;&quot;&gt;action&lt;/span&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;shadow=0;strokeColor=#FFFFFF;fillColor=#F0F0F0;align=center;verticalAlign=top;horizontal=1;fontStyle=1" vertex="1" parent="1">
           <mxGeometry x="740" y="394" width="320" height="356" as="geometry" />
         </mxCell>
-        <mxCell id="h3u1zd87UOqwa6SvkUOy-55" value="cards are equalí ½í¸Š" style="rounded=0;whiteSpace=wrap;html=1;shadow=1;strokeColor=#F2F2F2;fillColor=#EDFCEE;fontSize=10;" vertex="1" parent="1">
+        <mxCell id="h3u1zd87UOqwa6SvkUOy-55" value="all cards&amp;nbsp;" style="rounded=0;whiteSpace=wrap;html=1;shadow=1;strokeColor=#F2F2F2;fillColor=#EDFCEE;fontSize=10;" vertex="1" parent="1">
           <mxGeometry x="770" y="416" width="110" height="20" as="geometry" />
         </mxCell>
         <mxCell id="h3u1zd87UOqwa6SvkUOy-65" value="in_valid_cards(cards)í ½í¸Š" style="rounded=0;whiteSpace=wrap;html=1;shadow=1;strokeColor=#F2F2F2;fillColor=#EDFCEE;fontSize=10;" vertex="1" parent="1">
