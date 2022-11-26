@@ -1,6 +1,6 @@
-<mxfile host="app.diagrams.net" modified="2022-11-25T21:23:51.931Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36" etag="i86nil3nxsvcGMW8nONT" version="20.6.0" type="github">
+<mxfile host="app.diagrams.net" modified="2022-11-26T01:44:37.567Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36" etag="fIYjPvddjs8EwIyNDZwk" version="20.6.0" type="github">
   <diagram id="747tSipR186_xFjn_NJU" name="Seite-1">
-    <mxGraphModel dx="4835" dy="898" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="3789" dy="897" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -471,7 +471,7 @@
         <mxCell id="Z_FNpW_9KaD7Itk-rGGs-140" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;fontSize=9;fontColor=#FFB570;" parent="1" source="iNZNR5k5TyPUSu2izBfB-255" target="iNZNR5k5TyPUSu2izBfB-177" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="iNZNR5k5TyPUSu2izBfB-255" value="&amp;nbsp; check for card events (if card not none)&amp;nbsp; &amp;nbsp;" style="rounded=0;whiteSpace=wrap;html=1;shadow=0;strokeColor=#FFFFFF;fillColor=#E3E3E3;align=left;verticalAlign=top;horizontal=1;fontStyle=1" parent="1" vertex="1">
+        <mxCell id="iNZNR5k5TyPUSu2izBfB-255" value="&amp;nbsp; check for card events in card-request-pile (if card not none)&amp;nbsp; &amp;nbsp;" style="rounded=0;whiteSpace=wrap;html=1;shadow=0;strokeColor=#FFFFFF;fillColor=#E3E3E3;align=left;verticalAlign=top;horizontal=1;fontStyle=1" parent="1" vertex="1">
           <mxGeometry x="-908" y="1380" width="386" height="209" as="geometry" />
         </mxCell>
         <mxCell id="ydQXpaXQngnUm8zrKJrL-2" value="4 of a kind (incl 5)" style="strokeWidth=2;html=1;shape=mxgraph.flowchart.decision;whiteSpace=wrap;shadow=0;strokeColor=#b85450;fillColor=#f8cecc;" parent="1" vertex="1">
@@ -1071,6 +1071,9 @@
         </mxCell>
         <mxCell id="h3u1zd87UOqwa6SvkUOy-76" value="append" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="h3u1zd87UOqwa6SvkUOy-75">
           <mxGeometry y="26" width="200" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="h3u1zd87UOqwa6SvkUOy-79" value="cards are equalí ½í¸Š" style="rounded=0;whiteSpace=wrap;html=1;shadow=1;strokeColor=#F2F2F2;fillColor=#EDFCEE;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="910" y="454" width="110" height="20" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
