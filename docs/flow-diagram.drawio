@@ -1,6 +1,6 @@
-<mxfile host="app.diagrams.net" modified="2022-11-26T20:18:40.956Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36" etag="E9UMGmaOpqwEZb8y1wKV" version="20.6.0" type="github">
+<mxfile host="app.diagrams.net" modified="2022-11-26T22:03:19.532Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36" etag="8nr9hQ9_GPZ6UUA0PIKG" version="20.6.0" type="github">
   <diagram id="747tSipR186_xFjn_NJU" name="Seite-1">
-    <mxGraphModel dx="7007" dy="2895" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="4933" dy="2104" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -1113,6 +1113,9 @@
         </mxCell>
         <mxCell id="gBJc0zoSRxW9_g1EB0lD-18" value="ordered" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="gBJc0zoSRxW9_g1EB0lD-17">
           <mxGeometry y="26" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="gBJc0zoSRxW9_g1EB0lD-24" value="&lt;font style=&quot;font-size: 18px;&quot;&gt;TODO&lt;br&gt;Connect Request&lt;br&gt;With &lt;br&gt;Backend Cards&lt;/font&gt;" style="strokeWidth=2;html=1;shape=mxgraph.flowchart.decision;whiteSpace=wrap;shadow=0;strokeColor=#b85450;fillColor=#f8cecc;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="-643.74" y="581" width="212" height="227" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
