@@ -37,7 +37,7 @@ def test_linked_list_remove(del_player, three_players):
     tp = three_players
     llist = CircularDoublyLinkedList(tp)
     assert len(llist) == 3
-    llist.remove_player(tp[del_player])
+    llist.remove_node(tp[del_player])
     assert len(llist) == 2
     manual = [
         [

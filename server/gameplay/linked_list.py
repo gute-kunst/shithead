@@ -1,12 +1,10 @@
 from copy import deepcopy
 from typing import List, Optional
 
-from gameplay import Player
-
 
 class Node:
-    def __init__(self, data: Player):
-        self.data: Player = data
+    def __init__(self, data):
+        self.data = data
         self.next: Optional[Node] = None
         self.previous: Optional[Node] = None
 
@@ -15,7 +13,7 @@ class Node:
 
 
 class CircularDoublyLinkedList:
-    def __init__(self, inputlist: List[Player]):
+    def __init__(self, inputlist: List):
         tmp_input = deepcopy(inputlist)
         self.head = None
         if tmp_input is not None:
@@ -28,22 +26,22 @@ class CircularDoublyLinkedList:
             node.next = self.head
             self.head.previous = node
 
-    def remove_player(self, player):
+    def remove_node(self, node_data):
         if self.head is None:
             raise Exception("List is empty")
 
-        if self.head.data == player:
+        if self.head.data == node_data:
             self.head.next.previous = self.head.previous
             self.head.previous.next = self.head.next
             self.head = self.head.next
             return
         for node in self:
-            if node.data == player:
+            if node.data == node_data:
                 node.previous.next = node.next
                 node.next.previous = node.previous
                 return
 
-        raise Exception("Node with data '%s' not found" % player)
+        raise Exception("Node with data '%s' not found" % node_data)
 
     def traverse(self, starting_point=None):
         if starting_point is None:
