@@ -1,7 +1,6 @@
 import pytest
 
-from gameplay import Card, Suit
-from gameplay.gameplay import Player
+from gameplay import Card, Player, Suit
 
 
 def _card_2t():
