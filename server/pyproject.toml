@@ -34,3 +34,7 @@ max-line-length = 100
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "pyshithead"]
+
+[tool.black]
+line-length = 100
+target_version = ['py311']

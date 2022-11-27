@@ -17,9 +17,7 @@ class Game:
     def __init__(self, players: list[Player], id: int = 1):
         if len(players) > 5:
             raise ValueError("too many players")
-        self.active_players: CircularDoublyLinkedList = CircularDoublyLinkedList(
-            players
-        )
+        self.active_players: CircularDoublyLinkedList = CircularDoublyLinkedList(players)
         self.deck = PileOfCards.generate_deck()
         self.play_pile = PileOfCards()
         self.valid_ranks: Set[int]
