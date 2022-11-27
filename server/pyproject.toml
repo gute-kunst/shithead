@@ -17,9 +17,6 @@ isort = "^5.10"
 mypy = "^0.991"
 pylint = "^2.15"
 
-
-# [tool.poetry.dev-dependencies]
-
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
