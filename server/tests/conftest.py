@@ -1,6 +1,6 @@
 import pytest
 
-from gameplay import Card, Player, Suit
+from pyshithead import Card, Player, Suit
 
 
 def _card_2t():

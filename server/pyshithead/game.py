@@ -1,6 +1,6 @@
-from typing import Set
+from typing import List, Set
 
-from gameplay import (
+from pyshithead import (
     NBR_HIDDEN_CARDS,
     CircularDoublyLinkedList,
     PileOfCards,
@@ -25,7 +25,7 @@ class Game:
         self.valid_ranks: Set[int]
         self.rank_event: RankEvent
         self.id = id
-        self.ranking = []
+        self.ranking: List[Player] = []
         self.__deal_cards()
 
     def chosen_public_cards(self, cards, player_id):
@@ -52,7 +52,7 @@ class Game:
             self.play_pile.put(self.get_player().private_cards.take(req.cards.cards))
             self.fillup_cards(self.get_player())
             self.check_for_winners_and_losers()
-            self.get_tower_events()
+            self.play_pile.get_pile_events()
         if isinstance(req, PlayHiddenCardRequest):
             if not self.get_player().eligible_play_hidden_card():
                 raise ValueError("Not eligible to play hidden card")

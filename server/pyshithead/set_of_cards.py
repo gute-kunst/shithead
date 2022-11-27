@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional, Set, Union
 
-from gameplay import Card
+from pyshithead import Card
 
 
 class SetOfCards:

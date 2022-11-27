@@ -2,7 +2,7 @@ import dataclasses
 
 import pytest
 
-from gameplay import Card, Suit
+from pyshithead import Card, Suit
 
 
 def test_card_initialization():

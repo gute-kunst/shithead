@@ -1,6 +1,6 @@
 from enum import Enum
 
-from gameplay import SetOfCards
+from pyshithead import SetOfCards
 
 
 class NextPlayerEvent(Enum):

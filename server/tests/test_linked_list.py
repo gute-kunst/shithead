@@ -1,6 +1,6 @@
 import pytest
 
-from gameplay import CircularDoublyLinkedList, Player
+from pyshithead import CircularDoublyLinkedList, Player
 
 
 def manual_llist_3(tp: list[Player]):

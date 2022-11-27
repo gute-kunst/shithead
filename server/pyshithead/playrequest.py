@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from gameplay import (
+from pyshithead import (
     BurnEvent,
     Choice,
     NextPlayerEvent,

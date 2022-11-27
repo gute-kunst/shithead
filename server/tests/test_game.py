@@ -1,4 +1,4 @@
-from gameplay import NBR_HIDDEN_CARDS, TOTAL_NBR_OF_CARDS, Game, Player
+from pyshithead import NBR_HIDDEN_CARDS, TOTAL_NBR_OF_CARDS, Game, Player
 
 
 def test_game_players(two_players):

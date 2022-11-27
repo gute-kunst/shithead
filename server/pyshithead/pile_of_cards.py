@@ -1,7 +1,7 @@
 import random
 from typing import List, Set, Union
 
-from gameplay import Card, Suit
+from pyshithead import Card, Suit
 
 
 class PileOfCards:
@@ -30,7 +30,7 @@ class PileOfCards:
     def put(self, cards: Union[Set, List]):
         self.cards[0:0] = cards
 
-    def get_tower_event(self):
+    def get_pile_events(self):
         # TODO
         raise NotImplementedError()
         # rank_counter = 1

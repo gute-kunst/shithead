@@ -1,4 +1,4 @@
-from gameplay import Card, Player
+from pyshithead import Card, Player
 
 
 def test_player_initialization():
