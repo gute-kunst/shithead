@@ -8,5 +8,7 @@ from .card import *
 from .pile_of_cards import *
 from .set_of_cards import *
 from .player import *
+from .playrequest import *
 from .linked_list import *
+
 from .game import *

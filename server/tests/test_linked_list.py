@@ -26,7 +26,7 @@ def test_linked_list_init_length(two_players):
 def test_linked_list_initialization(three_players):
     manual = manual_llist_3(three_players)
     llist = CircularDoublyLinkedList(three_players)
-    for i, node in enumerate(llist.traverse()):
+    for i, node in enumerate(llist.traverse_single()):
         assert node.data == manual[i]["current"]
         assert node.next.data == manual[i]["next"]
         assert node.previous.data == manual[i]["previous"]
@@ -53,7 +53,15 @@ def test_linked_list_remove(del_player, three_players):
             {"previous": tp[0], "current": tp[1], "next": tp[0]},
         ],
     ]
-    for i, node in enumerate(llist.traverse()):
+    for i, node in enumerate(llist.traverse_single()):
         assert node.data == manual[del_player][i]["current"]
         assert node.next.data == manual[del_player][i]["next"]
         assert node.previous.data == manual[del_player][i]["previous"]
+
+
+def test_link_list_remove_all(three_players):
+    llist = CircularDoublyLinkedList(three_players)
+    llist.remove_node(three_players[0])
+    llist.remove_node(three_players[1])
+    llist.remove_node(three_players[2])
+    print("done")

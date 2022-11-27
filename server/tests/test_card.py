@@ -16,3 +16,9 @@ def test_card_immutability(card_2h):
         card_2h.rank = 3
     with pytest.raises(dataclasses.FrozenInstanceError):
         card_2h.Suite = Suit.HEART
+
+
+def test_card_comparison(card_2h, card_2t):
+    assert card_2h == Card(2, Suit.HEART)
+    assert card_2h != card_2t
+    assert card_2h == card_2h

@@ -10,7 +10,7 @@ def test_player_initialization():
 
 
 def test_player_add_hidden_card(player: Player, card_2t: Card):
-    player.hidden_cards.add([card_2t])
+    player.hidden_cards.put([card_2t])
     assert player.hidden_cards.is_empty() == False
     assert player.public_cards.is_empty() == True
     assert player.private_cards.is_empty() == True

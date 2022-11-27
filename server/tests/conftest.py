@@ -39,8 +39,21 @@ def card_3t():
     return _card_3t()
 
 
+def _card_2c():
+    return Card(2, Suit.CLOVERS)
+
+
+def _card_2p():
+    return Card(2, Suit.PIKES)
+
+
 @pytest.fixture
-def two_cards_different_rank_and_different_tile():
+def four_cards_same_rank():
+    return [_card_2c, _card_2t, _card_2h, _card_2p]
+
+
+@pytest.fixture
+def two_cards_diff_rank_and_diff_tile():
     return [_card_2t(), _card_3h()]
 
 

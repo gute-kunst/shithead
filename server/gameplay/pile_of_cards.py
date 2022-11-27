@@ -1,16 +1,20 @@
 import random
+from typing import List, Set, Union
 
 from gameplay import Card, Suit
 
 
 class PileOfCards:
-    def __init__(self, cards: list[Card] = []):
-        self.cards = cards
+    def __init__(self, cards: List[Card] = []):
+        self.cards: List[Card] = []
+        for card in cards:
+            self.cards.append(card)
 
     def shuffle(self):
         random.shuffle(self.cards)
 
     def take(self, nbr_of_cards=int) -> list:
+        "returns card from the top ('[0]') of the tower"
         retval = self.cards[:nbr_of_cards]
         del self.cards[:nbr_of_cards]
         return retval
@@ -23,8 +27,25 @@ class PileOfCards:
     def is_empty(self):
         return True if len(self.cards) == 0 else False
 
+    def put(self, cards: Union[Set, List]):
+        self.cards[0:0] = cards
+
+    def get_tower_event(self):
+        # TODO
+        raise NotImplementedError()
+        # rank_counter = 1
+        # for i, card in enumerate(self.cards):
+        #     print("⭐")
+        #     if card.rank == self.cards[i + 1].rank or
+        #     card.
+        #     print(card)
+        #     print(self.cards[i + 1])
+
     def __len__(self):
         return len(self.cards)
+
+    def __getitem__(self, index):
+        return self.cards[index]
 
     @classmethod
     def generate_deck(cls):

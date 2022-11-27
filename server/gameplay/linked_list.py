@@ -27,9 +27,10 @@ class CircularDoublyLinkedList:
             self.head.previous = node
 
     def remove_node(self, node_data):
+        """
+        Doesnt remove last node"""
         if self.head is None:
             raise Exception("List is empty")
-
         if self.head.data == node_data:
             self.head.next.previous = self.head.previous
             self.head.previous.next = self.head.next
@@ -43,7 +44,7 @@ class CircularDoublyLinkedList:
 
         raise Exception("Node with data '%s' not found" % node_data)
 
-    def traverse(self, starting_point=None):
+    def traverse_single(self, starting_point=None):
         if starting_point is None:
             starting_point = self.head
         node = starting_point
@@ -53,9 +54,9 @@ class CircularDoublyLinkedList:
         yield node
 
     def __len__(self):
-        return len([None for node in self.traverse()])
+        return len([None for node in self.traverse_single()])
 
-    def __iter__(self):  # endless loop
+    def __iter__(self):  # WARNING: endless loop
         node = self.head
         while node is not None:
             yield node
@@ -63,7 +64,12 @@ class CircularDoublyLinkedList:
 
     def __repr__(self):
         nodes = []
-        for node in self.traverse():
+        for node in self.traverse_single():
             nodes.append(str(node))
         nodes.append(str(node.next))
         return " -> ".join(nodes)
+
+    def __getitem__(self, player_id):
+        for node in self.traverse_single():
+            if node.data.id == player_id:
+                return node.data
