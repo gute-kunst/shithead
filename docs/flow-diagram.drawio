@@ -1,6 +1,6 @@
-<mxfile host="app.diagrams.net" modified="2022-11-27T13:06:51.731Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36" etag="xJSZDM5vwNRMuKUX2jwc" version="20.6.0" type="github">
+<mxfile host="app.diagrams.net" modified="2022-11-27T16:14:26.910Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36" etag="PFxhbt3ByczPKPlalZr3" version="20.6.0" type="github">
   <diagram id="747tSipR186_xFjn_NJU" name="Seite-1">
-    <mxGraphModel dx="4601" dy="1862" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="6986" dy="2572" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -938,17 +938,26 @@
         <mxCell id="h3u1zd87UOqwa6SvkUOy-28" value="game over // second last has won?" style="rounded=0;whiteSpace=wrap;html=1;shadow=1;strokeColor=#F2F2F2;fillColor=#EDFCEE;fontSize=10;align=center;" parent="1" vertex="1">
           <mxGeometry x="-839.5" y="1809" width="170" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="h3u1zd87UOqwa6SvkUOy-30" value="" style="group;align=center;" parent="1" vertex="1" connectable="0">
-          <mxGeometry x="-380" y="865" width="184" height="110" as="geometry" />
+        <mxCell id="h3u1zd87UOqwa6SvkUOy-30" value="" style="group;align=center;fontSize=13;" parent="1" vertex="1" connectable="0">
+          <mxGeometry x="-380" y="1810" width="691.25" height="331.25" as="geometry" />
         </mxCell>
         <mxCell id="h3u1zd87UOqwa6SvkUOy-25" value="&lt;div style=&quot;&quot;&gt;&lt;span style=&quot;background-color: initial; font-size: 10px;&quot;&gt;&amp;nbsp; &amp;nbsp; player.eligible_to_play_hidden()&lt;/span&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;shadow=0;strokeColor=#FFFFFF;fillColor=#F0F0F0;align=center;verticalAlign=top;horizontal=1;fontStyle=1" parent="h3u1zd87UOqwa6SvkUOy-30" vertex="1">
-          <mxGeometry width="184" height="110" as="geometry" />
+          <mxGeometry width="480" height="220" as="geometry" />
         </mxCell>
-        <mxCell id="h3u1zd87UOqwa6SvkUOy-26" value="private is empty" style="rounded=0;whiteSpace=wrap;html=1;shadow=1;strokeColor=#F2F2F2;fillColor=#EDFCEE;fontSize=10;align=center;" parent="h3u1zd87UOqwa6SvkUOy-30" vertex="1">
-          <mxGeometry x="32.5" y="30" width="110" height="20" as="geometry" />
+        <mxCell id="6pSq7JzvAimxIMhzGXc_-142" value="while&amp;nbsp;" style="strokeWidth=2;html=1;shape=mxgraph.flowchart.decision;whiteSpace=wrap;shadow=0;strokeColor=#b85450;fillColor=#f8cecc;align=center;" vertex="1" parent="h3u1zd87UOqwa6SvkUOy-30">
+          <mxGeometry x="50" y="50" width="71.25" height="71.25" as="geometry" />
         </mxCell>
-        <mxCell id="h3u1zd87UOqwa6SvkUOy-27" value="public is empty" style="rounded=0;whiteSpace=wrap;html=1;shadow=1;strokeColor=#F2F2F2;fillColor=#EDFCEE;fontSize=10;align=center;" parent="h3u1zd87UOqwa6SvkUOy-30" vertex="1">
-          <mxGeometry x="32.5" y="60" width="110" height="20" as="geometry" />
+        <mxCell id="6pSq7JzvAimxIMhzGXc_-143" value="card[i]==card[i+1]&amp;nbsp;" style="rounded=0;whiteSpace=wrap;html=1;shadow=1;strokeColor=#F2F2F2;fillColor=#EDFCEE;align=center;" vertex="1" parent="h3u1zd87UOqwa6SvkUOy-30">
+          <mxGeometry x="140" y="60" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="6pSq7JzvAimxIMhzGXc_-144" value="card[i+1]==invisible&amp;nbsp;" style="rounded=0;whiteSpace=wrap;html=1;shadow=1;strokeColor=#F2F2F2;fillColor=#EDFCEE;align=center;" vertex="1" parent="h3u1zd87UOqwa6SvkUOy-30">
+          <mxGeometry x="280" y="60" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="6pSq7JzvAimxIMhzGXc_-150" value="i +=1" style="rounded=0;whiteSpace=wrap;html=1;shadow=1;strokeColor=#F2F2F2;fillColor=#EDFCEE;align=center;" vertex="1" parent="h3u1zd87UOqwa6SvkUOy-30">
+          <mxGeometry x="150" y="90" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="6pSq7JzvAimxIMhzGXc_-151" value="&lt;b&gt;TODO&lt;/b&gt;" style="strokeWidth=2;html=1;shape=mxgraph.flowchart.decision;whiteSpace=wrap;shadow=0;strokeColor=#b85450;fillColor=#f8cecc;align=center;" vertex="1" parent="h3u1zd87UOqwa6SvkUOy-30">
+          <mxGeometry x="340" y="-20" width="351.25" height="351.25" as="geometry" />
         </mxCell>
         <mxCell id="h3u1zd87UOqwa6SvkUOy-33" value="DATA MODEL" style="rounded=0;whiteSpace=wrap;html=1;shadow=1;fontStyle=1;fillColor=#BFE1FF;align=center;" parent="1" vertex="1">
           <mxGeometry x="10" y="165" width="1355.5" height="60" as="geometry" />
@@ -1383,6 +1392,9 @@
           <mxGeometry x="35" width="104" height="20" as="geometry">
             <mxRectangle width="104" height="20" as="alternateBounds" />
           </mxGeometry>
+        </mxCell>
+        <mxCell id="6pSq7JzvAimxIMhzGXc_-141" value="not eligible_to play hidden" style="rounded=0;whiteSpace=wrap;html=1;shadow=1;strokeColor=#F2F2F2;fillColor=#EDFCEE;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="-574.12" y="997" width="110" height="20" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
