@@ -66,12 +66,12 @@ def test_setofcards_iterate(two_cards):
 
 def test_setofcards_get_ranks_different(card_2t, card_3t):
     cardset = SetOfCards([card_2t, card_3t])
-    assert cardset.get_ranks() == {2, 3}
+    assert sorted(cardset.get_ranks()) == sorted([2, 3])
 
 
 def test_setofcards_get_ranks_same(card_2t, card_2h):
     cardset = SetOfCards([card_2t, card_2h])
-    assert cardset.get_ranks() == {2}
+    assert sorted(cardset.get_ranks()) == sorted([2, 2])
 
 
 def test_setofcards_take_invalid_card(card_2t, card_2h):

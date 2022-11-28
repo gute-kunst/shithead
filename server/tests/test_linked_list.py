@@ -63,5 +63,5 @@ def test_link_list_remove_all(three_players):
     llist = CircularDoublyLinkedList(three_players)
     llist.remove_node(three_players[0])
     llist.remove_node(three_players[1])
-    llist.remove_node(three_players[2])
-    print("done")
+    assert len(llist) == 1
+    llist.head.data == three_players[2]

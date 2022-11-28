@@ -30,6 +30,7 @@ line_length = 100
 
 
 [tool.pylint.format]
+disable = ["C0114", "C0115", "C0116"]
 max-line-length = 100
 
 [tool.pytest.ini_options]

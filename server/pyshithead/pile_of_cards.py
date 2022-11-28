@@ -13,11 +13,14 @@ class PileOfCards:
     def shuffle(self):
         random.shuffle(self.cards)
 
-    def take(self, nbr_of_cards=int) -> list:
+    def take_from_top(self, nbr_of_cards=int) -> list:
         "returns card from the top ('[0]') of the tower"
         retval = self.cards[:nbr_of_cards]
         del self.cards[:nbr_of_cards]
         return retval
+
+    def look_from_top(self, nbr_of_cards=int) -> list:
+        return self.cards[:nbr_of_cards]
 
     def take_all(self) -> list:
         retval = self.cards[:]
@@ -27,7 +30,7 @@ class PileOfCards:
     def is_empty(self):
         return True if len(self.cards) == 0 else False
 
-    def put(self, cards: Union[Set, List]):
+    def put(self, cards: set | list):
         self.cards[0:0] = cards
 
     def get_pile_events(self):
@@ -46,11 +49,3 @@ class PileOfCards:
 
     def __getitem__(self, index):
         return self.cards[index]
-
-    @classmethod
-    def generate_deck(cls):
-        deck = PileOfCards([Card(i, suit) for suit in Suit for i in range(2, 15)])
-        # deck = PileOfCards([Card(i, suit) for suit in Suit for i in range(1, 3)])
-
-        deck.shuffle()
-        return deck

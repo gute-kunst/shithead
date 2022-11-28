@@ -17,8 +17,8 @@ class SetOfCards:
             return [card.rank for card in self.cards][0]
         return None
 
-    def get_ranks(self) -> Set[int]:
-        return set(card.rank for card in self.cards)
+    def get_ranks(self) -> list[int]:
+        return [card.rank for card in self.cards]
 
     def take(self, cards: Set) -> Set:
         if not cards.issubset(self.cards):
