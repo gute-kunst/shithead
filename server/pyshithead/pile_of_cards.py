@@ -1,12 +1,11 @@
 import random
-from typing import List, Set, Union
 
-from pyshithead import Card, Suit
+from pyshithead import Card, SpecialRank
 
 
 class PileOfCards:
-    def __init__(self, cards: List[Card] = []):
-        self.cards: List[Card] = []
+    def __init__(self, cards: list[Card] = []):
+        self.cards: list[Card] = []
         for card in cards:
             self.cards.append(card)
 
@@ -33,16 +32,22 @@ class PileOfCards:
     def put(self, cards: set | list):
         self.cards[0:0] = cards
 
-    def get_pile_events(self):
-        # TODO
-        raise NotImplementedError()
-        # rank_counter = 1
-        # for i, card in enumerate(self.cards):
-        #     print("⭐")
-        #     if card.rank == self.cards[i + 1].rank or
-        #     card.
-        #     print(card)
-        #     print(self.cards[i + 1])
+    def four_of_same_rank_from_top(self) -> bool:
+        if len(self.cards) < 3:
+            return False
+        top_rank = self.cards[0].rank
+        rank_counter = 1
+        for card in self.cards[1:]:
+            if card.rank == top_rank:
+                rank_counter += 1
+                if rank_counter == 4:
+                    return True
+                continue
+            if card.rank == SpecialRank.INVISIBLE:
+                continue
+            elif card.rank != top_rank:
+                return False
+        return False
 
     def __len__(self):
         return len(self.cards)

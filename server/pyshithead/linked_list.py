@@ -71,5 +71,5 @@ class CircularDoublyLinkedList:
 
     def __getitem__(self, player_id):
         for node in self.traverse_single():
-            if node.data.id == player_id:
+            if node.data.id_ == player_id:
                 return node.data

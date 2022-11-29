@@ -1,13 +1,11 @@
-from dataclasses import dataclass
-from enum import Enum
-from typing import List, Optional, Set, Union
+from typing import Optional
 
 from pyshithead import Card
 
 
 class SetOfCards:
-    def __init__(self, cards: Union[Set, List] = set()):
-        self.cards: Set[Card] = set(cards)
+    def __init__(self, cards: set | list = set()):
+        self.cards: set[Card] = set(cards)
 
     def rank_is_equal(self):
         return all(card.rank == list(self.cards)[0].rank for card in self.cards)
@@ -20,14 +18,14 @@ class SetOfCards:
     def get_ranks(self) -> list[int]:
         return [card.rank for card in self.cards]
 
-    def take(self, cards: Set) -> Set:
+    def take(self, cards: set) -> set[Card]:
         if not cards.issubset(self.cards):
             raise ValueError("not all cards can be taken")
         intersect = self.cards.intersection(cards)
         self.cards = self.cards.difference(cards)
         return intersect
 
-    def take_all(self):
+    def take_all(self) -> set[Card]:
         retval = self.cards
         self.cards = set()
         return retval
@@ -35,7 +33,7 @@ class SetOfCards:
     def is_empty(self):
         return True if len(self.cards) == 0 else False
 
-    def put(self, cards: Union[Set, List]):
+    def put(self, cards: set | list):
         self.cards.update(cards)
 
     def __contains__(self, other):

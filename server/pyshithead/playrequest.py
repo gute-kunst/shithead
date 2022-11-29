@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Optional
 
 from pyshithead import (
+    NBR_HIDDEN_CARDS,
     BurnEvent,
     Choice,
     NextPlayerEvent,
@@ -22,14 +23,14 @@ class PlayRequest(ABC):
 
 
 class CardsRequest(PlayRequest):
-    def __init__(self, player: Player, cards: List = list(), choice: Optional[Choice] = None):
+    def __init__(self, player: Player, cards: list, choice: Optional[Choice] = None):
         self.player = player
         self.cards = SetOfCards(cards)
         self.choice: Optional[Choice] = choice
 
+    @abstractmethod
     def is_consistent(self):
-        if not self.cards.rank_is_equal():
-            raise ValueError("Rank is not equal")
+        raise NotImplementedError("virtual method")
 
     def get_rank(self):
         return self.cards.get_rank_if_equal()
@@ -66,12 +67,16 @@ class CardsRequest(PlayRequest):
         return burn_event
 
 
-class PublicCardsRequest(CardsRequest):
-    def __init__(self, cards: List, choice: Optional[Choice]):
+class PrivateCardsRequest(CardsRequest):
+    def __init__(self, player: Player, cards: list, choice: Optional[Choice] = None):
+        self.player = player
         self.cards = SetOfCards(cards)
         self.choice: Optional[Choice] = choice
+        self.is_consistent()
 
     def is_consistent(self):
+        if not self.cards in self.player.private_cards:
+            raise ValueError("Cards not in players private hands")
         if not self.cards.rank_is_equal():
             raise ValueError("Rank is not equal")
         if (
@@ -82,7 +87,26 @@ class PublicCardsRequest(CardsRequest):
         return True
 
 
-class HiddenCardRequest(PlayRequest):
+class ChoosePublicCardsRequest(CardsRequest):
+    def __init__(self, player: Player, hidden_choice_cards: list):
+        self.player: Player = player
+        self.cards: SetOfCards = SetOfCards(hidden_choice_cards)
+        self.is_consistent()
+
+    def is_consistent(self):
+        if not self.cards in self.player.private_cards:
+            raise ValueError("Cards not in players private hands")
+        if len(self.cards) != NBR_HIDDEN_CARDS:
+            raise ValueError("3 cards need to be selected")
+        if self.player.selected_hidden_cards:
+            raise ValueError("hidden cards were selected already")
+
+    def process(self):
+        self.player.public_cards.put(self.player.private_cards.take(self.cards.cards))
+        self.player.selected_hidden_cards = True
+
+
+class HiddenCardRequest(CardsRequest):
     pass
 
 

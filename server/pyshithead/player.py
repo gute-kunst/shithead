@@ -12,17 +12,18 @@ class NextPlayerEvent(Enum):
 
 
 class Player:
-    def __init__(self, id: int):
-        self.id: int = id
+    def __init__(self, id_: int):
+        self.id_: int = id_
         self.public_cards = SetOfCards()
         self.hidden_cards = SetOfCards()
         self.private_cards = SetOfCards()
+        self.selected_hidden_cards: int = False
 
     def __repr__(self):
-        return str(self.id)
+        return str(self.id_)
 
     def __eq__(self, other):
-        return self.id == other.id
+        return self.id_ == other.id_
 
     def eligible_play_hidden_card(self) -> bool:
         if not self.private_cards.is_empty():

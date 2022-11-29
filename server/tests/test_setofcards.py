@@ -20,12 +20,12 @@ def test_setofcards_initialize_multiple_sets(card_2t, two_cards, card_2h):
 
 def test_setofcards_rank_is_equal_true(two_cards_equal_rank):
     cardset = SetOfCards(two_cards_equal_rank)
-    assert cardset.rank_is_equal() == True
+    assert cardset.rank_is_equal() is True
 
 
 def test_setofcards_rank_is_equal_false(two_cards_diff_rank_and_diff_tile):
     cardset = SetOfCards(two_cards_diff_rank_and_diff_tile)
-    assert cardset.rank_is_equal() == False
+    assert cardset.rank_is_equal() is False
 
 
 def test_setofcards_ensure_no_duplicates(two_cards_identical):
@@ -48,13 +48,13 @@ def test_setofcards_put_set(two_cards, two_other_cards):
 def test_setofcards_in_true(two_cards, two_other_cards):
     cardset1 = SetOfCards(two_cards + two_other_cards)
     cardset2 = SetOfCards(two_cards)
-    assert (cardset2 in cardset1) == True
+    assert (cardset2 in cardset1) is True
 
 
 def test_setofcards_in_false(two_cards, two_other_cards):
     cardset1 = SetOfCards(two_cards)
     cardset2 = SetOfCards(two_other_cards)
-    assert (cardset2 in cardset1) == False
+    assert (cardset2 in cardset1) is False
 
 
 def test_setofcards_iterate(two_cards):

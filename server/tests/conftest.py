@@ -1,6 +1,6 @@
 import pytest
 
-from pyshithead import Card, Player, Suit
+from pyshithead import Card, Player, SpecialRank, Suit
 
 
 def _card_2t():
@@ -48,8 +48,23 @@ def _card_2p():
 
 
 @pytest.fixture
+def card_invisible_p():
+    return Card(SpecialRank.INVISIBLE, Suit.PIKES)
+
+
+@pytest.fixture
 def four_cards_same_rank():
-    return [_card_2c, _card_2t, _card_2h, _card_2p]
+    return [_card_2c(), _card_2t(), _card_2h(), _card_2p()]
+
+
+@pytest.fixture
+def four_cards_invisible():
+    return [
+        Card(SpecialRank.INVISIBLE, Suit.PIKES),
+        Card(SpecialRank.INVISIBLE, Suit.HEART),
+        Card(SpecialRank.INVISIBLE, Suit.CLOVERS),
+        Card(SpecialRank.INVISIBLE, Suit.TILES),
+    ]
 
 
 @pytest.fixture
@@ -90,3 +105,23 @@ def player():
 @pytest.fixture
 def three_players():
     return [Player(1), Player(2), Player(3)]
+
+
+@pytest.fixture
+def valid_all():
+    return set([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])
+
+
+@pytest.fixture
+def valid_higher():
+    return set([7, 8, 9, 10, 11, 12, 13, 14])
+
+
+@pytest.fixture
+def valid_lower():
+    return set([2, 3, 4, 5, 6, 7])
+
+
+@pytest.fixture
+def valid_14():
+    return set([SpecialRank.RESET, SpecialRank.INVISIBLE, SpecialRank.BURN, 14])

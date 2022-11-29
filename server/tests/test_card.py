@@ -5,26 +5,6 @@ import pytest
 from pyshithead import Card, RankEvent, RankType, SpecialRank, Suit
 
 
-@pytest.fixture
-def valid_all():
-    return set([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])
-
-
-@pytest.fixture
-def valid_higher():
-    return set([7, 8, 9, 10, 11, 12, 13, 14])
-
-
-@pytest.fixture
-def valid_lower():
-    return set([2, 3, 4, 5, 6, 7])
-
-
-@pytest.fixture
-def valid_14():
-    return set([SpecialRank.RESET, SpecialRank.INVISIBLE, SpecialRank.BURN, 14])
-
-
 def test_card_initialization():
     card = Card(2, Suit.TILES)
     assert card.rank == 2
