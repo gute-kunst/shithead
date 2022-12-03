@@ -16,6 +16,7 @@ black = "^22.10"
 isort = "^5.10"
 mypy = "^0.991"
 pylint = "^2.15"
+coverage = { extras = ["toml"], version = "^6.5.0" }
 
 [build-system]
 requires = ["poetry-core"]
@@ -39,3 +40,10 @@ testpaths = ["tests", "pyshithead"]
 [tool.black]
 line-length = 100
 target_version = ['py311']
+
+[tool.coverage.run]
+branch = true
+[tool.coverage.report]
+exclude_lines = ["raise AssertionError", "raise NotImplementedError"]
+[tool.coverage.html]
+directory = "coverage_html_report"

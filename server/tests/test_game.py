@@ -17,6 +17,7 @@ def test_game_players(game_with_two_players_start: Game, valid_all):
     assert len(game.deck) == NBR_TOTAL_CARDS - (NBR_HIDDEN_CARDS * 6)
 
 
+@pytest.mark.skip(reason="later")
 def test_game_process_playrequest(game_with_two_players_during_game: Game):
     game = game_with_two_players_during_game
     incomming_player_id = game.active_players.head.data.id_
