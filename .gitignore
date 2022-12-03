@@ -106,9 +106,6 @@ venv.bak/
 # mypy
 .mypy_cache/
 
-# vs code
-.vscode
-
 # examples
 examples/
 

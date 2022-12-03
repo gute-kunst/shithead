@@ -1,7 +1,9 @@
+import pytest
+
 from pyshithead import PileOfCards
 
 
-def test_pileofcards_take(card_2t, card_3h):
+def test_pileofcards_take_from_top(card_2t, card_3h):
     top_of_pile = card_2t
     bottom_of_pile = card_3h
     pile = PileOfCards([top_of_pile, bottom_of_pile])

@@ -5,7 +5,7 @@ from pyshithead import SetOfCards
 
 def test_setofcards_empty_initialize():
     cardset = SetOfCards()
-    assert cardset.is_empty() == True
+    assert cardset.is_empty() is True
 
 
 def test_setofcards_initialize_multiple_sets(card_2t, two_cards, card_2h):
