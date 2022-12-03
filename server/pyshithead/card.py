@@ -27,3 +27,6 @@ class Card:
 
     def __eq__(self, other):
         return self.rank == other.rank and self.suit == other.suit
+
+    def __repr__(self):
+        return str(f"\033[1;3m rank: {self.rank}\033[0m suit: {self.suit}")

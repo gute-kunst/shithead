@@ -16,14 +16,6 @@ def test_player_add_hidden_card(player: Player, card_2t: Card):
     assert player.private_cards.is_empty() is True
 
 
-def test_player_eligible_play_hidden_card(player_initialized: Player):
-    assert player_initialized.eligible_play_hidden_card() is False
-    player_initialized.private_cards.cards.clear()
-    assert player_initialized.eligible_play_hidden_card() is False
-    player_initialized.public_cards.cards.clear()
-    assert player_initialized.eligible_play_hidden_card() is True
-
-
 def test_player_compare_true():
     p1 = Player(1)
     p1_ = Player(1)
@@ -34,3 +26,18 @@ def test_player_compare_false():
     p1 = Player(1)
     p2 = Player(2)
     assert p1 != p2
+
+
+def test_player_eligible_play_hidden_card(player_initialized: Player):
+    assert player_initialized.eligible_to_play_hidden_card() is False
+    player_initialized.private_cards.cards.clear()
+    assert player_initialized.eligible_to_play_hidden_card() is False
+    player_initialized.public_cards.cards.clear()
+    assert player_initialized.eligible_to_play_hidden_card() is True
+
+
+def test_player_eligible_to_choose_cards(player: Player):
+    player.public_cards_were_selected = True
+    assert player.eligible_to_choose_cards() is False
+    player.public_cards_were_selected = False
+    assert player.eligible_to_choose_cards() is True

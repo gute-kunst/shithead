@@ -119,6 +119,25 @@ class PrivateCardsRequest(CardsRequest):
         return True
 
 
+class HiddenCardRequest(CardsRequest):
+    def __init__(
+        self,
+        player: Player,
+        consistency_check: bool = True,
+    ):
+        self.player = player
+        if consistency_check:
+            if not self.is_consistent():
+                raise ValueError("Request not consistent")
+
+        self.cards: Card = self.player.hidden_cards.return_single()
+
+    def is_consistent(self):
+        if not self.player.eligible_to_play_hidden_card():
+            return False
+        return True
+
+
 class ChoosePublicCardsRequest(CardsRequest):
     """
     Request used in the begin of the game, each Player selects 3 cards to be publicly shown to all other players
@@ -127,11 +146,11 @@ class ChoosePublicCardsRequest(CardsRequest):
     def __init__(
         self,
         player: Player,
-        hidden_choice_cards: list,
+        public_choice_cards: list,
         consistency_check: bool = True,
     ):
         self.player: Player = player
-        self.cards: SetOfCards = SetOfCards(hidden_choice_cards)
+        self.cards: SetOfCards = SetOfCards(public_choice_cards)
         if consistency_check:
             if not self.is_consistent():
                 raise ValueError("Request not consistent")
@@ -142,17 +161,11 @@ class ChoosePublicCardsRequest(CardsRequest):
             return False
         return True
 
-    def eligible_to_chose_cards(self):
-        if self.player.public_cards_were_selected:
-            print("public cards were selected already")
-            return False
-        return True
-
     def is_consistent(self):
         if (
             not self.cards_on_players_hands()
             or not self.correct_number_was_chosen()
-            or not self.eligible_to_chose_cards()
+            or not self.player.eligible_to_choose_cards()
         ):
             return False
         return True
@@ -160,10 +173,6 @@ class ChoosePublicCardsRequest(CardsRequest):
     def process(self):
         self.player.public_cards.put(self.player.private_cards.take(self.cards.cards))
         self.player.public_cards_were_selected = True
-
-
-class HiddenCardRequest(CardsRequest):
-    pass
 
 
 class TakeTowerRequest(PlayRequest):

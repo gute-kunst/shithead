@@ -15,3 +15,6 @@ from .playrequest import *
 from .linked_list import *
 
 from .game import *
+
+from .view import *
+from .controller import *

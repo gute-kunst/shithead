@@ -30,3 +30,15 @@ def test_game_process_playrequest(game_with_two_players_during_game: Game):
     assert (set1 in set2) is True
     assert game.active_players.head.data.id_ != incomming_player_id
     print("done")
+
+
+@pytest.mark.skip(reason="later")
+def game_check_for_winners_and_losers(game_with_two_players_during_game: Game):
+    with pytest.raises(exit):
+        game = game_with_two_players_during_game
+        current_player = game.get_player()
+        current_player.private_cards.take_all()
+        current_player.public_cards.take_all()
+        current_player.hidden_cards.take_all()
+        game.__check_for_winners()
+        assert game.rank

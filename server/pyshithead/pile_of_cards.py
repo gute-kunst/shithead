@@ -18,7 +18,7 @@ class PileOfCards:
         del self.cards[:nbr_of_cards]
         return retval
 
-    def look_from_top(self, nbr_of_cards=int) -> list:
+    def look_from_top(self, nbr_of_cards: int) -> list:
         return self.cards[:nbr_of_cards]
 
     def take_all(self) -> list:

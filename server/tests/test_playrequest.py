@@ -64,14 +64,6 @@ def test_choosepubliccardsrequest_correct_number_was_chosen(player, three_cards,
     assert req2.correct_number_was_chosen() is False
 
 
-def test_choosepubliccardsrequest_eligible_to_chose_cards(player: Player, three_cards):
-    player.public_cards_were_selected = True
-    req = ChoosePublicCardsRequest(player, three_cards, consistency_check=False)
-    assert req.eligible_to_chose_cards() is False
-    player.public_cards_were_selected = False
-    assert req.eligible_to_chose_cards() is True
-
-
 def test_cardsrequest_rank_toprank(player, card_3t):
     req = PrivateCardsRequest(player, [card_3t], consistency_check=False)
     assert req.get_rank_event() == RankEvent(RankType.TOPRANK, 3)

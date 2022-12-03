@@ -25,6 +25,9 @@ class SetOfCards:
         self.cards = self.cards.difference(cards)
         return intersect
 
+    def return_single(self) -> Card:
+        return list(self.cards)[0]
+
     def take_all(self) -> set[Card]:
         retval = self.cards
         self.cards = set()
@@ -35,6 +38,9 @@ class SetOfCards:
 
     def put(self, cards: set | list):
         self.cards.update(cards)
+
+    def isdisjoint(self, other):
+        return self.cards.isdisjoint(other.cards)
 
     def __contains__(self, other):
         return other.cards.issubset(self.cards)
@@ -48,5 +54,5 @@ class SetOfCards:
     def __iter__(self):
         return iter(self.cards)
 
-    def isdisjoint(self, other):
-        return self.cards.isdisjoint(other.cards)
+    def __str__(self):
+        return str(self.cards)
