@@ -2,7 +2,7 @@ import dataclasses
 
 import pytest
 
-from pyshithead import Card, Suit
+from pyshithead import Card, SpecialRank, Suit
 
 
 def test_card_initialization():
@@ -22,3 +22,4 @@ def test_card_comparison(card_2h, card_2t):
     assert card_2h == Card(2, Suit.HEART)
     assert card_2h != card_2t
     assert card_2h == card_2h
+    assert Card(2, Suit.HEART) == Card(SpecialRank.RESET, Suit.HEART)

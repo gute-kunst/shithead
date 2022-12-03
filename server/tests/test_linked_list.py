@@ -89,3 +89,9 @@ def test_linked_list_next(three_players):
     next4 = llist.head.next.next.next.next
     llist.next(NextPlayerEvent.NEXT_4)
     assert next4 == llist.head
+
+
+def test_linked_list_get_item(three_players: list[Player]):
+    llist = CircularDoublyLinkedList(three_players)
+    player = llist[three_players[0].id_]
+    assert player == three_players[0]

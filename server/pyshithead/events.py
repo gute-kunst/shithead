@@ -34,7 +34,7 @@ class RankEvent:
     rank_type: RankType
     top_rank: int
 
-    def get_valid_ranks(self, current_valid_ranks: Optional[set[int]] = None) -> set[int]:
+    def get_valid_ranks(self, current_valid_ranks: set[int] = set(ALL_RANKS)) -> set[int]:
         valid_ranks: set[int] = set()
         if self.rank_type == RankType.TOPRANK:
             valid_ranks.update(
@@ -54,8 +54,5 @@ class RankEvent:
                 ]
             )
         elif self.rank_type == RankType.KEEPCURRENT:
-            if current_valid_ranks is None:
-                valid_ranks.update(ALL_RANKS)
-            else:
-                valid_ranks.update(current_valid_ranks)
+            valid_ranks.update(current_valid_ranks)
         return valid_ranks

@@ -45,6 +45,11 @@ target_version = ['py311']
 [tool.coverage.run]
 branch = true
 [tool.coverage.report]
-exclude_lines = ["raise AssertionError", "raise NotImplementedError"]
+exclude_lines = [
+	"raise AssertionError",
+	"raise NotImplementedError",
+	"def __repr__",
+	"def __str__",
+]
 [tool.coverage.html]
 directory = "coverage_html_report"

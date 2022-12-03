@@ -1,9 +1,7 @@
 {
   "python.testing.pytestArgs": [
-    "-v",
     "--cov=pyshithead/",
     "--cov-report=xml",
-    "--pdb",
     "tests/"
   ],
   "python.testing.unittestEnabled": false,

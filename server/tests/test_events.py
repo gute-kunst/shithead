@@ -33,3 +33,8 @@ def test_rankevent_get_valid_ranks_invisible_on_lower(valid_lower):
     valid = rank_event.get_valid_ranks()
     rank_event_invisible = RankEvent(RankType.KEEPCURRENT, top_rank=SpecialRank.INVISIBLE)
     assert valid_lower == rank_event_invisible.get_valid_ranks(valid)
+
+
+def test_rankevent_get_valid_ranks_invisible_on_empty(valid_all):
+    rank_event_invisible = RankEvent(RankType.KEEPCURRENT, top_rank=SpecialRank.INVISIBLE)
+    assert valid_all == rank_event_invisible.get_valid_ranks(valid_all)

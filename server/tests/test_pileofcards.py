@@ -79,3 +79,11 @@ def test_pileofcards_four_of_same_rank_from_top_3x_with_invisible(
 def test_pileofcards_four_of_same_rank_from_top_4x_invisible(four_cards_invisible: list):
     pile = PileOfCards(four_cards_invisible)
     assert pile.has_four_times_same_rank_from_top() is True
+
+
+def test_pileofcards_look_from_top(four_cards_same_rank):
+    pile = PileOfCards(four_cards_same_rank)
+    top_two_card = [four_cards_same_rank[0], four_cards_same_rank[1]]
+    looked_up_cards = pile.look_from_top(2)
+    assert looked_up_cards == top_two_card
+    assert len(pile) == 4

@@ -39,6 +39,15 @@ def card_3t():
     return _card_3t()
 
 
+def _card_3p():
+    return Card(3, Suit.PIKES)
+
+
+@pytest.fixture
+def card_3p():
+    return _card_3p()
+
+
 def _card_2c():
     return Card(2, Suit.CLOVERS)
 
@@ -55,6 +64,41 @@ def card_invisible_p():
 @pytest.fixture
 def four_cards_same_rank():
     return [_card_2c(), _card_2t(), _card_2h(), _card_2p()]
+
+
+@pytest.fixture
+def four_skip_cards():
+    return [
+        Card(SpecialRank.SKIP, Suit.HEART),
+        Card(SpecialRank.SKIP, Suit.TILES),
+        Card(SpecialRank.SKIP, Suit.CLOVERS),
+        Card(SpecialRank.SKIP, Suit.PIKES),
+    ]
+
+
+@pytest.fixture
+def card_high_low_h():
+    return Card(SpecialRank.HIGHLOW, Suit.HEART)
+
+
+@pytest.fixture
+def card_invisible():
+    return Card(SpecialRank.INVISIBLE, Suit.HEART)
+
+
+@pytest.fixture
+def card_burn():
+    return Card(SpecialRank.BURN, Suit.HEART)
+
+
+@pytest.fixture
+def card_reset():
+    return Card(SpecialRank.RESET, Suit.HEART)
+
+
+@pytest.fixture
+def card_skip():
+    return Card(SpecialRank.SKIP, Suit.HEART)
 
 
 @pytest.fixture
@@ -80,6 +124,23 @@ def two_cards():
 @pytest.fixture
 def two_other_cards():
     return [_card_3t(), _card_3h()]
+
+
+def _three_cards():
+    return [_card_2t(), _card_2h(), _card_2c()]
+
+
+@pytest.fixture
+def three_cards():
+    return _three_cards()
+
+
+def _three_other_cards():
+    return [_card_2p(), _card_3h(), _card_3t()]
+
+
+def _three_more_other_cards():
+    return [Card(4, Suit.PIKES), Card(4, Suit.HEART), Card(4, Suit.CLOVERS)]
 
 
 @pytest.fixture
@@ -130,9 +191,24 @@ def valid_14():
 @pytest.fixture
 def player_with_6_private_cards():
     player = Player(1)
-    player.private_cards.cards.update(
-        [_card_2c(), _card_2t(), _card_2h(), _card_2p(), _card_3t(), _card_3h()]
-    )
+    player.private_cards.cards.update(_three_cards() + _three_other_cards())
+    return player
+
+
+@pytest.fixture
+def player_with_3_hidden_and_3_public_cards():
+    player = Player(1)
+    player.hidden_cards.cards.update(_three_cards())
+    player.public_cards.cards.update(_three_other_cards())
+    return player
+
+
+@pytest.fixture
+def player_initialized():
+    player = Player(1)
+    player.hidden_cards.cards.update(_three_cards())
+    player.public_cards.cards.update(_three_other_cards())
+    player.private_cards.cards.update(_three_more_other_cards())
     return player
 
 

@@ -23,9 +23,9 @@ class Dealer:
         while len(player.private_cards) < NBR_HIDDEN_CARDS:
             if len(deck) > 0:
                 player.private_cards.put(deck.take_from_top(1))
-            else:
+            elif len(deck) == 0:
                 if not player.private_cards.is_empty():
                     return
-                else:
+                else:  ## CHECK PUBLIC CARDS
                     if not player.public_cards.is_empty():
                         player.private_cards.put(player.public_cards.take_all())

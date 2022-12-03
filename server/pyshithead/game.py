@@ -1,4 +1,5 @@
 from pyshithead import (
+    ALL_RANKS,
     BurnEvent,
     ChoosePublicCardsRequest,
     CircularDoublyLinkedList,
@@ -88,9 +89,8 @@ class Game:
     def __update_next_player(self):
         self.active_players.next(int(self.next_player_event))
 
-    def __all_cards_valid(self):
-        rank_event = RankEvent(RankType.TOPRANK, 2)
-        return rank_event.get_valid_ranks()
+    def __all_cards_valid(self) -> set[int]:
+        return set(ALL_RANKS)
 
     def __update_valid_cards(self):
         self.valid_ranks = self.rank_event.get_valid_ranks(self.valid_ranks)

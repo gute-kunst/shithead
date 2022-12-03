@@ -17,7 +17,7 @@ class Player:
         self.public_cards = SetOfCards()
         self.hidden_cards = SetOfCards()
         self.private_cards = SetOfCards()
-        self.selected_hidden_cards: int = False
+        self.public_cards_were_selected: int = False
 
     def __repr__(self):
         return str(self.id_)
