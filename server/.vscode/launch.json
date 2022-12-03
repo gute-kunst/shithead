@@ -15,6 +15,15 @@
         "PYTEST_ADDOPTS": "--no-cov"
       },
       "justMyCode": false
+    },
+    {
+      "name": "Python Code Coverage to HTML",
+      "type": "python",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["--cov", "--cov-report", "html"],
+      "console": "integratedTerminal",
+      "justMyCode": false
     }
   ]
 }
