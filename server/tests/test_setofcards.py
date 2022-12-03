@@ -101,3 +101,11 @@ def test_setofcards_take_all(two_cards):
     token_cards = cardset.take_all()
     assert len(cardset) == 0
     assert token_cards == set(two_cards)
+
+
+def test_setofcards_isdisjoint(card_2h, card_2t):
+    cardset1 = SetOfCards([card_2h])
+    cardset2 = SetOfCards([card_2t])
+    assert cardset1.isdisjoint(cardset2) is True
+    cardset1.put([card_2t])
+    assert cardset1.isdisjoint(cardset2) is False

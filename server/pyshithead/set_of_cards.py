@@ -47,3 +47,6 @@ class SetOfCards:
 
     def __iter__(self):
         return iter(self.cards)
+
+    def isdisjoint(self, other):
+        return self.cards.isdisjoint(other.cards)

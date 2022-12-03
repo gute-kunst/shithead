@@ -1,17 +1,31 @@
 import pytest
 
-from pyshithead import NBR_HIDDEN_CARDS, NBR_TOTAL_CARDS, ChoosePublicCardsRequest, Game, Player
+from pyshithead import (
+    NBR_HIDDEN_CARDS,
+    NBR_TOTAL_CARDS,
+    Game,
+    Player,
+    PrivateCardsRequest,
+    SetOfCards,
+)
 
 
-@pytest.mark.skip(reason="high level test not working")
-def test_game_players(valid_all):
-    p1 = Player(1)
-    p2 = Player(2)
-    game = Game([p1, p2])
+def test_game_players(game_with_two_players_start: Game, valid_all):
+    game = game_with_two_players_start
     assert len(game.active_players) == 2
     assert game.valid_ranks == valid_all
     assert len(game.deck) == NBR_TOTAL_CARDS - (NBR_HIDDEN_CARDS * 6)
-    p1_chosen_cards = [card for card in game.get_player(p1.id_).private_cards][:3]
-    req = ChoosePublicCardsRequest(p1, p1_chosen_cards)
-    # game.process_playrequest()
+
+
+def test_game_process_playrequest(game_with_two_players_during_game: Game):
+    game = game_with_two_players_during_game
+    incomming_player_id = game.active_players.head.data.id_
+    player = game.get_player(incomming_player_id)
+    incomming_cards = list(player.private_cards.cards)[0]
+    req = PrivateCardsRequest(player, [incomming_cards])
+    game.process_playrequest(req)
+    set2 = SetOfCards(game.play_pile.cards)
+    set1 = SetOfCards([incomming_cards])
+    assert (set1 in set2) is True
+    assert game.active_players.head.data.id_ != incomming_player_id
     print("done")

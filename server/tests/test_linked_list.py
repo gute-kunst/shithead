@@ -1,6 +1,6 @@
 import pytest
 
-from pyshithead import CircularDoublyLinkedList, Player
+from pyshithead import CircularDoublyLinkedList, NextPlayerEvent, Player
 
 
 def manual_llist_3(tp: list[Player]):
@@ -59,9 +59,33 @@ def test_linked_list_remove(del_player, three_players):
         assert node.previous.data == manual[del_player][i]["previous"]
 
 
-def test_link_list_remove_all(three_players):
+def test_linked_list_remove_all(three_players):
     llist = CircularDoublyLinkedList(three_players)
     llist.remove_node(three_players[0])
     llist.remove_node(three_players[1])
     assert len(llist) == 1
     llist.head.data == three_players[2]
+
+
+def test_linked_list_next(three_players):
+    llist = CircularDoublyLinkedList(three_players)
+
+    next = llist.head.next
+    llist.next(NextPlayerEvent.NEXT)
+    assert next == llist.head
+
+    same = llist.head
+    llist.next(NextPlayerEvent.SAME)
+    assert same == llist.head
+
+    next2 = llist.head.next.next
+    llist.next(NextPlayerEvent.NEXT_2)
+    assert next2 == llist.head
+
+    next3 = llist.head.next.next.next
+    llist.next(NextPlayerEvent.NEXT_3)
+    assert next3 == llist.head
+
+    next4 = llist.head.next.next.next.next
+    llist.next(NextPlayerEvent.NEXT_4)
+    assert next4 == llist.head

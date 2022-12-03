@@ -31,3 +31,16 @@ def test_dealer_deal_cards_to_players(two_players: list[Player]):
     assert len(player_list.head.next.data.hidden_cards) == NBR_HIDDEN_CARDS
     assert len(player_list.head.next.data.private_cards) == NBR_HIDDEN_CARDS * 2
     assert len(deck) == NBR_TOTAL_CARDS - (NBR_HIDDEN_CARDS * 6)
+
+
+def test_dealer_fillup_cards(player: Player):
+    deck = Dealer.provide_shuffled_deck()
+    Dealer.fillup_cards(deck, player)
+    assert len(player.private_cards) == 3
+
+    Dealer.fillup_cards(deck, player)
+    assert len(player.private_cards) == 3
+
+    player.private_cards.put(deck.take_from_top(1))
+    Dealer.fillup_cards(deck, player)
+    assert len(player.private_cards) == 4

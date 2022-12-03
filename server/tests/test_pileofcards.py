@@ -42,12 +42,12 @@ def test_pileofcards_put_set(two_cards, two_other_cards):
 
 def test_pileofcards_four_of_same_rank_from_top_true(four_cards_same_rank):
     pile = PileOfCards(four_cards_same_rank)
-    assert pile.four_of_same_rank_from_top() is True
+    assert pile.has_four_times_same_rank_from_top() is True
 
 
 def test_pileofcards_four_of_same_rank_from_top_empty():
     pile = PileOfCards()
-    assert pile.four_of_same_rank_from_top() is False
+    assert pile.has_four_times_same_rank_from_top() is False
 
 
 def test_pileofcards_four_of_same_rank_from_top_including_invisible(
@@ -55,7 +55,7 @@ def test_pileofcards_four_of_same_rank_from_top_including_invisible(
 ):
     four_cards_same_rank.insert(1, card_invisible_p)
     pile = PileOfCards(four_cards_same_rank)
-    assert pile.four_of_same_rank_from_top() is True
+    assert pile.has_four_times_same_rank_from_top() is True
 
 
 def test_pileofcards_four_of_same_rank_from_top_including_1_wrong(
@@ -63,7 +63,7 @@ def test_pileofcards_four_of_same_rank_from_top_including_1_wrong(
 ):
     four_cards_same_rank.insert(1, card_3t)
     pile = PileOfCards(four_cards_same_rank)
-    assert pile.four_of_same_rank_from_top() is False
+    assert pile.has_four_times_same_rank_from_top() is False
 
 
 def test_pileofcards_four_of_same_rank_from_top_3x_with_invisible(
@@ -71,9 +71,9 @@ def test_pileofcards_four_of_same_rank_from_top_3x_with_invisible(
 ):
     four_cards_same_rank[1] = card_invisible_p
     pile = PileOfCards(four_cards_same_rank)
-    assert pile.four_of_same_rank_from_top() is False
+    assert pile.has_four_times_same_rank_from_top() is False
 
 
 def test_pileofcards_four_of_same_rank_from_top_4x_invisible(four_cards_invisible: list):
     pile = PileOfCards(four_cards_invisible)
-    assert pile.four_of_same_rank_from_top() is True
+    assert pile.has_four_times_same_rank_from_top() is True

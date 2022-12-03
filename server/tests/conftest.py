@@ -1,6 +1,6 @@
 import pytest
 
-from pyshithead import Card, Player, SpecialRank, Suit
+from pyshithead import Card, ChoosePublicCardsRequest, Game, Player, SpecialRank, Suit
 
 
 def _card_2t():
@@ -125,3 +125,28 @@ def valid_lower():
 @pytest.fixture
 def valid_14():
     return set([SpecialRank.RESET, SpecialRank.INVISIBLE, SpecialRank.BURN, 14])
+
+
+@pytest.fixture
+def player_with_6_private_cards():
+    player = Player(1)
+    player.private_cards.cards.update(
+        [_card_2c(), _card_2t(), _card_2h(), _card_2p(), _card_3t(), _card_3h()]
+    )
+    return player
+
+
+@pytest.fixture
+def game_with_two_players_start():
+    return Game([Player(1), Player(2)])
+
+
+@pytest.fixture
+def game_with_two_players_during_game():
+    game = Game([Player(1), Player(2)])
+    for player in game.active_players.traverse_single():
+        req = ChoosePublicCardsRequest(
+            player.data, [card for card in player.data.private_cards][:3]
+        )
+        req.process()
+    return game

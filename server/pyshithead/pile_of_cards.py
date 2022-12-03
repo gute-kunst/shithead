@@ -32,7 +32,9 @@ class PileOfCards:
     def put(self, cards: set | list):
         self.cards[0:0] = cards
 
-    def four_of_same_rank_from_top(self) -> bool:
+    def has_four_times_same_rank_from_top(self) -> bool:
+        """
+        INVISIBLE card wont stop counting"""
         if len(self.cards) < 3:
             return False
         top_rank = self.cards[0].rank

@@ -53,6 +53,10 @@ class CircularDoublyLinkedList:
             node = node.next
         yield node
 
+    def next(self, times: int = 1):
+        for x in range(times):
+            self.head = self.head.next
+
     def __len__(self):
         return len([None for node in self.traverse_single()])
 

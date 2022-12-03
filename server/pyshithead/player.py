@@ -1,14 +1,14 @@
-from enum import Enum
+from enum import IntEnum
 
 from pyshithead import SetOfCards
 
 
-class NextPlayerEvent(Enum):
+class NextPlayerEvent(IntEnum):
     SAME = 0
     NEXT = 1
     NEXT_2 = 2  # skip
     NEXT_3 = 3  # skip double
-    NEXT_4 = 3  # skip tripple
+    NEXT_4 = 4  # skip tripple
 
 
 class Player:
@@ -33,10 +33,3 @@ class Player:
             print("Public Cards are not empty")
             return False
         return True
-
-    def fillup_cards_from_own(self):
-        if not self.private_cards.is_empty():
-            return
-        else:
-            if not self.public_cards.is_empty():
-                self.private_cards.put(self.public_cards.take_all())

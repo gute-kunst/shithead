@@ -43,30 +43,35 @@ class Game:
             self.next_player_event = req.get_next_player_event()
             self.burn_event = req.get_burn_event()
             self.play_pile.put(self.get_player().private_cards.take(req.cards.cards))
-            self.__fillup_cards(self.get_player())
+            Dealer.fillup_cards(self.deck, self.get_player())
             self.__check_for_winners_and_losers()
-            four_of_a_kind = self.play_pile.get_four_of_a_kind_events()
+            four_of_a_kind = self.play_pile.has_four_times_same_rank_from_top()
             if four_of_a_kind:
-                self.rank_event = (RankEvent(RankType.TOPRANK, 2),)
+                self.rank_event = RankEvent(RankType.TOPRANK, 2)
                 self.next_player_event = NextPlayerEvent.SAME
                 self.burn_event = BurnEvent.YES
         if isinstance(req, HiddenCardRequest):
             if not self.get_player().eligible_play_hidden_card():
                 raise ValueError("Not eligible to play hidden card")
             # TODO
+            raise NotImplementedError("HiddenCardRequest Not Implemented")
 
         if isinstance(req, TakeTowerRequest):
             if self.get_player().private_cards.get_ranks() in self.valid_ranks:
                 raise ValueError("Not allowed to take tower, Check private Cards")
             if self.get_player().eligible_play_hidden_card():
                 raise ValueError("play hidden cards first")
+            # TODO
+            raise NotImplementedError("TakeTowerRequest Not Implemented")
 
-    def __fillup_cards(self, player: Player):
-        while len(player.private_cards) <= 3:
-            if len(self.deck) > 0:
-                player.private_cards.put(self.deck.take_from_top(1))
-            else:
-                player.fillup_cards_from_own()
+        self.__update_valid_cards()
+        self.__update_next_player()
+
+    def get_player(self, player_id=None) -> Player:
+        if player_id is None:
+            return self.active_players.head.data
+        else:
+            return self.active_players[player_id]
 
     def __check_for_winners_and_losers(self):
         for player in self.active_players.traverse_single():
@@ -80,15 +85,12 @@ class Game:
                 print("Game is Over ⭐⭐⭐")
                 exit()
 
-    def get_player(self, player_id=None) -> Player:
-        if player_id is None:
-            return self.active_players.head.data
-        else:
-            return self.active_players[player_id]
+    def __update_next_player(self):
+        self.active_players.next(int(self.next_player_event))
 
     def __all_cards_valid(self):
         rank_event = RankEvent(RankType.TOPRANK, 2)
         return rank_event.get_valid_ranks()
 
-    def __update_valid_cards(self, rank_event: RankEvent):
-        self.valid_ranks = rank_event.get_valid_ranks(self.valid_ranks)
+    def __update_valid_cards(self):
+        self.valid_ranks = self.rank_event.get_valid_ranks(self.valid_ranks)
