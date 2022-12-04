@@ -175,5 +175,12 @@ class ChoosePublicCardsRequest(CardsRequest):
         self.player.public_cards_were_selected = True
 
 
-class TakeTowerRequest(PlayRequest):
-    pass
+class TakePlayPileRequest(PlayRequest):
+    def __init__(self, player: Player, consistency_check: bool = True):
+        self.player: Player = player
+        if consistency_check:
+            if not self.is_consistent():
+                raise ValueError("Request not consistent")
+
+    def is_consistent(self):
+        return True

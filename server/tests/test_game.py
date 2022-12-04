@@ -7,6 +7,7 @@ from pyshithead import (
     Player,
     PrivateCardsRequest,
     SetOfCards,
+    TakePlayPileRequest,
 )
 
 
@@ -18,8 +19,8 @@ def test_game_players(game_with_two_players_start: Game, valid_all):
 
 
 @pytest.mark.skip(reason="later")
-def test_game_process_playrequest(game_with_two_players_during_game: Game):
-    game = game_with_two_players_during_game
+def test_game_process_playrequest(game_with_two_players_empty_playpile: Game):
+    game = game_with_two_players_empty_playpile
     incomming_player_id = game.active_players.head.data.id_
     player = game.get_player(incomming_player_id)
     incomming_cards = list(player.private_cards.cards)[0]
@@ -32,13 +33,17 @@ def test_game_process_playrequest(game_with_two_players_during_game: Game):
     print("done")
 
 
-@pytest.mark.skip(reason="later")
-def game_check_for_winners_and_losers(game_with_two_players_during_game: Game):
-    with pytest.raises(exit):
-        game = game_with_two_players_during_game
-        current_player = game.get_player()
-        current_player.private_cards.take_all()
-        current_player.public_cards.take_all()
-        current_player.hidden_cards.take_all()
-        game.__check_for_winners()
-        assert game.rank
+def test_game_take_playpile_while_empty(game_with_two_players_empty_playpile: Game):
+    game = game_with_two_players_empty_playpile
+    with pytest.raises(ValueError):
+        req = TakePlayPileRequest(game.get_player())
+        game.process_playrequest(req)
+
+
+def test_game_take_playpile_while_should_play_hidden(game_with_two_players_empty_playpile: Game):
+    game = game_with_two_players_empty_playpile
+    game.get_player().private_cards.take_all()
+    game.play_pile.put(game.get_player().public_cards.take_all())
+    with pytest.raises(ValueError):
+        req = TakePlayPileRequest(game.get_player())
+        game.process_playrequest(req)

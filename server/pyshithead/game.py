@@ -12,7 +12,7 @@ from pyshithead import (
     PrivateCardsRequest,
     RankEvent,
     RankType,
-    TakeTowerRequest,
+    TakePlayPileRequest,
 )
 
 
@@ -59,13 +59,16 @@ class Game:
                 # TODO if HIGHLOW --> ask user
                 raise NotImplementedError("HiddenCardRequest Not Implemented")
 
-        if isinstance(req, TakeTowerRequest):
-            if self.get_player().private_cards.get_ranks() in self.valid_ranks:
+        if isinstance(req, TakePlayPileRequest):
+            if not set(self.get_player().private_cards.get_ranks()).isdisjoint(self.valid_ranks):
                 raise ValueError("Not allowed to take tower, Check private Cards")
             if self.get_player().eligible_to_play_hidden_card():
-                raise ValueError("play hidden cards first")
-            # TODO
-            raise NotImplementedError("TakeTowerRequest Not Implemented")
+                raise ValueError("Play hidden card")
+
+            self.burn_event = BurnEvent.NO
+            self.next_player_event = NextPlayerEvent.NEXT
+            self.rank_event = RankEvent(RankType.TOPRANK, 2)
+            self.get_player().private_cards.put(self.play_pile.take_all())
         self.__process_burn()
         self.__update_valid_cards()
         self.__update_next_player()

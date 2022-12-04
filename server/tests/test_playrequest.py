@@ -11,6 +11,7 @@ from pyshithead import (
     RankEvent,
     RankType,
     SetOfCards,
+    TakePlayPileRequest,
 )
 
 
@@ -64,6 +65,7 @@ def test_choosepubliccardsrequest_correct_number_was_chosen(player, three_cards,
     assert req2.correct_number_was_chosen() is False
 
 
+# TODO use parametrize
 def test_cardsrequest_rank_toprank(player, card_3t):
     req = PrivateCardsRequest(player, [card_3t], consistency_check=False)
     assert req.get_rank_event() == RankEvent(RankType.TOPRANK, 3)
@@ -137,3 +139,10 @@ def test_choosepubliccardsrequest_consistency_check(player: Player, card_2t: Car
 def test_cardrequest_consistency_check(player: Player, card_2t: Card):
     with pytest.raises(ValueError):
         PrivateCardsRequest(player, [card_2t], consistency_check=True)
+
+
+def test_takeplaypile_consistency(player: Player, card_3h):
+    player.private_cards.put([card_3h])
+    req = TakePlayPileRequest(player)
+    assert req.is_consistent() is True
+    print("done")

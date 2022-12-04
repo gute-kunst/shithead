@@ -218,7 +218,7 @@ def game_with_two_players_start():
 
 
 @pytest.fixture
-def game_with_two_players_during_game():
+def game_with_two_players_empty_playpile():
     game = Game([Player(1), Player(2)])
     for player in game.active_players.traverse_single():
         req = ChoosePublicCardsRequest(

@@ -1,3 +1,7 @@
+from __future__ import print_function, unicode_literals
+
+from PyInquirer import prompt
+
 from pyshithead import (
     Card,
     Choice,
@@ -6,6 +10,8 @@ from pyshithead import (
     Player,
     PrivateCardsRequest,
     SpecialRank,
+    Suit,
+    TakePlayPileRequest,
     View,
 )
 
@@ -23,32 +29,58 @@ class Controller:
         print(self.game)
         for player in self.game.active_players.traverse_single():
             print(f"Select public cards for player {player.data.id_} ... ")
-            private_cards = list(player.data.private_cards)
-            print(f"Your Cards: {private_cards} \n")
-            selection = []
-            selection.append(int(input("Select first card [0,5]: ")))
-            selection.append(int(input("Select second card [0,5]: ")))
-            selection.append(int(input("Select third card [0,5]: ")))
-            chosen_cards = [private_cards[select] for select in selection]
+            choices = [
+                {"name": str(card), "value": card, "checked": False}
+                for card in list(player.data.private_cards)
+            ]
+            questions = [
+                {
+                    "type": "checkbox",
+                    "name": "choose_public",
+                    "choices": choices,
+                    "message": "Choose your cards",
+                }
+            ]
+            chosen_cards = prompt(questions)["choose_public"]
+            print(chosen_cards)
             req = ChoosePublicCardsRequest(player.data, chosen_cards)
             self.game.process_playrequest(req)
         View.show_game(self.game)
         while -1:
             player = self.game.get_player()
-            print(f"Player: {player.id_} - select one card to play")
-            private_cards = list(player.private_cards)
-            print(private_cards)
-            selection = int(input(f"Select card [0,{len(private_cards)-1}]: "))
-            card: Card = private_cards[selection]
-            choice = None
-            if card.rank == SpecialRank.HIGHLOW:
-                highlow = input("You played the Higher-Lower Card. Please type either 'H' or 'L'")
-
-                if highlow == "H":
-                    choice = Choice.HIGHER
-                elif highlow == "L":
-                    choice = Choice.LOWER
-            req = PrivateCardsRequest(player, [card], choice)
+            print(f"Turn Player: {player.id_}")
+            move_options = [
+                {"name": str(card), "value": card} for card in list(player.private_cards)
+            ]
+            special_take_tower_card = Card(0, Suit.HEART)
+            move_options.insert(0, {"name": "Take Pile", "value": special_take_tower_card})
+            questions = [
+                {
+                    "type": "checkbox",
+                    "name": "play_card",
+                    "choices": move_options,
+                    "message": "Choose your cards",
+                }
+            ]
+            chosen_cards = prompt(questions)["play_card"]
+            high_low_choice = None
+            if chosen_cards[0].rank == SpecialRank.HIGHLOW:
+                questions = [
+                    {
+                        "type": "list",
+                        "name": "high_low",
+                        "choices": [
+                            {"name": "Higher", "value": Choice.HIGHER},
+                            {"name": "Lower", "value": Choice.LOWER},
+                        ],
+                        "message": "Action",
+                    }
+                ]
+                high_low_choice = prompt(questions)["high_low"]
+            if chosen_cards[0].rank == 0:
+                req = TakePlayPileRequest(player)
+            else:
+                req = PrivateCardsRequest(player, chosen_cards, high_low_choice)
             self.game.process_playrequest(req)
             View.show_game(self.game)
 

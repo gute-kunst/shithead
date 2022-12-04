@@ -9,6 +9,8 @@ packages = [{ include = "pyshithead" }]
 [tool.poetry.dependencies]
 python = "^3.8"
 websockets = "^10.4"
+PyInquirer = "^1.0.3"
+prompt-toolkit = "1.0.14"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.2.0"
