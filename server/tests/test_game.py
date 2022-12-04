@@ -43,6 +43,7 @@ def test_game_take_playpile_while_empty(game_with_two_players_empty_playpile: Ga
 def test_game_take_playpile_while_should_play_hidden(game_with_two_players_empty_playpile: Game):
     game = game_with_two_players_empty_playpile
     game.get_player().private_cards.take_all()
+    game.deck.take_all()
     game.play_pile.put(game.get_player().public_cards.take_all())
     with pytest.raises(ValueError):
         req = TakePlayPileRequest(game.get_player())

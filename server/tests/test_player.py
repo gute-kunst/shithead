@@ -1,4 +1,7 @@
+import pytest
+
 from pyshithead import Card, Player
+from pyshithead.errors import NotEligibleForHiddenCardPlayError, PublicCardsWereSelectedAlreadyError
 
 
 def test_player_initialization():
@@ -29,15 +32,24 @@ def test_player_compare_false():
 
 
 def test_player_eligible_play_hidden_card(player_initialized: Player):
-    assert player_initialized.eligible_to_play_hidden_card() is False
+    with pytest.raises(NotEligibleForHiddenCardPlayError):
+        player_initialized.validate_eligible_to_play_hidden_card()
     player_initialized.private_cards.cards.clear()
-    assert player_initialized.eligible_to_play_hidden_card() is False
+    with pytest.raises(NotEligibleForHiddenCardPlayError):
+        player_initialized.validate_eligible_to_play_hidden_card()
     player_initialized.public_cards.cards.clear()
-    assert player_initialized.eligible_to_play_hidden_card() is True
+    try:
+        player_initialized.validate_eligible_to_play_hidden_card()
+    except NotEligibleForHiddenCardPlayError:
+        assert False
 
 
 def test_player_eligible_to_choose_cards(player: Player):
     player.public_cards_were_selected = True
-    assert player.eligible_to_choose_cards() is False
+    with pytest.raises(PublicCardsWereSelectedAlreadyError):
+        player.validate_eligible_to_choose_cards()
     player.public_cards_were_selected = False
-    assert player.eligible_to_choose_cards() is True
+    try:
+        player.validate_eligible_to_choose_cards()
+    except PublicCardsWereSelectedAlreadyError:
+        assert False

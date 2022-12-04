@@ -5,6 +5,10 @@ from pyshithead import (
     NBR_HIDDEN_CARDS,
     BurnEvent,
     Card,
+    CardsNotInPlayersPrivateHandsError,
+    CardsRequestHighLowCardWithoutChoiceError,
+    CardsRequestHighLowChoiceWithoutHighLowCardError,
+    CardsRequestRanksNotEqualError,
     Choice,
     NextPlayerEvent,
     Player,
@@ -12,6 +16,7 @@ from pyshithead import (
     RankType,
     SetOfCards,
     SpecialRank,
+    WrongNumberOfChosencardsError,
 )
 
 
@@ -19,7 +24,7 @@ class PlayRequest(ABC):
     player: Player
 
     @abstractmethod
-    def is_consistent(self):
+    def validate(self):
         raise NotImplementedError("virtual method")
 
 
@@ -28,7 +33,7 @@ class CardsRequest(PlayRequest, ABC):
     choice: Optional[Choice]
 
     @abstractmethod
-    def is_consistent(self):
+    def validate(self):
         raise NotImplementedError("virtual method")
 
     def get_rank(self):
@@ -65,33 +70,26 @@ class CardsRequest(PlayRequest, ABC):
             burn_event = BurnEvent.YES
         return burn_event
 
-    def cards_on_players_hands(self):
+    def validate_cards_on_players_hands(self):
         if not self.cards in self.player.private_cards:
-            print("Cards not in players private hands")
-            return False
-        return True
+            raise CardsNotInPlayersPrivateHandsError()
 
-    def ranks_are_equal(self):
+    def validate_ranks_are_equal(self):
         if not self.cards.rank_is_equal():
-            print("Rank is not equal")
-            return False
-        return True
+            raise CardsRequestRanksNotEqualError()
 
-    def high_low_consistency(self):
+    def validate_high_low_consistency(self):
         if self.cards.get_rank_if_equal() == SpecialRank.HIGHLOW and self.choice not in [
             Choice.HIGHER,
             Choice.LOWER,
         ]:
-            print("HighLow card was played but no Choice was provided")
-            return False
+            raise CardsRequestHighLowCardWithoutChoiceError()
 
         if (
             self.choice in [Choice.HIGHER, Choice.LOWER]
             and self.cards.get_rank_if_equal() != SpecialRank.HIGHLOW
         ):
-            print("HigherLower Choice but no HIGHLOW card was played")
-            return False
-        return True
+            raise CardsRequestHighLowChoiceWithoutHighLowCardError()
 
 
 class PrivateCardsRequest(CardsRequest):
@@ -106,17 +104,12 @@ class PrivateCardsRequest(CardsRequest):
         self.cards = SetOfCards(cards)
         self.choice: Optional[Choice] = choice
         if consistency_check:
-            if not self.is_consistent():
-                raise ValueError("Request not consistent")
+            self.validate()
 
-    def is_consistent(self) -> bool:
-        if (
-            not self.cards_on_players_hands()
-            or not self.ranks_are_equal()
-            or not self.high_low_consistency()
-        ):
-            return False
-        return True
+    def validate(self):
+        self.validate_cards_on_players_hands()
+        self.validate_ranks_are_equal()
+        self.validate_high_low_consistency()
 
 
 class HiddenCardRequest(CardsRequest):
@@ -127,15 +120,12 @@ class HiddenCardRequest(CardsRequest):
     ):
         self.player = player
         if consistency_check:
-            if not self.is_consistent():
-                raise ValueError("Request not consistent")
+            self.validate()
 
         self.cards: Card = self.player.hidden_cards.return_single()
 
-    def is_consistent(self):
-        if not self.player.eligible_to_play_hidden_card():
-            return False
-        return True
+    def validate(self):
+        self.player.validate_eligible_to_play_hidden_card()
 
 
 class ChoosePublicCardsRequest(CardsRequest):
@@ -152,23 +142,16 @@ class ChoosePublicCardsRequest(CardsRequest):
         self.player: Player = player
         self.cards: SetOfCards = SetOfCards(public_choice_cards)
         if consistency_check:
-            if not self.is_consistent():
-                raise ValueError("Request not consistent")
+            self.validate()
 
-    def correct_number_was_chosen(self):
+    def validate_correct_number_was_chosen(self):
         if len(self.cards) != NBR_HIDDEN_CARDS:
-            print("3 cards need to be selected")
-            return False
-        return True
+            raise WrongNumberOfChosencardsError()
 
-    def is_consistent(self):
-        if (
-            not self.cards_on_players_hands()
-            or not self.correct_number_was_chosen()
-            or not self.player.eligible_to_choose_cards()
-        ):
-            return False
-        return True
+    def validate(self):
+        self.validate_cards_on_players_hands()
+        self.validate_correct_number_was_chosen()
+        self.player.validate_eligible_to_choose_cards()
 
     def process(self):
         self.player.public_cards.put(self.player.private_cards.take(self.cards.cards))
@@ -179,8 +162,7 @@ class TakePlayPileRequest(PlayRequest):
     def __init__(self, player: Player, consistency_check: bool = True):
         self.player: Player = player
         if consistency_check:
-            if not self.is_consistent():
-                raise ValueError("Request not consistent")
+            self.validate()
 
-    def is_consistent(self):
-        return True
+    def validate(self):
+        pass

@@ -319,6 +319,17 @@ pytest = ">=4.6"
 testing = ["fields", "hunter", "process-tests", "six", "pytest-xdist", "virtualenv"]
 
 [[package]]
+name = "pytest-lazy-fixture"
+version = "0.6.3"
+description = "It helps to use fixtures in pytest.mark.parametrize"
+category = "dev"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+pytest = ">=3.2.5"
+
+[[package]]
 name = "regex"
 version = "2022.10.31"
 description = "Alternative regular expression module, to replace re."
@@ -385,7 +396,7 @@ python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "9835f5ff7787e98310e53426a17acc0d9c5d4bee6887a7f060b140fa10aa06dc"
+content-hash = "717b805afc0be05d2da4ab7f638870636d2f6ea4c5672188d779a62b553f0ae0"
 
 [metadata.files]
 astroid = []
@@ -413,6 +424,7 @@ pylint = []
 pyparsing = []
 pytest = []
 pytest-cov = []
+pytest-lazy-fixture = []
 regex = []
 six = []
 tomli = []

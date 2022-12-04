@@ -4,11 +4,13 @@ from PyInquirer import prompt
 
 from pyshithead import (
     Card,
+    CardsRequestRanksNotEqualError,
     Choice,
     ChoosePublicCardsRequest,
     Game,
     Player,
     PrivateCardsRequest,
+    PyshitheadError,
     SpecialRank,
     Suit,
     TakePlayPileRequest,
@@ -77,11 +79,14 @@ class Controller:
                     }
                 ]
                 high_low_choice = prompt(questions)["high_low"]
-            if chosen_cards[0].rank == 0:
-                req = TakePlayPileRequest(player)
-            else:
-                req = PrivateCardsRequest(player, chosen_cards, high_low_choice)
-            self.game.process_playrequest(req)
+            try:
+                if chosen_cards[0].rank == 0:
+                    req = TakePlayPileRequest(player)
+                else:
+                    req = PrivateCardsRequest(player, chosen_cards, high_low_choice)
+                self.game.process_playrequest(req)
+            except PyshitheadError as err:
+                print(f"🔥 Error: {err.message} 👉 Try Again")
             View.show_game(self.game)
 
         print("done")

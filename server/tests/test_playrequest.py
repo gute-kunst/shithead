@@ -1,4 +1,5 @@
 import pytest
+from pytest_lazyfixture import lazy_fixture
 
 from pyshithead import (
     BurnEvent,
@@ -11,84 +12,91 @@ from pyshithead import (
     RankEvent,
     RankType,
     SetOfCards,
+    SpecialRank,
     TakePlayPileRequest,
 )
+from pyshithead.errors import *
 
 
 def test_privatecardsrequest_cards_on_players_hands_false(player: Player, two_cards_equal_rank):
-    req = PrivateCardsRequest(player, two_cards_equal_rank, consistency_check=False)
-    assert req.cards_on_players_hands() is False
-    assert req.is_consistent() is False
+    with pytest.raises(CardsNotInPlayersPrivateHandsError):
+        PrivateCardsRequest(player, two_cards_equal_rank)
 
 
 def test_privatecardsrequest_ranks_are_equal_false(
     player: Player, two_cards_diff_rank_and_diff_tile
 ):
     player.private_cards = SetOfCards(two_cards_diff_rank_and_diff_tile)
-    req = PrivateCardsRequest(player, two_cards_diff_rank_and_diff_tile, consistency_check=False)
-    assert req.ranks_are_equal() is False
-    assert req.is_consistent() is False
+    with pytest.raises(CardsRequestRanksNotEqualError):
+        PrivateCardsRequest(player, two_cards_diff_rank_and_diff_tile)
 
 
 def test_privatecardsrequest_high_low_consistency_1(player: Player, card_high_low_h: Card):
     player.private_cards = SetOfCards([card_high_low_h])
-    req = PrivateCardsRequest(player, [card_high_low_h], consistency_check=False)
-    assert req.high_low_consistency() is False
-    assert req.is_consistent() is False
+    with pytest.raises(CardsRequestHighLowCardWithoutChoiceError):
+        PrivateCardsRequest(player, [card_high_low_h])
 
 
-def test_privatecardsrequest_high_low_consistency(player: Player, card_2h: Card):
+def test_privatecardsrequest_high_low_consistency_2(player: Player, card_2h: Card):
     player.private_cards = SetOfCards([card_2h])
-    req = PrivateCardsRequest(player, [card_2h], Choice.HIGHER, consistency_check=False)
-    assert req.high_low_consistency() is False
-    assert req.is_consistent() is False
+    with pytest.raises(CardsRequestHighLowChoiceWithoutHighLowCardError):
+        PrivateCardsRequest(player, [card_2h], Choice.HIGHER)
 
 
-def test_privatecardsrequest_consistent_high_choice(player: Player, card_high_low_h):
+@pytest.mark.parametrize("choice", [Choice.LOWER, Choice.HIGHER])
+def test_privatecardsrequest_consistent_choice(player: Player, card_high_low_h, choice):
     player.private_cards = SetOfCards([card_high_low_h])
-    req = PrivateCardsRequest(player, [card_high_low_h], Choice.HIGHER, consistency_check=False)
-    assert req.high_low_consistency() is True
-    assert req.is_consistent() is True
+    try:
+        PrivateCardsRequest(player, [card_high_low_h], choice)
+    except PyshitheadError as error:
+        assert False, error.message
 
 
-def test_privatecardsrequest_consistent_low_choice(player: Player, card_high_low_h):
-    player.private_cards = SetOfCards([card_high_low_h])
-    req = PrivateCardsRequest(player, [card_high_low_h], Choice.LOWER, consistency_check=False)
-    assert req.high_low_consistency() is True
-    assert req.is_consistent() is True
+def test_choosepubliccardsrequest_correct_number_was_chosen(
+    player_with_6_private_cards, three_cards
+):
+    try:
+        ChoosePublicCardsRequest(player_with_6_private_cards, three_cards)
+    except WrongNumberOfChosencardsError:
+        assert False
 
 
-def test_choosepubliccardsrequest_correct_number_was_chosen(player, three_cards, two_cards):
-    req = ChoosePublicCardsRequest(player, three_cards, consistency_check=False)
-    assert req.correct_number_was_chosen() is True
-    req2 = ChoosePublicCardsRequest(player, two_cards, consistency_check=False)
-    assert req2.correct_number_was_chosen() is False
+def test_choosepubliccardsrequest_wrong_number_was_chosen(player_with_6_private_cards: Player):
+    with pytest.raises(WrongNumberOfChosencardsError):
+        ChoosePublicCardsRequest(
+            player_with_6_private_cards, [player_with_6_private_cards.private_cards.return_single()]
+        )
 
 
-# TODO use parametrize
-def test_cardsrequest_rank_toprank(player, card_3t):
-    req = PrivateCardsRequest(player, [card_3t], consistency_check=False)
-    assert req.get_rank_event() == RankEvent(RankType.TOPRANK, 3)
-
-
-def test_cardsrequest_rank_highlow(player, card_high_low_h: Card):
-    req = PrivateCardsRequest(player, [card_high_low_h], Choice.HIGHER, consistency_check=False)
-    assert req.get_rank_event() == RankEvent(RankType.HIGHER, card_high_low_h.rank)
-
-
-def test_cardsrequest_rank_invisible(player, card_invisible: Card):
-    req = PrivateCardsRequest(player, [card_invisible], consistency_check=False)
-    assert req.get_rank_event() == RankEvent(RankType.KEEPCURRENT, card_invisible.rank)
-
-
-def test_cardsrequest_rank_reset(player, card_2h: Card):
-    req = PrivateCardsRequest(player, [card_2h], consistency_check=False)
-    assert req.get_rank_event() == RankEvent(RankType.TOPRANK, card_2h.rank)
-
-
-def test_cardsrequest_rank_burn(player, card_burn: Card):
-    req = PrivateCardsRequest(player, [card_burn], consistency_check=False)
-    assert req.get_rank_event() == RankEvent(RankType.TOPRANK, 2)
+@pytest.mark.parametrize(
+    "card, choice, rank_event",
+    [
+        (lazy_fixture("card_3t"), None, RankEvent(RankType.TOPRANK, 3)),
+        (
+            lazy_fixture("card_high_low_h"),
+            Choice.HIGHER,
+            RankEvent(RankType.HIGHER, SpecialRank.HIGHLOW),
+        ),
+        (
+            lazy_fixture("card_invisible"),
+            None,
+            RankEvent(RankType.KEEPCURRENT, SpecialRank.INVISIBLE),
+        ),
+        (
+            lazy_fixture("card_2h"),
+            None,
+            RankEvent(RankType.TOPRANK, SpecialRank.RESET),
+        ),
+        (
+            lazy_fixture("card_burn"),
+            None,
+            RankEvent(RankType.TOPRANK, SpecialRank.RESET),
+        ),
+    ],
+)
+def test_cardsrequest_rank(player, card, choice, rank_event):
+    req = PrivateCardsRequest(player, [card], choice, consistency_check=False)
+    assert req.get_rank_event() == rank_event
 
 
 def test_cardsrequest_next_player(player, card_2t):
@@ -120,10 +128,12 @@ def test_cardsrequest_burn(player, card_2h, card_burn):
 def test_choosepubliccardsrequest_process(player_with_6_private_cards: Player):
     p = player_with_6_private_cards
     p_chosen_cards = [card for card in p.private_cards][:3]
-    req = ChoosePublicCardsRequest(
-        player_with_6_private_cards, p_chosen_cards, consistency_check=True
-    )
-    assert req.is_consistent() is True
+    try:
+        req = ChoosePublicCardsRequest(
+            player_with_6_private_cards, p_chosen_cards, consistency_check=True
+        )
+    except WrongNumberOfChosencardsError:
+        assert False
     req.process()
     assert len(p.private_cards) == 3
     assert len(p.public_cards) == 3
@@ -131,18 +141,9 @@ def test_choosepubliccardsrequest_process(player_with_6_private_cards: Player):
     assert p.public_cards == SetOfCards(p_chosen_cards)
 
 
-def test_choosepubliccardsrequest_consistency_check(player: Player, card_2t: Card):
-    with pytest.raises(ValueError):
-        ChoosePublicCardsRequest(player, [card_2t], consistency_check=True)
-
-
-def test_cardrequest_consistency_check(player: Player, card_2t: Card):
-    with pytest.raises(ValueError):
-        PrivateCardsRequest(player, [card_2t], consistency_check=True)
-
-
 def test_takeplaypile_consistency(player: Player, card_3h):
     player.private_cards.put([card_3h])
-    req = TakePlayPileRequest(player)
-    assert req.is_consistent() is True
-    print("done")
+    try:
+        TakePlayPileRequest(player)
+    except PyshitheadError:
+        assert False
