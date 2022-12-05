@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Optional
 
 from pyshithead import ALL_RANKS, BIGGEST_RANK, SpecialRank
 
@@ -44,15 +43,7 @@ class RankEvent:
         elif self.rank_type == RankType.HIGHER:
             valid_ranks.update([i for i in range(int(SpecialRank.HIGHLOW), BIGGEST_RANK + 1)])
         elif self.rank_type == RankType.LOWER:
-            valid_ranks.update(
-                [
-                    i
-                    for i in range(
-                        2,
-                        int(SpecialRank.HIGHLOW) + 1,
-                    )
-                ]
-            )
+            valid_ranks.update([i for i in range(2, int(SpecialRank.HIGHLOW) + 1)])
         elif self.rank_type == RankType.KEEPCURRENT:
             valid_ranks.update(current_valid_ranks)
         return valid_ranks

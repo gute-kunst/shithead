@@ -5,5 +5,18 @@
     "tests/"
   ],
   "python.testing.unittestEnabled": false,
-  "python.testing.pytestEnabled": true
+  "python.testing.pytestEnabled": true,
+  "cSpell.words": [
+    "cardsrequest",
+    "choosepubliccardsrequest",
+    "fillup",
+    "hiddencardrequest",
+    "HIGHLOW",
+    "KEEPCURRENT",
+    "playpile",
+    "playrequest",
+    "pyshithead",
+    "takeplaypile",
+    "TOPRANK"
+  ]
 }

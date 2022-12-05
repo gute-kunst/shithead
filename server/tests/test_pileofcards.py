@@ -1,4 +1,5 @@
 import pytest
+from pytest_lazyfixture import lazy_fixture
 
 from pyshithead import PileOfCards
 
@@ -42,43 +43,23 @@ def test_pileofcards_put_set(two_cards, two_other_cards):
     assert len(pile) == 4
 
 
-def test_pileofcards_four_of_same_rank_from_top_true(four_cards_same_rank):
-    pile = PileOfCards(four_cards_same_rank)
-    assert pile.has_four_times_same_rank_from_top() is True
-
-
-def test_pileofcards_four_of_same_rank_from_top_empty():
-    pile = PileOfCards()
-    assert pile.has_four_times_same_rank_from_top() is False
-
-
-def test_pileofcards_four_of_same_rank_from_top_including_invisible(
-    four_cards_same_rank: list, card_invisible_p
-):
-    four_cards_same_rank.insert(1, card_invisible_p)
-    pile = PileOfCards(four_cards_same_rank)
-    assert pile.has_four_times_same_rank_from_top() is True
-
-
-def test_pileofcards_four_of_same_rank_from_top_including_1_wrong(
-    four_cards_same_rank: list, card_3t
-):
-    four_cards_same_rank.insert(1, card_3t)
-    pile = PileOfCards(four_cards_same_rank)
-    assert pile.has_four_times_same_rank_from_top() is False
-
-
-def test_pileofcards_four_of_same_rank_from_top_3x_with_invisible(
-    four_cards_same_rank: list, card_invisible_p
-):
-    four_cards_same_rank[1] = card_invisible_p
-    pile = PileOfCards(four_cards_same_rank)
-    assert pile.has_four_times_same_rank_from_top() is False
-
-
-def test_pileofcards_four_of_same_rank_from_top_4x_invisible(four_cards_invisible: list):
-    pile = PileOfCards(four_cards_invisible)
-    assert pile.has_four_times_same_rank_from_top() is True
+@pytest.mark.parametrize(
+    "cards, expected_value",
+    [
+        ([], False),
+        (lazy_fixture("four_cards_same_rank_with_interseption"), False),
+        (lazy_fixture("three_cards_same_rank_with_invisible_end"), False),
+        (lazy_fixture("four_cards_invisible"), True),
+        (lazy_fixture("four_cards_same_rank"), True),
+        (lazy_fixture("four_skip_cards"), True),
+        (lazy_fixture("four_cards_same_rank_with_invisible_middle"), True),
+        (lazy_fixture("four_cards_same_rank_with_invisible_end"), True),
+        (lazy_fixture("four_cards_same_rank_with_invisible_everywhere"), True),
+    ],
+)
+def test_pileofcards_four_of_same_rank_from_top(cards, expected_value):
+    pile = PileOfCards(cards)
+    assert pile.has_four_times_same_rank_from_top() is expected_value
 
 
 def test_pileofcards_look_from_top(four_cards_same_rank):

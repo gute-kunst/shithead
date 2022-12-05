@@ -12,13 +12,13 @@ class PileOfCards:
     def shuffle(self):
         random.shuffle(self.cards)
 
-    def take_from_top(self, nbr_of_cards=int) -> list:
+    def take_from_top(self, nbr_of_cards: int = 1) -> list:
         "returns card from the top ('[0]') of the tower"
         retval = self.cards[:nbr_of_cards]
         del self.cards[:nbr_of_cards]
         return retval
 
-    def look_from_top(self, nbr_of_cards: int) -> list:
+    def look_from_top(self, nbr_of_cards: int = 1) -> list:
         return self.cards[:nbr_of_cards]
 
     def take_all(self) -> list:

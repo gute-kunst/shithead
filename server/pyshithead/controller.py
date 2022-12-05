@@ -4,7 +4,6 @@ from PyInquirer import prompt
 
 from pyshithead import (
     Card,
-    CardsRequestRanksNotEqualError,
     Choice,
     ChoosePublicCardsRequest,
     Game,
@@ -21,7 +20,7 @@ from pyshithead import (
 class Controller:
     def __init__(self, view=None):
         self.view = view
-        self.gamemodel: Game = None
+        self.game_model: Game = None
 
     def start(self):
         nbr_of_players = int(input("Nbr of players: "))

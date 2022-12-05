@@ -1,6 +1,6 @@
 import pytest
 
-from pyshithead import Card, ChoosePublicCardsRequest, Game, Player, SpecialRank, Suit
+from pyshithead import Card, Dealer, Game, PileOfCards, Player, SetOfCards, SpecialRank, Suit
 
 
 def _card_2t():
@@ -64,6 +64,39 @@ def card_invisible_p():
 @pytest.fixture
 def four_cards_same_rank():
     return [_card_2c(), _card_2t(), _card_2h(), _card_2p()]
+
+
+@pytest.fixture
+def four_cards_same_rank_with_invisible_middle():
+    return [_card_2c(), _card_2t(), Card(SpecialRank.INVISIBLE, Suit.PIKES), _card_2h(), _card_2p()]
+
+
+@pytest.fixture
+def four_cards_same_rank_with_invisible_everywhere():
+    return [
+        _card_2c(),
+        Card(SpecialRank.INVISIBLE, Suit.PIKES),
+        _card_2t(),
+        Card(SpecialRank.INVISIBLE, Suit.PIKES),
+        _card_2h(),
+        Card(SpecialRank.INVISIBLE, Suit.PIKES),
+        _card_2p(),
+    ]
+
+
+@pytest.fixture
+def four_cards_same_rank_with_invisible_end():
+    return [_card_2c(), _card_2t(), _card_2h(), _card_2p(), Card(SpecialRank.INVISIBLE, Suit.PIKES)]
+
+
+@pytest.fixture
+def four_cards_same_rank_with_interseption():
+    return [_card_2c(), _card_2t(), _card_3t(), _card_2h(), _card_2p()]
+
+
+@pytest.fixture
+def three_cards_same_rank_with_invisible_end():
+    return [_card_2c(), _card_2t(), _card_2h(), Card(SpecialRank.INVISIBLE, Suit.PIKES)]
 
 
 @pytest.fixture
@@ -139,7 +172,13 @@ def _three_other_cards():
     return [_card_2p(), _card_3h(), _card_3t()]
 
 
-def _three_more_other_cards():
+@pytest.fixture
+def three_other_cards():
+    return _three_other_cards()
+
+
+@pytest.fixture
+def three_more_other_cards():
     return [Card(4, Suit.PIKES), Card(4, Suit.HEART), Card(4, Suit.CLOVERS)]
 
 
@@ -206,23 +245,31 @@ def player_with_3_hidden_and_3_public_cards():
 @pytest.fixture
 def player_initialized():
     player = Player(1)
-    player.hidden_cards.cards.update(_three_cards())
-    player.public_cards.cards.update(_three_other_cards())
-    player.private_cards.cards.update(_three_more_other_cards())
+    deck = Dealer.provide_deck()
+    Dealer.deal_cards_to_players(deck, [player], put_public_to_private=False)
     return player
 
 
 @pytest.fixture
 def game_with_two_players_start():
-    return Game([Player(1), Player(2)])
+    return Game.initialize([Player(1), Player(2)])
 
 
 @pytest.fixture
 def game_with_two_players_empty_playpile():
-    game = Game([Player(1), Player(2)])
-    for player in game.active_players.traverse_single():
-        req = ChoosePublicCardsRequest(
-            player.data, [card for card in player.data.private_cards][:3]
-        )
-        req.process()
-    return game
+    players = [Player(1), Player(2)]
+    deck = Dealer.provide_deck()
+    Dealer.deal_cards_to_players(deck, players, put_public_to_private=False)
+    return Game(players, deck)
+
+
+@pytest.fixture
+def game_last_move():
+    p1 = Player(1)
+    p2 = Player(2)
+    deck = Dealer.provide_deck()
+    Dealer.deal_cards_to_players(deck, [p1, p2], put_public_to_private=False)
+    p1.public_cards.cards.clear()
+    p1.private_cards = SetOfCards([_card_2h()])
+    p1.hidden_cards.cards.clear()
+    return Game([p1, p2], PileOfCards())

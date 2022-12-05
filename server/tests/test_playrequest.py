@@ -6,6 +6,7 @@ from pyshithead import (
     Card,
     Choice,
     ChoosePublicCardsRequest,
+    HiddenCardRequest,
     NextPlayerEvent,
     Player,
     PrivateCardsRequest,
@@ -57,12 +58,12 @@ def test_choosepubliccardsrequest_correct_number_was_chosen(
 ):
     try:
         ChoosePublicCardsRequest(player_with_6_private_cards, three_cards)
-    except WrongNumberOfChosencardsError:
+    except WrongNumberOfChosenCardsError:
         assert False
 
 
 def test_choosepubliccardsrequest_wrong_number_was_chosen(player_with_6_private_cards: Player):
-    with pytest.raises(WrongNumberOfChosencardsError):
+    with pytest.raises(WrongNumberOfChosenCardsError):
         ChoosePublicCardsRequest(
             player_with_6_private_cards, [player_with_6_private_cards.private_cards.return_single()]
         )
@@ -132,9 +133,10 @@ def test_choosepubliccardsrequest_process(player_with_6_private_cards: Player):
         req = ChoosePublicCardsRequest(
             player_with_6_private_cards, p_chosen_cards, consistency_check=True
         )
-    except WrongNumberOfChosencardsError:
+    except WrongNumberOfChosenCardsError:
         assert False
     req.process()
+    assert p.public_cards_were_selected is True
     assert len(p.private_cards) == 3
     assert len(p.public_cards) == 3
     assert p.public_cards.isdisjoint(p.private_cards) is True
@@ -147,3 +149,33 @@ def test_takeplaypile_consistency(player: Player, card_3h):
         TakePlayPileRequest(player)
     except PyshitheadError:
         assert False
+
+
+@pytest.mark.parametrize(
+    "public, private, expected",
+    [
+        (
+            lazy_fixture("three_cards"),
+            lazy_fixture("three_other_cards"),
+            NotEligibleForHiddenCardPlayError,
+        ),
+        ([], lazy_fixture("three_other_cards"), NotEligibleForHiddenCardPlayError),
+        (lazy_fixture("three_cards"), [], NotEligibleForHiddenCardPlayError),
+    ],
+)
+def test_hiddencardrequest_validate_raises_error(public, private, expected, three_more_other_cards):
+    player = Player(1)
+    player.public_cards = SetOfCards(public)
+    player.private_cards = SetOfCards(private)
+    player.hidden_cards = SetOfCards(three_more_other_cards)
+    with pytest.raises(expected):
+        HiddenCardRequest(player)
+
+
+def test_hiddencardrequest_validate(three_more_other_cards):
+    player = Player(1)
+    player.hidden_cards = SetOfCards(three_more_other_cards)
+    try:
+        HiddenCardRequest(player)
+    except NotEligibleForHiddenCardPlayError as error:
+        assert False, error.message

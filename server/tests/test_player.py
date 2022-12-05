@@ -32,16 +32,11 @@ def test_player_compare_false():
 
 
 def test_player_eligible_play_hidden_card(player_initialized: Player):
-    with pytest.raises(NotEligibleForHiddenCardPlayError):
-        player_initialized.validate_eligible_to_play_hidden_card()
+    assert player_initialized.eligible_to_play_hidden_card() is False
     player_initialized.private_cards.cards.clear()
-    with pytest.raises(NotEligibleForHiddenCardPlayError):
-        player_initialized.validate_eligible_to_play_hidden_card()
+    assert player_initialized.eligible_to_play_hidden_card() is False
     player_initialized.public_cards.cards.clear()
-    try:
-        player_initialized.validate_eligible_to_play_hidden_card()
-    except NotEligibleForHiddenCardPlayError:
-        assert False
+    assert player_initialized.eligible_to_play_hidden_card() is True
 
 
 def test_player_eligible_to_choose_cards(player: Player):

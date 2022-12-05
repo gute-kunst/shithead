@@ -4,11 +4,13 @@ from pyshithead import (
     NBR_HIDDEN_CARDS,
     NBR_TOTAL_CARDS,
     Game,
+    NextPlayerEvent,
     Player,
     PrivateCardsRequest,
     SetOfCards,
     TakePlayPileRequest,
 )
+from pyshithead.errors import *
 
 
 def test_game_players(game_with_two_players_start: Game, valid_all):
@@ -18,24 +20,9 @@ def test_game_players(game_with_two_players_start: Game, valid_all):
     assert len(game.deck) == NBR_TOTAL_CARDS - (NBR_HIDDEN_CARDS * 6)
 
 
-@pytest.mark.skip(reason="later")
-def test_game_process_playrequest(game_with_two_players_empty_playpile: Game):
-    game = game_with_two_players_empty_playpile
-    incomming_player_id = game.active_players.head.data.id_
-    player = game.get_player(incomming_player_id)
-    incomming_cards = list(player.private_cards.cards)[0]
-    req = PrivateCardsRequest(player, [incomming_cards])
-    game.process_playrequest(req)
-    set2 = SetOfCards(game.play_pile.cards)
-    set1 = SetOfCards([incomming_cards])
-    assert (set1 in set2) is True
-    assert game.active_players.head.data.id_ != incomming_player_id
-    print("done")
-
-
 def test_game_take_playpile_while_empty(game_with_two_players_empty_playpile: Game):
     game = game_with_two_players_empty_playpile
-    with pytest.raises(ValueError):
+    with pytest.raises(TakePlayPileNotAllowed):
         req = TakePlayPileRequest(game.get_player())
         game.process_playrequest(req)
 
@@ -45,6 +32,21 @@ def test_game_take_playpile_while_should_play_hidden(game_with_two_players_empty
     game.get_player().private_cards.take_all()
     game.deck.take_all()
     game.play_pile.put(game.get_player().public_cards.take_all())
-    with pytest.raises(ValueError):
-        req = TakePlayPileRequest(game.get_player())
+    req = TakePlayPileRequest(game.get_player())
+    with pytest.raises(TakePlayPileNotAllowed):
         game.process_playrequest(req)
+
+
+def test_game_next_player(game_with_two_players_start: Game):
+    game = game_with_two_players_start
+    current_player = game.get_player()
+    game.next_player_event = NextPlayerEvent.NEXT_2
+    game.update_next_player()
+    assert game.get_player() == current_player
+
+
+def test_game_game_over(game_last_move: Game):
+    p1: Player = game_last_move.get_player()
+    req = PrivateCardsRequest(p1, [p1.private_cards.return_single()])
+    with pytest.raises(SystemExit):
+        game_last_move.process_playrequest(req)

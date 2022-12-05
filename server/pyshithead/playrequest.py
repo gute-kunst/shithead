@@ -5,10 +5,6 @@ from pyshithead import (
     NBR_HIDDEN_CARDS,
     BurnEvent,
     Card,
-    CardsNotInPlayersPrivateHandsError,
-    CardsRequestHighLowCardWithoutChoiceError,
-    CardsRequestHighLowChoiceWithoutHighLowCardError,
-    CardsRequestRanksNotEqualError,
     Choice,
     NextPlayerEvent,
     Player,
@@ -16,8 +12,8 @@ from pyshithead import (
     RankType,
     SetOfCards,
     SpecialRank,
-    WrongNumberOfChosencardsError,
 )
+from pyshithead.errors import *
 
 
 class PlayRequest(ABC):
@@ -72,24 +68,24 @@ class CardsRequest(PlayRequest, ABC):
 
     def validate_cards_on_players_hands(self):
         if not self.cards in self.player.private_cards:
-            raise CardsNotInPlayersPrivateHandsError()
+            raise CardsNotInPlayersPrivateHandsError
 
     def validate_ranks_are_equal(self):
         if not self.cards.rank_is_equal():
-            raise CardsRequestRanksNotEqualError()
+            raise CardsRequestRanksNotEqualError
 
     def validate_high_low_consistency(self):
         if self.cards.get_rank_if_equal() == SpecialRank.HIGHLOW and self.choice not in [
             Choice.HIGHER,
             Choice.LOWER,
         ]:
-            raise CardsRequestHighLowCardWithoutChoiceError()
+            raise CardsRequestHighLowCardWithoutChoiceError
 
         if (
             self.choice in [Choice.HIGHER, Choice.LOWER]
             and self.cards.get_rank_if_equal() != SpecialRank.HIGHLOW
         ):
-            raise CardsRequestHighLowChoiceWithoutHighLowCardError()
+            raise CardsRequestHighLowChoiceWithoutHighLowCardError
 
 
 class PrivateCardsRequest(CardsRequest):
@@ -122,10 +118,11 @@ class HiddenCardRequest(CardsRequest):
         if consistency_check:
             self.validate()
 
-        self.cards: Card = self.player.hidden_cards.return_single()
+        self.cards = self.player.hidden_cards.return_single()
 
     def validate(self):
-        self.player.validate_eligible_to_play_hidden_card()
+        if not self.player.eligible_to_play_hidden_card():
+            raise NotEligibleForHiddenCardPlayError
 
 
 class ChoosePublicCardsRequest(CardsRequest):
@@ -146,7 +143,7 @@ class ChoosePublicCardsRequest(CardsRequest):
 
     def validate_correct_number_was_chosen(self):
         if len(self.cards) != NBR_HIDDEN_CARDS:
-            raise WrongNumberOfChosencardsError()
+            raise WrongNumberOfChosenCardsError
 
     def validate(self):
         self.validate_cards_on_players_hands()
@@ -154,8 +151,7 @@ class ChoosePublicCardsRequest(CardsRequest):
         self.player.validate_eligible_to_choose_cards()
 
     def process(self):
-        self.player.public_cards.put(self.player.private_cards.take(self.cards.cards))
-        self.player.public_cards_were_selected = True
+        self.player.public_cards = SetOfCards(self.player.private_cards.take(self.cards.cards))
 
 
 class TakePlayPileRequest(PlayRequest):

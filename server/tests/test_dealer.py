@@ -69,3 +69,9 @@ def test_dealer_fillup_cards_single_card_in_deck(
     assert len(player.private_cards) == 1
     assert player.hidden_cards == hidden_cards_before
     assert len(deck) == 0
+
+
+def test_dealer_fillup_cards_empty_deck_empty_cards(player):
+    deck = PileOfCards()
+    Dealer.fillup_cards(deck, player)
+    assert True
