@@ -1,6 +1,16 @@
 import pytest
 
-from pyshithead import Card, Dealer, Game, PileOfCards, Player, SetOfCards, SpecialRank, Suit
+from pyshithead import (
+    Card,
+    Dealer,
+    Game,
+    GameState,
+    PileOfCards,
+    Player,
+    SetOfCards,
+    SpecialRank,
+    Suit,
+)
 
 
 def _card_2t():
@@ -256,11 +266,11 @@ def game_with_two_players_start():
 
 
 @pytest.fixture
-def game_with_two_players_empty_playpile():
+def game_with_two_players_during_game_empty_playpile():
     players = [Player(1), Player(2)]
     deck = Dealer.provide_deck()
     Dealer.deal_cards_to_players(deck, players, put_public_to_private=False)
-    return Game(players, deck)
+    return Game(players, deck, state=GameState.DURING_GAME)
 
 
 @pytest.fixture
@@ -272,4 +282,14 @@ def game_last_move():
     p1.public_cards.cards.clear()
     p1.private_cards = SetOfCards([_card_2h()])
     p1.hidden_cards.cards.clear()
-    return Game([p1, p2], PileOfCards())
+    return Game([p1, p2], PileOfCards(), state=GameState.DURING_GAME)
+
+
+@pytest.fixture
+def game_player_wins():
+    players = [Player(1), Player(2), Player(3)]
+    deck = Dealer.provide_deck()
+    Dealer.deal_cards_to_players(deck, players[1:], put_public_to_private=False)
+    players[0].public_cards.cards.clear()
+    players[0].hidden_cards.cards.clear()
+    return Game(players, PileOfCards(), state=GameState.DURING_GAME)

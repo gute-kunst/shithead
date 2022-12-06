@@ -45,6 +45,9 @@ class CircularDoublyLinkedList:
                 return
         raise LinkedListNodeNotFoundError
 
+    def get_ordered_list(self) -> list:
+        return [node for node in self]
+
     def traverse_single(self, starting_point=None):
         """
         traverse linked list with yielding the node (not node.data)

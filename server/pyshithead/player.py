@@ -7,14 +7,6 @@ from pyshithead import (
 )
 
 
-class NextPlayerEvent(IntEnum):
-    SAME = 0
-    NEXT = 1
-    NEXT_2 = 2  # skip
-    NEXT_3 = 3  # skip double
-    NEXT_4 = 4  # skip triple
-
-
 class Player:
     def __init__(self, id_: int):
         self.id_: int = id_

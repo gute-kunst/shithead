@@ -7,10 +7,10 @@ ALL_RANKS = [i for i in range(2, BIGGEST_RANK + 1)]
 
 from .errors import *
 from .card import *
-from .events import *
 from .pile_of_cards import *
 from .set_of_cards import *
 from .player import *
+from .events import *
 from .linked_list import *
 from .dealer import *
 from .playrequest import *

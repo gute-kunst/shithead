@@ -87,3 +87,11 @@ class TakePlayPileNotAllowed(PyshitheadError):
             message=message,
             object_id=player_id,
         )
+
+
+class RequestNotAllowedInGameState(PyshitheadError):
+    def __init__(self, player_id, game_state):
+        super().__init__(
+            message=f"Request not allowed in game state {game_state}",
+            object_id=player_id,
+        )

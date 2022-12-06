@@ -1,7 +1,15 @@
 from dataclasses import dataclass
 from enum import IntEnum
 
-from pyshithead import ALL_RANKS, BIGGEST_RANK, SpecialRank
+from pyshithead import ALL_RANKS, BIGGEST_RANK, Player, SpecialRank
+
+
+class NextPlayerEvent(IntEnum):
+    SAME = 0
+    NEXT = 1
+    NEXT_2 = 2  # skip
+    NEXT_3 = 3  # skip double
+    NEXT_4 = 4  # skip triple
 
 
 class BurnEvent(IntEnum):
@@ -12,6 +20,11 @@ class BurnEvent(IntEnum):
 class Choice(IntEnum):
     HIGHER = 3
     LOWER = 4
+
+
+@dataclass
+class PlayerIsFinishedEvent:
+    player: Player
 
 
 class RankType(IntEnum):
