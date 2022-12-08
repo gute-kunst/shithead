@@ -15,6 +15,7 @@ from pyshithead import (
     PrivateCardsRequest,
     RankEvent,
     RankType,
+    Suit,
     TakePlayPileRequest,
 )
 from pyshithead.errors import *
@@ -50,11 +51,8 @@ class Game:
         self.state: GameState = state
 
     @classmethod
-    def initialize(
-        cls,
-        players: list[Player],
-    ):
-        game = cls(players=players, deck=Dealer.provide_shuffled_deck())
+    def initialize(cls, players: list[Player], ranks=ALL_RANKS, suits=Suit):
+        game = cls(players=players, deck=Dealer.provide_shuffled_deck(ranks, suits))
         Dealer.deal_cards_to_players(game.deck, game.active_players)
         game.state = GameState.PLAYERS_CHOOSE_PUBLIC_CARDS
         return game
@@ -69,6 +67,11 @@ class Game:
             raise RequestNotFromCurrentPlayerError(self.get_player())
         if not self.state == GameState.DURING_GAME:
             raise RequestNotAllowedInGameState(self.get_player(), self.state)
+        if isinstance(req, HiddenCardRequest):
+            self.get_player().private_cards.put(
+                self.get_player().hidden_cards.take(req.cards.cards)
+            )
+            return
         if isinstance(req, PrivateCardsRequest):
             if not req.get_rank() in self.valid_ranks:
                 raise CardsNotEligibleOnPlayPileError
@@ -83,13 +86,6 @@ class Game:
                 self.rank_event = RankEvent(RankType.TOPRANK, 2)
                 self.next_player_event = NextPlayerEvent.SAME
                 self.burn_event = BurnEvent.YES
-        if isinstance(req, HiddenCardRequest):
-            if not req.get_rank() in self.valid_ranks:
-                raise NotImplementedError("HiddenCardRequest Not Implemented")
-            else:
-                # TODO if HIGHLOW --> ask user
-                raise NotImplementedError("HiddenCardRequest Not Implemented")
-
         if isinstance(req, TakePlayPileRequest):
             if not set(self.get_player().private_cards.get_ranks()).isdisjoint(self.valid_ranks):
                 raise TakePlayPileNotAllowed(

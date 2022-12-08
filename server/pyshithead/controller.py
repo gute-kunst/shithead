@@ -1,12 +1,12 @@
 from __future__ import print_function, unicode_literals
 
 from PyInquirer import prompt
-
 from pyshithead import (
     Card,
     Choice,
     ChoosePublicCardsRequest,
     Game,
+    HiddenCardRequest,
     Player,
     PrivateCardsRequest,
     PyshitheadError,
@@ -25,14 +25,14 @@ class Controller:
     def start(self):
         nbr_of_players = int(input("Nbr of players: "))
         players = [Player(id) for id in range(0, nbr_of_players)]
-        self.game = Game(players)
+        self.game = Game.initialize(players, ranks=list(range(2, 7)))
         print("game initialized")
         print(self.game)
-        for player in self.game.active_players.traverse_single():
-            print(f"Select public cards for player {player.data.id_} ... ")
+        for player in self.game.active_players:
+            print(f"Select public cards for player {player.id_} ... ")
             choices = [
                 {"name": str(card), "value": card, "checked": False}
-                for card in list(player.data.private_cards)
+                for card in list(player.private_cards)
             ]
             questions = [
                 {
@@ -44,7 +44,7 @@ class Controller:
             ]
             chosen_cards = prompt(questions)["choose_public"]
             print(chosen_cards)
-            req = ChoosePublicCardsRequest(player.data, chosen_cards)
+            req = ChoosePublicCardsRequest(player, chosen_cards)
             self.game.process_playrequest(req)
         View.show_game(self.game)
         while -1:
@@ -54,7 +54,12 @@ class Controller:
                 {"name": str(card), "value": card} for card in list(player.private_cards)
             ]
             special_take_tower_card = Card(0, Suit.HEART)
-            move_options.insert(0, {"name": "Take Pile", "value": special_take_tower_card})
+            play_hidden_card = Card(1, Suit.HEART)
+            if len(player.private_cards) == 0:
+                move_options.insert(0, {"name": "Play Hidden Card", "value": play_hidden_card})
+            else:
+                move_options.insert(0, {"name": "Take Pile", "value": special_take_tower_card})
+
             questions = [
                 {
                     "type": "checkbox",
@@ -81,6 +86,8 @@ class Controller:
             try:
                 if chosen_cards[0].rank == 0:
                     req = TakePlayPileRequest(player)
+                elif chosen_cards[0].rank == 1:
+                    req = HiddenCardRequest(player)
                 else:
                     req = PrivateCardsRequest(player, chosen_cards, high_low_choice)
                 self.game.process_playrequest(req)

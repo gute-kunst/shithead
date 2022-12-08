@@ -20,7 +20,9 @@ class SetOfCards:
 
     def take(self, cards: set) -> set[Card]:
         if not cards.issubset(self.cards):
-            raise ValueError("not all cards can be taken")
+            raise ValueError(
+                "not all cards can be taken"
+            )  # TODO replace valueerror with custom error
         intersect = self.cards.intersection(cards)
         self.cards = self.cards.difference(cards)
         return intersect

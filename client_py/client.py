@@ -1,28 +1,21 @@
 import asyncio
-import random
+import json
 
 import websockets
 
 
 async def hello():
-    uri = f"ws://localhost:8000/ws/{random.randint(0,10000)}"
+    join_game_id = "1"
+    uri = f"ws://localhost:8000/join/{join_game_id}"
     async with websockets.connect(uri) as websocket:
-        name = input("What's your name? ")
-
-        await websocket.send(name)
-        print(f">>> {name}")
-
         response = await websocket.recv()
         print(f"<<< {response}")
+        dict = json.loads(response)
 
+        print(f"<<< WAITING FOR GAME TO BEGIN")
         response = await websocket.recv()
-        print(f"<<< {response}")
 
-        response = await websocket.recv()
-        print(f"<<< {response}")
-
-        response = await websocket.recv()
-        print(f"<<< {response}")
+        print(f"<<< game began")
 
 
 if __name__ == "__main__":

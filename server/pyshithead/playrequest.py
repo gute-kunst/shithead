@@ -118,7 +118,7 @@ class HiddenCardRequest(CardsRequest):
         if consistency_check:
             self.validate()
 
-        self.cards = self.player.hidden_cards.return_single()
+        self.cards: SetOfCards = SetOfCards([self.player.hidden_cards.return_single()])
 
     def validate(self):
         if not self.player.eligible_to_play_hidden_card():

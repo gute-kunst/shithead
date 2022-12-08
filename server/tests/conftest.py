@@ -286,6 +286,18 @@ def game_last_move():
 
 
 @pytest.fixture
+def game_hidden_move():
+    p1 = Player(1)
+    p2 = Player(2)
+    deck = Dealer.provide_deck()
+    Dealer.deal_cards_to_players(deck, [p1, p2], put_public_to_private=False)
+    p1.public_cards.cards.clear()
+    p1.private_cards.cards.clear()
+    p1.hidden_cards = SetOfCards([_card_2h()])
+    return Game([p1, p2], PileOfCards(), state=GameState.DURING_GAME)
+
+
+@pytest.fixture
 def game_player_wins():
     players = [Player(1), Player(2), Player(3)]
     deck = Dealer.provide_deck()

@@ -7,6 +7,7 @@ from pyshithead import (
     Card,
     Game,
     GameState,
+    HiddenCardRequest,
     NextPlayerEvent,
     Player,
     PrivateCardsRequest,
@@ -79,3 +80,14 @@ def test_game_player_wins(game_player_wins: Game, last_cards: list[Card], play_o
     assert game_player_wins.state == GameState.DURING_GAME
     assert game_player_wins.ranking == [players[0]]
     assert game_player_wins.active_players.get_ordered_list() == play_order
+
+
+def test_game_hidden_move(game_hidden_move: Game):
+    players: list[Player] = game_hidden_move.active_players.get_ordered_list()
+    req = HiddenCardRequest(players[0])
+    assert req.cards in game_hidden_move.get_player().hidden_cards
+    game_hidden_move.process_playrequest(req)
+    assert game_hidden_move.state == GameState.DURING_GAME
+    assert game_hidden_move.active_players.get_ordered_list() == players
+    assert req.cards in game_hidden_move.get_player().private_cards
+    assert game_hidden_move.state is GameState.DURING_GAME

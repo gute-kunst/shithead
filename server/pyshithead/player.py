@@ -31,11 +31,9 @@ class Player:
         return self.id_ == other.id_
 
     def eligible_to_play_hidden_card(self) -> bool:
-        if not self.private_cards.is_empty():
-            return False
-        if not self.public_cards.is_empty():
-            return False
-        return True
+        if self.private_cards.is_empty() and self.public_cards.is_empty():
+            return True
+        return False
 
     def has_no_cards_anymore(self) -> bool:
         if (

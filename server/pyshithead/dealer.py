@@ -30,8 +30,8 @@ class Dealer:
                 player.public_cards = SetOfCards(deck.take_from_top(NBR_HIDDEN_CARDS))
 
     @classmethod
-    def provide_shuffled_deck(cls) -> PileOfCards:
-        deck = cls.provide_deck()
+    def provide_shuffled_deck(cls, ranks=ALL_RANKS, suits=Suit) -> PileOfCards:
+        deck = cls.provide_deck(ranks, suits)
         deck.shuffle()
         return deck
 
@@ -50,4 +50,5 @@ class Dealer:
                 else:  ## CHECK PUBLIC CARDS
                     if not player.public_cards.is_empty():
                         player.private_cards.put(player.public_cards.take_all())
+                        print("👍 Took public cards")
                     return
