@@ -1,4 +1,4 @@
-from pyshithead import RankEvent, RankType, SpecialRank
+from pyshithead.models.game import RankEvent, RankType, SpecialRank
 
 
 def test_rankevent_get_all_valid_ranks(valid_all):

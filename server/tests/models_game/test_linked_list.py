@@ -1,6 +1,6 @@
 import pytest
 
-from pyshithead import CircularDoublyLinkedList, NextPlayerEvent, Player
+from pyshithead.models.game import CircularDoublyLinkedList, NextPlayerEvent, Player
 
 
 def manual_llist_3(tp: list[Player]):

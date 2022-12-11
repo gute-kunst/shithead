@@ -1,7 +1,7 @@
 import pytest
 from pytest_lazyfixture import lazy_fixture
 
-from pyshithead import (
+from pyshithead.models.game import (
     BurnEvent,
     Card,
     Choice,
@@ -16,7 +16,7 @@ from pyshithead import (
     SpecialRank,
     TakePlayPileRequest,
 )
-from pyshithead.errors import *
+from pyshithead.models.game.errors import *
 
 
 def test_privatecardsrequest_cards_on_players_hands_false(player: Player, two_cards_equal_rank):

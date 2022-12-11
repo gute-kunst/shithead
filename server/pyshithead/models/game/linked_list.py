@@ -1,7 +1,7 @@
 from copy import deepcopy
 from typing import Optional
 
-from pyshithead.errors import LinkedListEmptyError, LinkedListNodeNotFoundError
+from pyshithead.models.game.errors import LinkedListEmptyError, LinkedListNodeNotFoundError
 
 
 class Node:

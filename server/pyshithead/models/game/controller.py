@@ -1,7 +1,8 @@
 from __future__ import print_function, unicode_literals
 
 from PyInquirer import prompt
-from pyshithead import (
+
+from pyshithead.models.game import (
     Card,
     Choice,
     ChoosePublicCardsRequest,

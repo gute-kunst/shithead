@@ -2,7 +2,7 @@ import dataclasses
 
 import pytest
 
-from pyshithead import Card, SpecialRank, Suit
+from pyshithead.models.game import Card, SpecialRank, Suit
 
 
 def test_card_initialization():

@@ -1,6 +1,6 @@
 import pytest
 
-from pyshithead import (
+from pyshithead.models.game import (
     Card,
     Dealer,
     Game,

@@ -9,6 +9,7 @@
   "cSpell.words": [
     "cardsrequest",
     "choosepubliccardsrequest",
+    "fastapi",
     "fillup",
     "hiddencardrequest",
     "HIGHLOW",
@@ -17,6 +18,7 @@
     "playrequest",
     "pyshithead",
     "takeplaypile",
-    "TOPRANK"
+    "TOPRANK",
+    "uvicorn"
   ]
 }

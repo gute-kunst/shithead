@@ -1,4 +1,4 @@
-from pyshithead import Game
+from pyshithead.models.game import Game
 
 
 class View:

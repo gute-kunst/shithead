@@ -1,6 +1,6 @@
-from enum import Enum
+from enum import Enum, IntEnum
 
-from pyshithead import (
+from pyshithead.models.game import (
     ALL_RANKS,
     BurnEvent,
     ChoosePublicCardsRequest,
@@ -18,10 +18,10 @@ from pyshithead import (
     Suit,
     TakePlayPileRequest,
 )
-from pyshithead.errors import *
+from pyshithead.models.game.errors import *
 
 
-class GameState(Enum):
+class GameState(IntEnum):
     PLAYERS_CHOOSE_PUBLIC_CARDS = 1
     DURING_GAME = 2
     GAME_OVER = 3
@@ -56,6 +56,18 @@ class Game:
         Dealer.deal_cards_to_players(game.deck, game.active_players)
         game.state = GameState.PLAYERS_CHOOSE_PUBLIC_CARDS
         return game
+
+    def private_update(self):
+        """
+        return all private informations as JSON a player needs(private cards mostly)
+        """
+        # TODO
+
+    def public_update(self):
+        """
+        return all public informations as JSON of the game (playpile, nbr of cards in deck, current player, events ... )
+        """
+        # TODO
 
     def process_playrequest(self, req: PlayRequest):
         if isinstance(req, ChoosePublicCardsRequest):

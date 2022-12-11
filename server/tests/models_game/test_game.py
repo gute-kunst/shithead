@@ -1,7 +1,7 @@
 import pytest
 from pytest_lazyfixture import lazy_fixture
 
-from pyshithead import (
+from pyshithead.models.game import (
     NBR_HIDDEN_CARDS,
     NBR_TOTAL_CARDS,
     Card,
@@ -14,7 +14,7 @@ from pyshithead import (
     SetOfCards,
     TakePlayPileRequest,
 )
-from pyshithead.errors import *
+from pyshithead.models.game.errors import *
 
 
 def test_game_players(game_with_two_players_start: Game, valid_all):

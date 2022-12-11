@@ -1,7 +1,7 @@
 import pytest
 from pytest_lazyfixture import lazy_fixture
 
-from pyshithead import PileOfCards
+from pyshithead.models.game import PileOfCards
 
 
 def test_pileofcards_take_from_top(card_2t, card_3h):

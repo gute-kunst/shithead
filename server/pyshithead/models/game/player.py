@@ -1,6 +1,6 @@
 from enum import IntEnum
 
-from pyshithead import (
+from pyshithead.models.game import (
     NotEligibleForHiddenCardPlayError,
     PublicCardsWereSelectedAlreadyError,
     SetOfCards,

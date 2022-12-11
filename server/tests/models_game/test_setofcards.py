@@ -1,6 +1,6 @@
 import pytest
 
-from pyshithead import SetOfCards
+from pyshithead.models.game import SetOfCards
 
 
 def test_setofcards_empty_initialize():

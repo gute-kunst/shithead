@@ -1,6 +1,6 @@
 import pytest
 
-from pyshithead import (
+from pyshithead.models.game import (
     NBR_HIDDEN_CARDS,
     NBR_TOTAL_CARDS,
     CircularDoublyLinkedList,

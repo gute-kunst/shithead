@@ -1,4 +1,4 @@
-from pyshithead import (
+from pyshithead.models.game import (
     ALL_RANKS,
     NBR_HIDDEN_CARDS,
     Card,

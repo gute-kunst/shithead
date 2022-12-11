@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from pyshithead import (
+from pyshithead.models.game import (
     NBR_HIDDEN_CARDS,
     BurnEvent,
     Card,
@@ -13,7 +13,7 @@ from pyshithead import (
     SetOfCards,
     SpecialRank,
 )
-from pyshithead.errors import *
+from pyshithead.models.game.errors import *
 
 
 class PlayRequest(ABC):

@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pyshithead import NBR_HIDDEN_CARDS
+from pyshithead.models.game import NBR_HIDDEN_CARDS
 
 
 class PyshitheadError(Exception):

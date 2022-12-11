@@ -1,6 +1,6 @@
 import random
 
-from pyshithead import Card, SpecialRank
+from pyshithead.models.game import Card, SpecialRank
 
 
 class PileOfCards:

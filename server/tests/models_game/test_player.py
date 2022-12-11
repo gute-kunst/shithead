@@ -1,7 +1,10 @@
 import pytest
 
-from pyshithead import Card, Player
-from pyshithead.errors import NotEligibleForHiddenCardPlayError, PublicCardsWereSelectedAlreadyError
+from pyshithead.models.game import Card, Player
+from pyshithead.models.game.errors import (
+    NotEligibleForHiddenCardPlayError,
+    PublicCardsWereSelectedAlreadyError,
+)
 
 
 def test_player_initialization():

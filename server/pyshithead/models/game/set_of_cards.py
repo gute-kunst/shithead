@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pyshithead import Card
+from pyshithead.models.game import Card
 
 
 class SetOfCards:

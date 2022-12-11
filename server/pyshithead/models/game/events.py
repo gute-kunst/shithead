@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import IntEnum
 
-from pyshithead import ALL_RANKS, BIGGEST_RANK, Player, SpecialRank
+from pyshithead.models.game import ALL_RANKS, BIGGEST_RANK, Player, SpecialRank
 
 
 class NextPlayerEvent(IntEnum):
