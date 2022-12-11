@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2022-12-11T16:26:54.523Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36" etag="BvCjarknBec1a2nxAo7y" version="20.6.2" type="github">
+<mxfile host="app.diagrams.net" modified="2022-12-11T16:27:03.456Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36" etag="vvxS3lcd5NDmfAyICXhE" version="20.6.2" type="github">
   <diagram id="747tSipR186_xFjn_NJU" name="Seite-1">
     <mxGraphModel dx="3855" dy="1462" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
@@ -1396,9 +1396,9 @@
         <mxCell id="PQ5BKmOg0NIA1eNMFz41-25" value="select quasi random name" style="rounded=0;whiteSpace=wrap;html=1;shadow=1;strokeColor=#666666;fillColor=#f5f5f5;align=center;fontColor=#333333;" parent="1" vertex="1">
           <mxGeometry x="-1398" y="225" width="140" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="QWwhB4tOTEYtLhg7CCmj-3" value="&lt;b style=&quot;font-size: 9px;&quot;&gt;private update&lt;br&gt;&lt;/b&gt;" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=26;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;html=1;strokeColor=#82b366;align=center;" vertex="1" parent="1">
-          <mxGeometry x="-1509" y="448.5" width="170" height="140" as="geometry">
-            <mxRectangle x="-1543" y="448.5" width="145" height="25" as="alternateBounds" />
+        <mxCell id="QWwhB4tOTEYtLhg7CCmj-3" value="&lt;b style=&quot;font-size: 9px;&quot;&gt;private update&lt;br&gt;&lt;/b&gt;" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=26;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;html=1;strokeColor=#82b366;align=center;" vertex="1" collapsed="1" parent="1">
+          <mxGeometry x="-1570" y="462" width="145" height="25" as="geometry">
+            <mxRectangle x="-1509" y="448.5" width="170" height="140" as="alternateBounds" />
           </mxGeometry>
         </mxCell>
         <mxCell id="QWwhB4tOTEYtLhg7CCmj-4" value="&lt;font size=&quot;1&quot;&gt;{&lt;br&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;	&lt;/span&gt;&quot;type&quot;: &quot;private_update&quot;&lt;br&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;	&lt;/span&gt;&quot;game_id&quot;: int&lt;br&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;	&lt;/span&gt;&quot;private_cards&quot;: list[Cards]&lt;br&gt;}&lt;br&gt;&lt;/font&gt;" style="text;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fillColor=#FFFFFF;fontColor=#333333;strokeColor=#666666;" vertex="1" parent="QWwhB4tOTEYtLhg7CCmj-3">
