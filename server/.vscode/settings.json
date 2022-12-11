@@ -16,6 +16,7 @@
     "KEEPCURRENT",
     "playpile",
     "playrequest",
+    "pydantic",
     "pyshithead",
     "takeplaypile",
     "TOPRANK",
