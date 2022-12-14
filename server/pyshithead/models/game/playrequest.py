@@ -97,7 +97,7 @@ class PrivateCardsRequest(CardsRequest):
         consistency_check: bool = True,
     ):
         self.player = player
-        self.cards = SetOfCards(cards)
+        self.cards = SetOfCards(cards=cards)
         self.choice: Optional[Choice] = choice
         if consistency_check:
             self.validate()
@@ -118,7 +118,7 @@ class HiddenCardRequest(CardsRequest):
         if consistency_check:
             self.validate()
 
-        self.cards: SetOfCards = SetOfCards([self.player.hidden_cards.return_single()])
+        self.cards: SetOfCards = SetOfCards(cards=[self.player.hidden_cards.return_single()])
 
     def validate(self):
         if not self.player.eligible_to_play_hidden_card():
@@ -137,7 +137,7 @@ class ChoosePublicCardsRequest(CardsRequest):
         consistency_check: bool = True,
     ):
         self.player: Player = player
-        self.cards: SetOfCards = SetOfCards(public_choice_cards)
+        self.cards: SetOfCards = SetOfCards(cards=public_choice_cards)
         if consistency_check:
             self.validate()
 
@@ -151,7 +151,10 @@ class ChoosePublicCardsRequest(CardsRequest):
         self.player.validate_eligible_to_choose_cards()
 
     def process(self):
-        self.player.public_cards = SetOfCards(self.player.private_cards.take(self.cards.cards))
+        self.player.public_cards = SetOfCards(
+            cards=self.player.private_cards.take(self.cards.cards)
+        )
+        self.player.public_cards_were_selected = True
 
 
 class TakePlayPileRequest(PlayRequest):

@@ -1,28 +1,23 @@
-from enum import IntEnum
+from pydantic import BaseModel
 
-from pyshithead.models.game import (
-    NotEligibleForHiddenCardPlayError,
-    PublicCardsWereSelectedAlreadyError,
-    SetOfCards,
-)
+from pyshithead.models.game import PublicCardsWereSelectedAlreadyError, SetOfCards
 
 
-class Player:
-    def __init__(self, id_: int):
-        self.id_: int = id_
-        self.hidden_cards = SetOfCards()
-        self.private_cards = SetOfCards()
-        self.public_cards_were_selected: int = False
-        self._public_cards = SetOfCards()
+class Player(BaseModel):
+    id_: int
+    hidden_cards: SetOfCards = SetOfCards()
+    private_cards: SetOfCards = SetOfCards()
+    public_cards_were_selected: int = False
+    public_cards: SetOfCards = SetOfCards()
 
-    @property
-    def public_cards(self):
-        return self._public_cards
+    # @property
+    # def public_cards(self):
+    #     return self._public_cards
 
-    @public_cards.setter
-    def public_cards(self, cards: SetOfCards):
-        self._public_cards = cards
-        self.public_cards_were_selected = True
+    # @public_cards.setter
+    # def public_cards(self, cards: SetOfCards):
+    #     self._public_cards = cards
+    #     self.public_cards_were_selected = True
 
     def __repr__(self):
         return str(self.id_)

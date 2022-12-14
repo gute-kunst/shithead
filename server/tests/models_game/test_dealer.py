@@ -14,7 +14,7 @@ from pyshithead.models.game import (
 def test_dealer_provide_shuffled_deck_has_no_duplicates():
     deck = Dealer.provide_shuffled_deck()
     assert len(deck) == NBR_TOTAL_CARDS
-    cardset = SetOfCards(deck.cards)
+    cardset = SetOfCards(cards=deck.cards)
     assert len(cardset) == NBR_TOTAL_CARDS  # sets cannot contain duplicates
 
 
@@ -49,8 +49,8 @@ def test_dealer_fillup_cards_in_game(player: Player):
 
 def test_dealer_fillup_cards_empty_deck(player_with_3_hidden_and_3_public_cards: Player):
     player = player_with_3_hidden_and_3_public_cards
-    public_cards_before = SetOfCards(player.public_cards.cards)
-    hidden_cards_before = SetOfCards(player.hidden_cards.cards)
+    public_cards_before = SetOfCards(cards=player.public_cards.cards)
+    hidden_cards_before = SetOfCards(cards=player.hidden_cards.cards)
     deck = PileOfCards()
     Dealer.fillup_cards(deck, player)
     assert player.private_cards == public_cards_before
@@ -62,10 +62,10 @@ def test_dealer_fillup_cards_single_card_in_deck(
     player_with_3_hidden_and_3_public_cards: Player, card_3p
 ):
     player = player_with_3_hidden_and_3_public_cards
-    hidden_cards_before = SetOfCards(player.hidden_cards.cards)
+    hidden_cards_before = SetOfCards(cards=player.hidden_cards.cards)
     deck = PileOfCards([card_3p])
     Dealer.fillup_cards(deck, player)
-    assert player.private_cards == SetOfCards([card_3p])
+    assert player.private_cards == SetOfCards(cards=[card_3p])
     assert len(player.private_cards) == 1
     assert player.hidden_cards == hidden_cards_before
     assert len(deck) == 0

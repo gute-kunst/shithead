@@ -22,12 +22,13 @@ class Dealer:
         put_public_to_private=True,
     ):
         for player in active_players:
-            player.hidden_cards = SetOfCards(deck.take_from_top(NBR_HIDDEN_CARDS))
+            player.hidden_cards = SetOfCards(cards=deck.take_from_top(NBR_HIDDEN_CARDS))
             if put_public_to_private:
-                player.private_cards = SetOfCards(deck.take_from_top(NBR_HIDDEN_CARDS * 2))
+                player.private_cards = SetOfCards(cards=deck.take_from_top(NBR_HIDDEN_CARDS * 2))
             else:
-                player.private_cards = SetOfCards(deck.take_from_top(NBR_HIDDEN_CARDS))
-                player.public_cards = SetOfCards(deck.take_from_top(NBR_HIDDEN_CARDS))
+                player.private_cards = SetOfCards(cards=deck.take_from_top(NBR_HIDDEN_CARDS))
+                player.public_cards = SetOfCards(cards=deck.take_from_top(NBR_HIDDEN_CARDS))
+                player.public_cards_were_selected = True
 
     @classmethod
     def provide_shuffled_deck(cls, ranks=ALL_RANKS, suits=Suit) -> PileOfCards:
@@ -37,7 +38,7 @@ class Dealer:
 
     @classmethod
     def provide_deck(cls, ranks=ALL_RANKS, suits=Suit) -> PileOfCards:
-        return PileOfCards([Card(i, suit) for suit in suits for i in ranks])
+        return PileOfCards([Card(rank=i, suit=suit) for suit in suits for i in ranks])
 
     @classmethod
     def fillup_cards(cls, deck: PileOfCards, player: Player):

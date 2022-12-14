@@ -6,20 +6,19 @@ from pyshithead.models.game import Card, SpecialRank, Suit
 
 
 def test_card_initialization():
-    card = Card(2, Suit.TILES)
+    card = Card(rank=2, suit=Suit.TILES)
     assert card.rank == 2
     assert card.suit == Suit.TILES
 
 
-def test_card_immutability(card_2h):
-    with pytest.raises(dataclasses.FrozenInstanceError):
+def test_card_immutability(card_2h: Card):
+    with pytest.raises(TypeError):
         card_2h.rank = 3
-    with pytest.raises(dataclasses.FrozenInstanceError):
-        card_2h.Suite = Suit.HEART
+    with pytest.raises(TypeError):
+        card_2h.suit = Suit.HEART
 
 
 def test_card_comparison(card_2h, card_2t):
-    assert card_2h == Card(2, Suit.HEART)
+    assert card_2h == Card(rank=2, suit=Suit.HEART)
     assert card_2h != card_2t
     assert card_2h == card_2h
-    assert Card(2, Suit.HEART) == Card(SpecialRank.RESET, Suit.HEART)

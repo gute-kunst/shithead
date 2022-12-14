@@ -1,11 +1,12 @@
 from typing import Optional
 
+from pydantic import BaseModel
+
 from pyshithead.models.game import Card
 
 
-class SetOfCards:
-    def __init__(self, cards: set | list = set()):
-        self.cards: set[Card] = set(cards)
+class SetOfCards(BaseModel):
+    cards: set[Card] = set()
 
     def rank_is_equal(self):
         return all(card.rank == list(self.cards)[0].rank for card in self.cards)

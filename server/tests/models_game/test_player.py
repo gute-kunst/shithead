@@ -8,7 +8,7 @@ from pyshithead.models.game.errors import (
 
 
 def test_player_initialization():
-    player = Player(1)
+    player = Player(id_=1)
     assert player.id_ == 1
     assert player.hidden_cards.is_empty() is True
     assert player.public_cards.is_empty() is True
@@ -23,14 +23,14 @@ def test_player_add_hidden_card(player: Player, card_2t: Card):
 
 
 def test_player_compare_true():
-    p1 = Player(1)
-    p1_ = Player(1)
+    p1 = Player(id_=1)
+    p1_ = Player(id_=1)
     assert p1 == p1_
 
 
 def test_player_compare_false():
-    p1 = Player(1)
-    p2 = Player(2)
+    p1 = Player(id_=1)
+    p2 = Player(id_=2)
     assert p1 != p2
 
 

@@ -63,18 +63,18 @@ def test_game_game_over(game_last_move: Game):
 @pytest.mark.parametrize(
     "last_cards, play_order",
     [
-        (lazy_fixture("card_2h"), [Player(2), Player(3)]),
-        (lazy_fixture("card_skip"), [Player(3), Player(2)]),
-        (lazy_fixture("card_burn"), [Player(2), Player(3)]),
-        (lazy_fixture("four_skip_cards"), [Player(2), Player(3)]),
-        (lazy_fixture("four_cards_invisible"), [Player(2), Player(3)]),
+        (lazy_fixture("card_2h"), [Player(id_=2), Player(id_=3)]),
+        (lazy_fixture("card_skip"), [Player(id_=3), Player(id_=2)]),
+        (lazy_fixture("card_burn"), [Player(id_=2), Player(id_=3)]),
+        (lazy_fixture("four_skip_cards"), [Player(id_=2), Player(id_=3)]),
+        (lazy_fixture("four_cards_invisible"), [Player(id_=2), Player(id_=3)]),
     ],
 )
-def test_game_player_wins(game_player_wins: Game, last_cards: list[Card], play_order):
+def test_game_player_wins(game_player_wins: Game, last_cards: list[Card] | Card, play_order):
     cards = last_cards if isinstance(last_cards, list) else [last_cards]
 
     players: list[Player] = game_player_wins.active_players.get_ordered_list()
-    players[0].private_cards = SetOfCards(cards)
+    players[0].private_cards = SetOfCards(cards=cards)
     req = PrivateCardsRequest(players[0], cards)
     game_player_wins.process_playrequest(req)
     assert game_player_wins.state == GameState.DURING_GAME

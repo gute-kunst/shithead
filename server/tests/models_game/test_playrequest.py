@@ -27,26 +27,26 @@ def test_privatecardsrequest_cards_on_players_hands_false(player: Player, two_ca
 def test_privatecardsrequest_ranks_are_equal_false(
     player: Player, two_cards_diff_rank_and_diff_tile
 ):
-    player.private_cards = SetOfCards(two_cards_diff_rank_and_diff_tile)
+    player.private_cards = SetOfCards(cards=two_cards_diff_rank_and_diff_tile)
     with pytest.raises(CardsRequestRanksNotEqualError):
         PrivateCardsRequest(player, two_cards_diff_rank_and_diff_tile)
 
 
 def test_privatecardsrequest_high_low_consistency_1(player: Player, card_high_low_h: Card):
-    player.private_cards = SetOfCards([card_high_low_h])
+    player.private_cards = SetOfCards(cards=[card_high_low_h])
     with pytest.raises(CardsRequestHighLowCardWithoutChoiceError):
         PrivateCardsRequest(player, [card_high_low_h])
 
 
 def test_privatecardsrequest_high_low_consistency_2(player: Player, card_2h: Card):
-    player.private_cards = SetOfCards([card_2h])
+    player.private_cards = SetOfCards(cards=[card_2h])
     with pytest.raises(CardsRequestHighLowChoiceWithoutHighLowCardError):
         PrivateCardsRequest(player, [card_2h], Choice.HIGHER)
 
 
 @pytest.mark.parametrize("choice", [Choice.LOWER, Choice.HIGHER])
 def test_privatecardsrequest_consistent_choice(player: Player, card_high_low_h, choice):
-    player.private_cards = SetOfCards([card_high_low_h])
+    player.private_cards = SetOfCards(cards=[card_high_low_h])
     try:
         PrivateCardsRequest(player, [card_high_low_h], choice)
     except PyshitheadError as error:
@@ -140,7 +140,7 @@ def test_choosepubliccardsrequest_process(player_with_6_private_cards: Player):
     assert len(p.private_cards) == 3
     assert len(p.public_cards) == 3
     assert p.public_cards.isdisjoint(p.private_cards) is True
-    assert p.public_cards == SetOfCards(p_chosen_cards)
+    assert p.public_cards == SetOfCards(cards=p_chosen_cards)
 
 
 def test_takeplaypile_consistency(player: Player, card_3h):
@@ -164,17 +164,18 @@ def test_takeplaypile_consistency(player: Player, card_3h):
     ],
 )
 def test_hiddencardrequest_validate_raises_error(public, private, expected, three_more_other_cards):
-    player = Player(1)
-    player.public_cards = SetOfCards(public)
-    player.private_cards = SetOfCards(private)
-    player.hidden_cards = SetOfCards(three_more_other_cards)
+    player = Player(id_=1)
+    player.public_cards = SetOfCards(cards=public)
+    player.public_cards_were_selected = True
+    player.private_cards = SetOfCards(cards=private)
+    player.hidden_cards = SetOfCards(cards=three_more_other_cards)
     with pytest.raises(expected):
         HiddenCardRequest(player)
 
 
 def test_hiddencardrequest_validate(three_more_other_cards):
-    player = Player(1)
-    player.hidden_cards = SetOfCards(three_more_other_cards)
+    player = Player(id_=1)
+    player.hidden_cards = SetOfCards(cards=three_more_other_cards)
     try:
         HiddenCardRequest(player)
     except NotEligibleForHiddenCardPlayError as error:
