@@ -125,6 +125,11 @@ def card_high_low_h():
 
 
 @pytest.fixture
+def two_cards_high_low():
+    return [Card(SpecialRank.HIGHLOW, Suit.HEART), Card(SpecialRank.HIGHLOW, Suit.TILES)]
+
+
+@pytest.fixture
 def card_invisible():
     return Card(SpecialRank.INVISIBLE, Suit.HEART)
 

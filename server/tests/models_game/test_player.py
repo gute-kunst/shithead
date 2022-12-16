@@ -1,10 +1,9 @@
+import json
+
 import pytest
 
 from pyshithead.models.game import Card, Player
-from pyshithead.models.game.errors import (
-    NotEligibleForHiddenCardPlayError,
-    PublicCardsWereSelectedAlreadyError,
-)
+from pyshithead.models.game.errors import PublicCardsWereSelectedAlreadyError
 
 
 def test_player_initialization():
@@ -51,3 +50,15 @@ def test_player_eligible_to_choose_cards(player: Player):
         player.validate_eligible_to_choose_cards()
     except PublicCardsWereSelectedAlreadyError:
         assert False
+
+
+def test_player_json_dumps_public_info(player_initialized):
+    d = player_initialized.get_public_info()
+    j = json.dumps(d)
+    assert True
+
+
+def test_player_json_dumps_private_info(player_initialized):
+    d = player_initialized.get_private_info()
+    j = json.dumps(d)
+    assert True

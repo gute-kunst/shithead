@@ -102,6 +102,12 @@ class PrivateCardsRequest(CardsRequest):
         if consistency_check:
             self.validate()
 
+    @classmethod
+    def from_dict(cls, player: Player, data: dict):
+        return PrivateCardsRequest(
+            player=player, cards=[Card(**card) for card in data["cards"]], choice=data["choice"]
+        )
+
     def validate(self):
         self.validate_cards_on_players_hands()
         self.validate_ranks_are_equal()
@@ -133,13 +139,20 @@ class ChoosePublicCardsRequest(CardsRequest):
     def __init__(
         self,
         player: Player,
-        public_choice_cards: list,
+        public_choice_cards: list[Card],
         consistency_check: bool = True,
     ):
         self.player: Player = player
         self.cards: SetOfCards = SetOfCards(public_choice_cards)
         if consistency_check:
             self.validate()
+
+    @classmethod
+    def from_dict(cls, player: Player, data: dict):
+        return ChoosePublicCardsRequest(
+            player=player,
+            public_choice_cards=[Card(**card) for card in data["cards"]],
+        )
 
     def validate_correct_number_was_chosen(self):
         if len(self.cards) != NBR_HIDDEN_CARDS:

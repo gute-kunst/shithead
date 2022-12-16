@@ -4,7 +4,7 @@ from pyshithead.models.game import Card
 
 
 class SetOfCards:
-    def __init__(self, cards: set | list = set()):
+    def __init__(self, cards: set[Card] | list[Card] = set()):
         self.cards: set[Card] = set(cards)
 
     def rank_is_equal(self):

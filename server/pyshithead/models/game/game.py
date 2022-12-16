@@ -1,7 +1,5 @@
 from enum import Enum, IntEnum
 
-from pydantic import BaseModel
-
 from pyshithead.models.game import (
     ALL_RANKS,
     BurnEvent,
@@ -63,17 +61,22 @@ class Game:
         """
         return all private informations as JSON a player needs(private cards mostly)
         """
+
         # TODO
 
     def get_public_game_information(self):
         """
-        return all public informations as JSON of the game (playpile, nbr of cards in deck, current player, events ... )
+        return all public informations as JSON/dict of the game (playpile, nbr of cards in deck, current player, events ... )
         """
-
-        class PublicGameInformation(BaseModel):
-            nbr_of_cards_in_deck: int
-            play_pile: PileOfCards
-            state: GameState
+        dict(
+            {
+                "game_id": self.game_id,
+                "playpile": self.play_pile,
+                "nbr_of_cards_in_deck": len(self.deck),
+                "currents_turn": self.get_player().id_,
+                "player_public_info": [player.get_public_info() for player in self.active_players],
+            }
+        )
 
     def process_playrequest(self, req: PlayRequest):
         if isinstance(req, ChoosePublicCardsRequest):

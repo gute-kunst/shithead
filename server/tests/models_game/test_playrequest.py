@@ -179,3 +179,11 @@ def test_hiddencardrequest_validate(three_more_other_cards):
         HiddenCardRequest(player)
     except NotEligibleForHiddenCardPlayError as error:
         assert False, error.message
+
+
+def test_privatecardrequest_from_dict(player_initialized: Player, two_cards_high_low):
+    player_initialized.private_cards.put(two_cards_high_low)
+    d = dict({"cards": [vars(card) for card in two_cards_high_low], "choice": int(Choice.LOWER)})
+    req = PrivateCardsRequest.from_dict(player=player_initialized, data=d)
+    assert req.cards == SetOfCards(two_cards_high_low)
+    assert req.choice == Choice.LOWER
