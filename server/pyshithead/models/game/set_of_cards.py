@@ -59,3 +59,7 @@ class SetOfCards(BaseModel):
 
     def __str__(self):
         return str(self.cards)
+
+    def dict(self):
+        """Converts instance to dict representation of it."""
+        return dict({"cards": list(self.cards)})

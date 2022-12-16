@@ -109,3 +109,10 @@ def test_setofcards_isdisjoint(card_2h, card_2t):
     assert cardset1.isdisjoint(cardset2) is True
     cardset1.put([card_2t])
     assert cardset1.isdisjoint(cardset2) is False
+
+
+def test_setofcards_dict(two_cards):
+    cardset = SetOfCards(cards=two_cards)
+    d = cardset.dict()
+    assert "cards" in d.keys()
+    assert set(two_cards) == set(d["cards"])

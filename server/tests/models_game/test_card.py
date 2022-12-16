@@ -5,10 +5,20 @@ import pytest
 from pyshithead.models.game import Card, SpecialRank, Suit
 
 
-def test_card_initialization():
+def test_card_initialization_class():
     card = Card(rank=2, suit=Suit.TILES)
     assert card.rank == 2
     assert card.suit == Suit.TILES
+
+
+def test_card_initialization_dict():
+    card = Card(**{"rank": 2, "suit": Suit.TILES})
+    assert card.rank == 2
+    assert card.suit == Suit.TILES
+
+
+def test_card_to_dict(card_2h):
+    assert card_2h.dict() == {"rank": 2, "suit": Suit.HEART}
 
 
 def test_card_immutability(card_2h: Card):

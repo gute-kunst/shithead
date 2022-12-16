@@ -25,10 +25,9 @@ class Controller:
 
     def start(self):
         nbr_of_players = int(input("Nbr of players: "))
-        players = [Player(id) for id in range(0, nbr_of_players)]
-        self.game = Game.initialize(players, ranks=list(range(2, 7)))
+        players = [Player(id_=id) for id in range(0, nbr_of_players)]
+        self.game = Game.initialize(players)
         print("game initialized")
-        print(self.game)
         for player in self.game.active_players:
             print(f"Select public cards for player {player.id_} ... ")
             choices = [
@@ -54,8 +53,8 @@ class Controller:
             move_options = [
                 {"name": str(card), "value": card} for card in list(player.private_cards)
             ]
-            special_take_tower_card = Card(0, Suit.HEART)
-            play_hidden_card = Card(1, Suit.HEART)
+            special_take_tower_card = Card(rank=0, suit=Suit.HEART)
+            play_hidden_card = Card(rank=1, suit=Suit.HEART)
             if len(player.private_cards) == 0:
                 move_options.insert(0, {"name": "Play Hidden Card", "value": play_hidden_card})
             else:
