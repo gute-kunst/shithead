@@ -1,4 +1,4 @@
-from enum import Enum, IntEnum
+from enum import StrEnum
 
 from pyshithead.models.game import (
     ALL_RANKS,
@@ -21,10 +21,10 @@ from pyshithead.models.game import (
 from pyshithead.models.game.errors import *
 
 
-class GameState(IntEnum):
-    PLAYERS_CHOOSE_PUBLIC_CARDS = 1
-    DURING_GAME = 2
-    GAME_OVER = 3
+class GameState(StrEnum):
+    PLAYERS_CHOOSE_PUBLIC_CARDS = "PLAYERS_CHOOSE_PUBLIC_CARDS"
+    DURING_GAME = "DURING_GAME"
+    GAME_OVER = "GAME_OVER"
 
 
 class Game:
