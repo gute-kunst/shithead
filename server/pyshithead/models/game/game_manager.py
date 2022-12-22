@@ -2,8 +2,6 @@ from __future__ import print_function, unicode_literals
 
 from typing import Optional
 
-from PyInquirer import prompt
-
 from pyshithead.models.game import (
     Choice,
     ChoosePublicCardsRequest,
@@ -16,13 +14,11 @@ from pyshithead.models.game import (
 )
 
 
-class Controller:
-    """dictionary based interface to Game. Manages a Game"""
-
+class GameManager:
     def __init__(self, nbr_of_players):
         players = [Player(id) for id in range(0, nbr_of_players)]
-        self.game = Game.initialize(players, ranks=list(range(2, 8)))
-        # self.game = Game.initialize(players))
+        # self.game: Game = Game.initialize(players, ranks=list(range(2, 8)))
+        self.game = Game.initialize(players)
         print("game initialized")
         print(self.game)
 
@@ -34,7 +30,6 @@ class Controller:
             {
                 "game_id": self.game.game_id,
                 "playpile": self.game.play_pile,
-                "state": self.game.state,
                 "nbr_of_cards_in_deck": len(self.game.deck),
                 "currents_turn": self.game.get_player().id_,
                 "player_public_info": [
@@ -46,8 +41,11 @@ class Controller:
     def get_rules(self):
         return dict(
             {
-                "special_rank": {"high_low": SpecialRank.HIGHLOW},
-                "choice": {"higher": Choice.HIGHER, "lower": Choice.LOWER},
+                "type": "rules",
+                "data": {
+                    "special_rank": {"high_low": SpecialRank.HIGHLOW},
+                    "choice": {"higher": Choice.HIGHER, "lower": Choice.LOWER},
+                },
             }
         )
 

@@ -2,8 +2,7 @@ import time
 from typing import Optional
 
 from PyInquirer import prompt
-
-from pyshithead.models.game import Controller, View
+from pyshithead.models.game import GameManager, View
 from pyshithead.models.game.errors import PyshitheadError
 
 none_card: dict = dict({"rank": None, "suit": None})
@@ -15,17 +14,17 @@ class ClientLocal:
     """
 
     def __init__(self):
-        self.ctrl: Optional[Controller] = None
+        self.manager: Optional[GameManager] = None
         self.rules: dict
 
     def start(self):
         print("⭐⭐ Shithead Game ⭐⭐")
         nbr_of_players = int(input("Nbr of players: "))
-        self.ctrl = Controller(nbr_of_players)
-        self.rules = self.ctrl.get_rules()
-        for player in self.ctrl.game.active_players:
+        self.manager = GameManager(nbr_of_players)
+        self.rules = self.manager.get_rules()
+        for player in self.manager.game.active_players:
             print(f"Select public cards for player {player.id_} ... ")
-            private_cards = self.ctrl.get_private_infos(player.id_)["private_cards"]
+            private_cards = self.manager.get_private_infos(player.id_)["private_cards"]
             choices = [
                 {"name": str(card), "value": card, "checked": False} for card in private_cards
             ]
@@ -53,11 +52,11 @@ class ClientLocal:
                     "cards": selection,
                 }
             )
-            self.ctrl.process_request(req)
-        View.show_game(self.ctrl.game)
+            self.manager.process_request(req)
+        View.show_game(self.manager.game)
         while -1:
-            broadcast_msg = self.ctrl.get_public_infos()
-            private_msg = self.ctrl.get_private_infos(broadcast_msg["currents_turn"])
+            broadcast_msg = self.manager.get_public_infos()
+            private_msg = self.manager.get_private_infos(broadcast_msg["currents_turn"])
             if broadcast_msg["state"] == "GAME_OVER":
                 exit()
             # player = self.ctrl.game.get_player()
@@ -123,12 +122,12 @@ class ClientLocal:
                             "choice": high_low_choice,
                         }
                     )
-                self.ctrl.process_request(req)
+                self.manager.process_request(req)
             except PyshitheadError as err:
                 print(f"🔥 Error: {err.message} 👉 Try Again")
             print("pass local client to next player ...")
             time.sleep(1)
-            View.show_game(self.ctrl.game)
+            View.show_game(self.manager.game)
 
 
 if __name__ == "__main__":

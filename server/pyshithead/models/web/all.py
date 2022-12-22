@@ -1,41 +1,30 @@
 import random
-import string
-import time
-from dataclasses import dataclass, field
-from typing import Optional
 
 from fastapi import WebSocket
-from pyshithead import GAME_ID, INVITE_LINK
-from pyshithead.models.game import Game
+
+from pyshithead import GAME_ID
+from pyshithead.models.game import GameManager, GameState, PyshitheadError
 from pyshithead.models.web.errors import GameTableNotFoundError
-
-
-class ClientData:
-    def __init__(self):
-        # self.secret: str = "".join(
-        #     random.choice(string.ascii_uppercase + string.digits) for _ in range(8)
-        # )
-        self.id_ = random.randint(0, 999)
-        self.name: str = "".join(
-            random.choice(string.ascii_uppercase + string.digits) for _ in range(3)
-        )
 
 
 class Client:
     def __init__(self, connection):
         self.connection: WebSocket = connection
-        self.client_data: ClientData = ClientData()
+        self.id_: int = random.randint(0, 999)
+        # self.name: str = "".join(
+        #     random.choice(string.ascii_uppercase + string.digits) for _ in range(3)
+        # )
+
+    async def send(self, data):
+        await self.connection.send_json(data)
 
     def to_dict(self):
-        return vars(self.client_data)
+        return dict({"player_id": self.id_})
 
 
-@dataclass
-class GameTable:
-    game: Optional[Game]
-    game_id: int
-    # invite_link: str
-    clients: list[Client] = field(default_factory=list)
+class ClientManager:
+    def __init__(self):
+        self.clients: list[Client] = []
 
     def get_connections(self):
         return [client.connection for client in self.clients]
@@ -53,22 +42,81 @@ class GameTable:
             if websocket == client.connection:
                 print(f"{client} has left")
                 self.clients.remove(client)
+        # TODO Game model doesnt reflect leaving player
 
-    async def send_to_client(self, data: str, websocket: WebSocket):
-        await websocket.send_json(data)
+    # async def send_to_client(self, data: str, websocket: WebSocket):
+    # await websocket.send_json(data)
+    def get_client_by_id(self, id):
+        for client in self.clients:
+            if client.id_ == id:
+                return client
+        # raise ClientNotFoundError # TODO
 
     async def broadcast(self, data: str | dict):
         for connection in self.get_connections():
             await connection.send_json(data)
 
+    def nbr_of_clients(self):
+        return len(self.clients)
 
-class GameManager:
+
+class GameTable:
+    def __init__(self, game_id=None):
+        self.game_manager: GameManager = None
+        if game_id is None:
+            self.game_id: int = random.randint(0, 999)
+        else:
+            self.game_id = game_id
+        self.client_manager: ClientManager = ClientManager()
+
+    async def add_client(self, websocket: WebSocket):
+        client = await self.client_manager.connect(websocket)
+        await client.send(client.to_dict())
+
+    def start_game(self):
+        self.game_manager = GameManager(self.client_manager.nbr_of_clients())
+        self.client_manager.broadcast(self.game_manager.get_rules())
+        self.client_manager.broadcast(self.game_manager.get_public_infos())
+        for client in self.client_manager.clients:
+            client.send(self.game_manager.get_private_infos(client.id_))
+
+    async def game_request(self, req: dict):
+        client = self.client_manager.get_client_by_id(req["player_id"])
+        if req["type"] == "choose_public_cards":
+            self.game_manager.process_request(req)
+            if self.game_manager.game.state == GameState.PLAYERS_CHOOSE_PUBLIC_CARDS:
+                pass  # TODO
+                print("what to do here?")
+            elif self.game_manager.game.state == GameState.DURING_GAME:
+                await self.broadcast_game_state()
+            else:
+                pass  # TODO
+                print("what to do here?")
+
+        elif (
+            req["type"] == "private_cards"
+            or req["type"] == "take_play_pile"
+            or req["type"] == "hidden_card"
+        ):
+            try:
+                self.game_manager.process_request(req)
+                await self.broadcast_game_state()
+                await client.send(self.game_manager.get_private_infos(client.id_))
+            except PyshitheadError as err:
+                print(f"🔥 Error: {err.message} 👉 Try Again")
+
+    async def broadcast_game_state(self):
+        await self.client_manager.broadcast(self.game_manager.get_public_infos())
+
+
+class GameTablesManager:
     def __init__(self):
-        # self.active_connections: list[WebSocket] = []
-        self.game_tables: list[GameTable] = [GameTable(game=None, game_id=GAME_ID)]
+        self.game_tables: list[GameTable] = [GameTable(game_id=GAME_ID)]
 
     async def get_game_table_by_id(self, game_id: int) -> GameTable:
         for game in self.game_tables:
-            if game.game_id == game_id:
-                return game
+            return game
         raise GameTableNotFoundError(game_id)
+
+    def add_game_table(self):
+        raise NotImplementedError
