@@ -72,9 +72,12 @@ class GameTable:
     async def add_client(self, websocket: WebSocket):
         client = await self.client_manager.connect(websocket)
         await client.send(client.to_dict())
+        await self.client_manager.broadcast("A new player joined")
 
     def start_game(self):
-        self.game_manager = GameManager(self.client_manager.nbr_of_clients())
+        self.game_manager = GameManager(
+            player_ids=[client.id_ for client in self.client_manager.clients]
+        )
         self.client_manager.broadcast(self.game_manager.get_rules())
         self.client_manager.broadcast(self.game_manager.get_public_infos())
         for client in self.client_manager.clients:

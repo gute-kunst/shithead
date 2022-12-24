@@ -15,8 +15,8 @@ from pyshithead.models.game import (
 
 
 class GameManager:
-    def __init__(self, nbr_of_players):
-        players = [Player(id) for id in range(0, nbr_of_players)]
+    def __init__(self, player_ids):
+        players = [Player(id) for id in player_ids]
         # self.game: Game = Game.initialize(players, ranks=list(range(2, 8)))
         self.game = Game.initialize(players)
         print("game initialized")
