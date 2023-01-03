@@ -1,4 +1,5 @@
 import random
+from typing import Optional
 
 from fastapi import WebSocket
 
@@ -8,12 +9,12 @@ from pyshithead.models.web.errors import GameTableNotFoundError
 
 
 class Client:
-    def __init__(self, connection):
+    def __init__(self, connection, id: Optional[int] = None):
         self.connection: WebSocket = connection
-        self.id_: int = random.randint(0, 999)
-        # self.name: str = "".join(
-        #     random.choice(string.ascii_uppercase + string.digits) for _ in range(3)
-        # )
+        if id is not None:
+            self.id_: int = id
+        else:
+            self.id_: int = random.randint(0, 999)
 
     async def send(self, data):
         await self.connection.send_json(data)
@@ -31,10 +32,9 @@ class ClientManager:
 
     async def connect(self, websocket: WebSocket) -> Client:
         await websocket.accept()
-        client = Client(connection=websocket)
+        client = Client(connection=websocket, id=len(self.clients))
         self.clients.append(client)
         print(f"number of clients: {len(self.clients)}")
-        print(client.to_dict())
         return client
 
     def disconnect(self, websocket: WebSocket):
@@ -72,16 +72,18 @@ class GameTable:
     async def add_client(self, websocket: WebSocket):
         client = await self.client_manager.connect(websocket)
         await client.send(client.to_dict())
-        await self.client_manager.broadcast("A new player joined")
+        await self.client_manager.broadcast(
+            f"A new player joined #c: {self.client_manager.nbr_of_clients()}"
+        )
 
-    def start_game(self):
+    async def start_game(self):
         self.game_manager = GameManager(
             player_ids=[client.id_ for client in self.client_manager.clients]
         )
-        self.client_manager.broadcast(self.game_manager.get_rules())
-        self.client_manager.broadcast(self.game_manager.get_public_infos())
+        await self.client_manager.broadcast(self.game_manager.get_rules())
+        await self.client_manager.broadcast(self.game_manager.get_public_infos())
         for client in self.client_manager.clients:
-            client.send(self.game_manager.get_private_infos(client.id_))
+            await client.send(self.game_manager.get_private_infos(client.id_))
 
     async def game_request(self, req: dict):
         client = self.client_manager.get_client_by_id(req["player_id"])

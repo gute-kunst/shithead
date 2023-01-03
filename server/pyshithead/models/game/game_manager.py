@@ -20,7 +20,6 @@ class GameManager:
         # self.game: Game = Game.initialize(players, ranks=list(range(2, 8)))
         self.game = Game.initialize(players)
         print("game initialized")
-        print(self.game)
 
     def get_private_infos(self, player_id: Optional[int] = None):
         return self.game.get_player(player_id).get_private_info()
@@ -28,8 +27,9 @@ class GameManager:
     def get_public_infos(self):
         return dict(
             {
+                "type": "public_info",
                 "game_id": self.game.game_id,
-                "playpile": self.game.play_pile,
+                # "playpile": self.game.play_pile, # TODO write JSON Serializer for PileOfCards
                 "nbr_of_cards_in_deck": len(self.game.deck),
                 "currents_turn": self.game.get_player().id_,
                 "player_public_info": [
