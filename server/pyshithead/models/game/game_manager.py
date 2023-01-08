@@ -22,21 +22,22 @@ class GameManager:
         print("game initialized")
 
     def get_private_infos(self, player_id: Optional[int] = None):
-        return self.game.get_player(player_id).get_private_info()
+        return {"type": "private_info", "data": self.game.get_player(player_id).get_private_info()}
 
     def get_public_infos(self):
-        return dict(
-            {
-                "type": "public_info",
+        return {
+            "type": "public_info",
+            "data": {
                 "game_id": self.game.game_id,
                 # "playpile": self.game.play_pile, # TODO write JSON Serializer for PileOfCards
+                "game_state": self.game.state,
                 "nbr_of_cards_in_deck": len(self.game.deck),
                 "currents_turn": self.game.get_player().id_,
                 "player_public_info": [
                     player.get_public_info() for player in self.game.active_players
                 ],
-            }
-        )
+            },
+        }
 
     def get_rules(self):
         return dict(

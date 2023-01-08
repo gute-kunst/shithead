@@ -159,9 +159,9 @@ class ChoosePublicCardsRequest(CardsRequest):
             raise WrongNumberOfChosenCardsError
 
     def validate(self):
-        self.validate_cards_on_players_hands()
-        self.validate_correct_number_was_chosen()
         self.player.validate_eligible_to_choose_cards()
+        self.validate_correct_number_was_chosen()
+        self.validate_cards_on_players_hands()
 
     def process(self):
         self.player.public_cards = SetOfCards(self.player.private_cards.take(self.cards.cards))

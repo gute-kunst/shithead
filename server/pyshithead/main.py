@@ -39,6 +39,7 @@ async def websocket_endpoint(websocket: WebSocket, game_id: int):
                 data["type"] == "private_cards"
                 or data["type"] == "take_play_pile"
                 or data["type"] == "hidden_card"
+                or data["type"] == "choose_public_cards"
             ):
                 await game_table.game_request(data)
     except WebSocketDisconnect:
