@@ -91,3 +91,10 @@ def test_game_hidden_move(game_hidden_move: Game):
     assert game_hidden_move.active_players.get_ordered_list() == players
     assert req.cards in game_hidden_move.get_player().private_cards
     assert game_hidden_move.state is GameState.DURING_GAME
+
+
+def test_game_mocked(game_with_two_players_during_game_empty_playpile: Game, mocker):
+    game = game_with_two_players_during_game_empty_playpile
+    assert game.game_id == 1
+    mocker.patch.object(game, "game_id", 2)
+    assert game.game_id == 2
