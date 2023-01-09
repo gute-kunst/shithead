@@ -7,7 +7,6 @@ from pytest_mock import MockerFixture
 
 from pyshithead import GAME_ID
 from pyshithead.main import app, game_tables_manager
-from pyshithead.models.game import Choice
 from pyshithead.models.game.game_manager import GameManager
 
 from .models_game.conftest import *
@@ -35,55 +34,6 @@ def ws_on_joined(ws_before_joined):
     b.receive_json()
     b.receive_json()
     yield (a, b)
-
-
-# @pytest.fixture
-# def ws_on_chosen_cards(ws_on_joined):
-#     (a, b) = ws_on_joined
-#     a.send_json(json.dumps({"type": "start_game"}))
-#     a.receive_json()
-#     a.receive_json()
-#     a.receive_json()
-#     b.receive_json()
-#     b.receive_json()
-#     b.receive_json()
-#     private_cards_a = list(
-#         game_tables_manager.game_tables[0].game_manager.game.get_player(0).private_cards
-#     )
-#     a.send_json(
-#         json.dumps(
-#             {
-#                 "type": "choose_public_cards",
-#                 "player_id": 0,
-#                 "cards": [vars(card) for card in private_cards_a[:3]],
-#             }
-#         )
-#     )
-#     yield (a, b)
-
-
-# @pytest.fixture
-# def ws_on_first_play_request(ws_on_chosen_cards):
-#     (a, b) = ws_on_chosen_cards
-#     a.receive_json()
-#     a.receive_json()
-#     b.receive_json()
-#     private_cards_b = list(
-#         game_tables_manager.game_tables[0].game_manager.game.get_player(1).private_cards
-#     )
-#     b.send_json(
-#         json.dumps(
-#             {
-#                 "type": "choose_public_cards",
-#                 "player_id": 1,
-#                 "cards": [vars(card) for card in private_cards_b[:3]],
-#             }
-#         )
-#     )
-#     b.receive_json()
-#     b.receive_json()
-#     a.receive_json()
-#     yield (a, b)
 
 
 def test_join_adds_client(client: TestClient):
@@ -243,14 +193,16 @@ def test_choose_cards(ws_on_joined, game_manager_choose_cards: GameManager):
 def test_first_play_request(ws_on_joined, game_manager_first_move: GameManager):
     (a, b) = ws_on_joined
     game_tables_manager.game_tables[0].game_manager = game_manager_first_move
-    private_cards_a = list(game_manager_first_move.game.get_player(0).private_cards)
+    card_to_play = sorted(
+        list(game_manager_first_move.game.get_player(0).private_cards), key=lambda card: card.rank
+    )[0]
     # TODO list needs to be sorted
     a.send_json(
         json.dumps(
             {
                 "type": "private_cards",
                 "player_id": 0,
-                "cards": [vars(Card(5, Suit.TILES))],
+                "cards": [vars(card_to_play)],
                 "choice": "",
             }  # TODO-2 : test doesnt fail if exception is raised
         )
@@ -259,7 +211,7 @@ def test_first_play_request(ws_on_joined, game_manager_first_move: GameManager):
     assert b_pub_info["data"]["currents_turn"] == 1
     a_pub_info = a.receive_json()
     a_private_info = a.receive_json()
-    assert vars(Card(5, Suit.TILES)) not in a_private_info["data"]["private_cards"]
+    assert vars(card_to_play) not in a_private_info["data"]["private_cards"]
 
 
 def test_rest_hello_world(client: TestClient):

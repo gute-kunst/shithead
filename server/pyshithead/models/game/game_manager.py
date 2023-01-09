@@ -15,7 +15,7 @@ from pyshithead.models.game import (
 
 
 class GameManager:
-    def __init__(self, player_ids):
+    def __init__(self, player_ids: list[int]):
         players = [Player(id) for id in player_ids]
         # self.game: Game = Game.initialize(players, ranks=list(range(2, 8)))
         self.game = Game.initialize(players)
@@ -29,7 +29,7 @@ class GameManager:
             "type": "public_info",
             "data": {
                 "game_id": self.game.game_id,
-                # "playpile": self.game.play_pile, # TODO write JSON Serializer for PileOfCards
+                "play_pile": [vars(card) for card in self.game.play_pile.cards],
                 "game_state": self.game.state,
                 "nbr_of_cards_in_deck": len(self.game.deck),
                 "currents_turn": self.game.get_player().id_,

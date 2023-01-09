@@ -58,6 +58,7 @@ def test_pileofcards_put_set(two_cards, two_other_cards):
     ],
 )
 def test_pileofcards_four_of_same_rank_from_top(cards, expected_value):
+    print(cards)
     pile = PileOfCards(cards)
     assert pile.has_four_times_same_rank_from_top() is expected_value
 
