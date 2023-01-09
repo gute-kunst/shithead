@@ -2,7 +2,7 @@ import random
 
 from fastapi import WebSocket
 
-from pyshithead.models.game import GameManager, GameState, PyshitheadError
+from pyshithead.models.game import GameManager, PyshitheadError
 from pyshithead.models.web import ClientManager
 
 

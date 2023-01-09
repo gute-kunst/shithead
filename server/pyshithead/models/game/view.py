@@ -6,4 +6,5 @@ class View:
             print(f"Player-{player['id']}: {player['public_cards']}")
         print(f"TOP OF PLAY PILE: {public_info['play_pile']}")
         print(f"CARDS IN DECK: {public_info['nbr_of_cards_in_deck']}")
+        print(f"It's player-id <{public_info['currents_turn']}> turn")
         print("--------------------")

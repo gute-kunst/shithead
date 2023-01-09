@@ -7,6 +7,7 @@ from pytest_mock import MockerFixture
 
 from pyshithead import GAME_ID
 from pyshithead.main import app, game_tables_manager
+from pyshithead.models.game.errors import CardsNotInPlayersPrivateHandsError
 from pyshithead.models.game.game_manager import GameManager
 
 from .models_game.conftest import *
@@ -34,6 +35,48 @@ def ws_on_joined(ws_before_joined):
     b.receive_json()
     b.receive_json()
     yield (a, b)
+
+
+@pytest.fixture
+def game_choose_cards():
+    players = [Player(0), Player(1)]
+    deck = Dealer.provide_deck()
+    Dealer.deal_cards_to_players(deck, players)
+    return Game(players, deck, state=GameState.PLAYERS_CHOOSE_PUBLIC_CARDS)
+
+
+@pytest.fixture
+def game_manager_choose_cards(game_choose_cards):
+    game_manager = GameManager(player_ids=[0, 1])
+    game_manager.game = game_choose_cards
+    return game_manager
+
+
+@pytest.fixture
+def game_first_move():
+    players = [Player(0), Player(1)]
+    deck = Dealer.provide_deck()
+    Dealer.deal_cards_to_players(deck, players, put_public_to_private=False)
+    return Game(players, deck, state=GameState.DURING_GAME)
+
+
+@pytest.fixture
+def game_manager_first_move(game_first_move):
+    game_manager = GameManager(player_ids=[0, 1])
+    game_manager.game = game_first_move
+    return game_manager
+
+
+def test_rest_hello_world(client: TestClient):
+    response = client.get("/")
+    assert response.status_code == 200
+    assert response.json() == {"msg": "Hello World"}
+
+
+def test_websocket_hello_world(client: TestClient):
+    with client.websocket_connect("/ws") as websocket:
+        data = websocket.receive_json()
+        assert data == {"msg": "Hello WebSocket"}
 
 
 def test_join_adds_client(client: TestClient):
@@ -121,36 +164,6 @@ def test_start_game_deterministic(
     assert a_private_info != b_private_info
 
 
-@pytest.fixture
-def game_choose_cards():
-    players = [Player(0), Player(1)]
-    deck = Dealer.provide_deck()
-    Dealer.deal_cards_to_players(deck, players)
-    return Game(players, deck, state=GameState.PLAYERS_CHOOSE_PUBLIC_CARDS)
-
-
-@pytest.fixture
-def game_manager_choose_cards(game_choose_cards):
-    game_manager = GameManager(player_ids=[0, 1])
-    game_manager.game = game_choose_cards
-    return game_manager
-
-
-@pytest.fixture
-def game_first_move():
-    players = [Player(0), Player(1)]
-    deck = Dealer.provide_deck()
-    Dealer.deal_cards_to_players(deck, players, put_public_to_private=False)
-    return Game(players, deck, state=GameState.DURING_GAME)
-
-
-@pytest.fixture
-def game_manager_first_move(game_first_move):
-    game_manager = GameManager(player_ids=[0, 1])
-    game_manager.game = game_first_move
-    return game_manager
-
-
 def test_choose_cards(ws_on_joined, game_manager_choose_cards: GameManager):
     (a, b) = ws_on_joined
     game_tables_manager.game_tables[0].game_manager = game_manager_choose_cards
@@ -196,7 +209,6 @@ def test_first_play_request(ws_on_joined, game_manager_first_move: GameManager):
     card_to_play = sorted(
         list(game_manager_first_move.game.get_player(0).private_cards), key=lambda card: card.rank
     )[0]
-    # TODO list needs to be sorted
     a.send_json(
         json.dumps(
             {
@@ -204,23 +216,33 @@ def test_first_play_request(ws_on_joined, game_manager_first_move: GameManager):
                 "player_id": 0,
                 "cards": [vars(card_to_play)],
                 "choice": "",
-            }  # TODO-2 : test doesnt fail if exception is raised
+            }
         )
     )
     b_pub_info = b.receive_json()
     assert b_pub_info["data"]["currents_turn"] == 1
+    assert b_pub_info["data"]["play_pile"] == [vars(card_to_play)]
     a_pub_info = a.receive_json()
     a_private_info = a.receive_json()
     assert vars(card_to_play) not in a_private_info["data"]["private_cards"]
 
 
-def test_rest_hello_world(client: TestClient):
-    response = client.get("/")
-    assert response.status_code == 200
-    assert response.json() == {"msg": "Hello World"}
-
-
-def test_websocket_hello_world(client: TestClient):
-    with client.websocket_connect("/ws") as websocket:
-        data = websocket.receive_json()
-        assert data == {"msg": "Hello WebSocket"}
+def test_invalid_play_request(ws_on_joined, game_manager_first_move: GameManager, card_2c):
+    (a, b) = ws_on_joined
+    game_tables_manager.game_tables[0].game_manager = game_manager_first_move
+    card_not_in_hand = card_2c
+    private_cards = list(game_manager_first_move.game.get_player(0).private_cards)
+    assert card_not_in_hand not in private_cards
+    a.send_json(
+        json.dumps(
+            {
+                "type": "private_cards",
+                "player_id": 0,
+                "cards": [vars(card_not_in_hand)],
+                "choice": "",
+            }
+        )
+    )
+    a_private_info = a.receive_json()
+    assert a_private_info["type"] == "invalid-request"
+    assert a_private_info["data"] == CardsNotInPlayersPrivateHandsError().message
