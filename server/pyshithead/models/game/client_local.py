@@ -2,6 +2,7 @@ import time
 from typing import Optional
 
 from PyInquirer import prompt
+
 from pyshithead.models.game import GameManager, View
 from pyshithead.models.game.errors import PyshitheadError
 
@@ -10,7 +11,7 @@ none_card: dict = dict({"rank": None, "suit": None})
 
 class ClientLocal:
     """
-    Mimics a client. This class should have no dependency other than the controller.
+    Mimics a client. This class should have no dependency other than the GameManager.
     """
 
     def __init__(self):
@@ -20,11 +21,12 @@ class ClientLocal:
     def start(self):
         print("⭐⭐ Shithead Game ⭐⭐")
         nbr_of_players = int(input("Nbr of players: "))
-        self.manager = GameManager(nbr_of_players)
-        self.rules = self.manager.get_rules()
-        for player in self.manager.game.active_players:
-            print(f"Select public cards for player {player.id_} ... ")
-            private_cards = self.manager.get_private_infos(player.id_)["private_cards"]
+        self.manager = GameManager(list(range(nbr_of_players)))
+        self.rules = self.manager.get_rules()["data"]
+        public_info = self.manager.get_public_infos()["data"]
+        for player in public_info["player_public_info"]:
+            print(f"Select public cards for player {player['id']} ... ")
+            private_cards = self.manager.get_private_infos(player["id"])["data"]["private_cards"]
             choices = [
                 {"name": str(card), "value": card, "checked": False} for card in private_cards
             ]
@@ -48,16 +50,16 @@ class ClientLocal:
             req = dict(
                 {
                     "type": "choose_public_cards",
-                    "player_id": player.id_,
+                    "player_id": player["id"],
                     "cards": selection,
                 }
             )
             self.manager.process_request(req)
-        View.show_game(self.manager.game)
+        View.show_public_info(self.manager.get_public_infos()["data"])
         while -1:
-            broadcast_msg = self.manager.get_public_infos()
-            private_msg = self.manager.get_private_infos(broadcast_msg["currents_turn"])
-            if broadcast_msg["state"] == "GAME_OVER":
+            broadcast_msg = self.manager.get_public_infos()["data"]
+            private_msg = self.manager.get_private_infos(broadcast_msg["currents_turn"])["data"]
+            if broadcast_msg["game_state"] == "GAME_OVER":
                 exit()
             # player = self.ctrl.game.get_player()
             print(f"Turn Player: {broadcast_msg['currents_turn']}")
@@ -127,7 +129,7 @@ class ClientLocal:
                 print(f"🔥 Error: {err.message} 👉 Try Again")
             print("pass local client to next player ...")
             time.sleep(1)
-            View.show_game(self.manager.game)
+            View.show_public_info(self.manager.get_public_infos()["data"])
 
 
 if __name__ == "__main__":
