@@ -3,23 +3,25 @@ name: Test Shithead Server
 on:
   push:
     branches: [ "main" ]
-    paths: ["server/**"]
+    # paths: ["server/**"]
   pull_request:
     branches: [ "main" ]
-    paths: ["server/**"]
-    
-
+    # paths: ["server/**"]
+  
 jobs:
-  build:
-
-    runs-on: ubuntu-latest
+  tests:
+    name: "Python ${{ matrix.python-version }} on ${{ matrix.os }}"
+    runs-on: "${{ matrix.os }}"
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11"]
+        # os: ["ubuntu-latest", "macos-latest", "windows-latest"] windows test fail on poetry install due to caching
+        os: ["ubuntu-latest", "macos-latest"] 
+        python-version: ["3.11"] 
     defaults:
       run:
         working-directory: ./server
+        shell: bash
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
@@ -31,23 +33,30 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ~/.local
-        key: poetry-1.2.2-0 
+        key: poetry-1.2.2-${{ matrix.python-version }}-${{ matrix.os }}
     
     - uses: snok/install-poetry@v1
       with:
         version: 1.2.2
         virtualenvs-create: true
-        virtualenvs-in-project: true   
         
     - name: cache deps
       id: cache-deps
       uses: actions/cache@v2
       with:
         path: .venv
-        key: pydeps-${{ hashFiles('**/poetry.lock') }}-${{ matrix.python-version }}
+        key: pydeps-${{ hashFiles('**/poetry.lock') }}-${{ matrix.python-version }}-${{ matrix.os }}
    
     - run: poetry install --no-interaction --no-root
       if: steps.cache-deps.outputs.cache-hit != 'true'  
    
     - run: poetry install --no-interaction
-    - run: poetry run pytest
+    - run: poetry run pytest --junitxml=junit/test-results-${{ matrix.python-version }}-${{ matrix.os }}.xml --cov
+    
+    - name: Upload pytest test results
+      uses: actions/upload-artifact@v3
+      with:
+        name: pytest-results-${{ matrix.python-version }}-${{ matrix.os }}
+        path: server/junit/test-results-${{ matrix.python-version }}-${{ matrix.os }}.xml
+      # Use always() to always run this step to publish test results when there are test failures
+      if: ${{ always() }}
