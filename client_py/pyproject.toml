@@ -1,0 +1,57 @@
+[tool.poetry]
+name = "shithead"
+version = "0.1.0"
+description = ""
+authors = ["Johannes Gutekunst <john@doe.com>"]
+readme = "README.md"
+packages = [{ include = "shithead" }]
+
+[tool.poetry.dependencies]
+python = "^3.7.2"
+websockets = "^10.4"
+PyInquirer = "^1.0.3"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.2.0"
+black = "^22.10"
+isort = "^5.10"
+mypy = "^0.991"
+pylint = "^2.15"
+coverage = { extras = ["toml"], version = "^6.5.0" }
+pytest-cov = "^4.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.isort]
+include_trailing_comma = true
+use_parentheses = true
+multi_line_output = 3
+force_grid_wrap = 0
+line_length = 100
+
+
+[tool.pylint.format]
+disable = ["C0114", "C0115", "C0116"]
+max-line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "pyshithead"]
+
+[tool.black]
+line-length = 100
+target_version = ['py311']
+
+[tool.coverage.run]
+branch = true
+[tool.coverage.report]
+exclude_lines = [
+	"raise AssertionError",
+	"raise NotImplementedError",
+	"def __repr__",
+	"def __str__",
+]
+[tool.coverage.html]
+directory = "coverage_html_report"
