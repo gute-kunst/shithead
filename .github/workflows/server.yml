@@ -50,7 +50,7 @@ jobs:
       if: steps.cache-deps.outputs.cache-hit != 'true'  
    
     - run: poetry install --no-interaction
-    - run: poetry run pytest --junitxml=junit/test-results-${{ matrix.python-version }}.xml
+    - run: poetry run pytest --junitxml=junit/test-results-${{ matrix.python-version }}.xml --cov
     
     - name: Upload pytest test results
       uses: actions/upload-artifact@v3
