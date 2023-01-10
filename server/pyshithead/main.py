@@ -31,8 +31,7 @@ async def websocket_endpoint(websocket: WebSocket, game_id: int):
     await game_table.add_client(websocket)
     try:
         while True:
-            req = await websocket.receive_json()
-            data = json.loads(req)
+            data = await websocket.receive_json()
             if data["type"] == "start_game":
                 await game_table.start_game()
             elif (

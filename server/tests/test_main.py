@@ -115,7 +115,7 @@ def test_join_two_clients_server_response(ws_before_joined):
 
 def test_start_game(ws_on_joined):
     (a, b) = ws_on_joined
-    a.send_json(json.dumps(dict({"type": "start_game"})))
+    a.send_json({"type": "start_game"})
     # RULES
     a_rules = a.receive_json()
     assert "rules" in a_rules.values()
@@ -140,7 +140,7 @@ def test_start_game_deterministic(
     ws_on_joined, game_with_two_players_during_game_empty_playpile, mocker: MockerFixture
 ):
     (a, b) = ws_on_joined
-    a.send_json(json.dumps(dict({"type": "start_game"})))
+    a.send_json({"type": "start_game"})
     # RULES
     a_rules = a.receive_json()
     assert "rules" in a_rules.values()
@@ -169,13 +169,11 @@ def test_choose_cards(ws_on_joined, game_manager_choose_cards: GameManager):
     game_tables_manager.game_tables[0].game_manager = game_manager_choose_cards
     private_cards_a = list(game_manager_choose_cards.game.get_player(0).private_cards)
     a.send_json(
-        json.dumps(
-            {
-                "type": "choose_public_cards",
-                "player_id": 0,
-                "cards": [vars(card) for card in private_cards_a[:3]],
-            }
-        )
+        {
+            "type": "choose_public_cards",
+            "player_id": 0,
+            "cards": [vars(card) for card in private_cards_a[:3]],
+        }
     )
     a_pub_info = a.receive_json()
     a_private_info = a.receive_json()
@@ -188,13 +186,11 @@ def test_choose_cards(ws_on_joined, game_manager_choose_cards: GameManager):
         game_tables_manager.game_tables[0].game_manager.game.get_player(1).private_cards
     )
     b.send_json(
-        json.dumps(
-            {
-                "type": "choose_public_cards",
-                "player_id": 1,
-                "cards": [vars(card) for card in private_cards_b[:3]],
-            }
-        )
+        {
+            "type": "choose_public_cards",
+            "player_id": 1,
+            "cards": [vars(card) for card in private_cards_b[:3]],
+        }
     )
     b_pub_info_2 = b.receive_json()
     b_private_info_2 = b.receive_json()
@@ -210,14 +206,12 @@ def test_first_play_request(ws_on_joined, game_manager_first_move: GameManager):
         list(game_manager_first_move.game.get_player(0).private_cards), key=lambda card: card.rank
     )[0]
     a.send_json(
-        json.dumps(
-            {
-                "type": "private_cards",
-                "player_id": 0,
-                "cards": [vars(card_to_play)],
-                "choice": "",
-            }
-        )
+        {
+            "type": "private_cards",
+            "player_id": 0,
+            "cards": [vars(card_to_play)],
+            "choice": "",
+        }
     )
     b_pub_info = b.receive_json()
     assert b_pub_info["data"]["currents_turn"] == 1
@@ -234,14 +228,12 @@ def test_invalid_play_request(ws_on_joined, game_manager_first_move: GameManager
     private_cards = list(game_manager_first_move.game.get_player(0).private_cards)
     assert card_not_in_hand not in private_cards
     a.send_json(
-        json.dumps(
-            {
-                "type": "private_cards",
-                "player_id": 0,
-                "cards": [vars(card_not_in_hand)],
-                "choice": "",
-            }
-        )
+        {
+            "type": "private_cards",
+            "player_id": 0,
+            "cards": [vars(card_not_in_hand)],
+            "choice": "",
+        }
     )
     a_private_info = a.receive_json()
     assert a_private_info["type"] == "invalid-request"
