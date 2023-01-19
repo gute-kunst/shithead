@@ -13,4 +13,4 @@ class Client:
         await self.connection.send_json(data)
 
     def to_dict(self):
-        return dict({"player_id": self.id_})
+        return dict({"type": "player_id", "player_id": self.id_})

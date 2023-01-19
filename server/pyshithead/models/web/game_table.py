@@ -17,7 +17,14 @@ class GameTable:
         self.game_id = 452
         await client.send(client.to_dict())
         await self.client_manager.broadcast(
-            f"A new player joined #c: {self.client_manager.nbr_of_clients()}"
+            {
+                "type": "player",
+                "message": f"A new player joined. player-id: {client.id_}",
+                "data": {
+                    "nbr_of_players": self.client_manager.nbr_of_clients(),
+                    "players": [client.id_ for client in self.client_manager.clients],
+                },
+            }
         )
 
     async def start_game(self):
@@ -34,6 +41,7 @@ class GameTable:
         try:
             self.game_manager.process_request(req)
             await self.broadcast_game_state()
+            print("game_state", self.game_manager.game.state)
             await client.send(self.game_manager.get_private_infos(client.id_))
         except PyshitheadError as err:
             await client.send({"type": "invalid-request", "data": err.message})
