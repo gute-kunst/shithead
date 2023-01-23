@@ -24,6 +24,13 @@
       "args": ["--cov", "--cov-report", "html"],
       "console": "integratedTerminal",
       "justMyCode": false
+    },
+    {
+      "name": "Start Uvicorn Server (reload)",
+      "type": "python",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["pyshithead.main:app", "--reload"]
     }
   ]
 }
