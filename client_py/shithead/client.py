@@ -1,14 +1,14 @@
 import asyncio
 import json
 from abc import ABC, abstractmethod
-
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Optional
 
 import websockets
-
 from PyInquirer import prompt
+
+none_card: dict = dict({"rank": None, "suit": None})
 
 
 @dataclass
@@ -63,6 +63,100 @@ class Client:
     id_: Optional[int] = None
     cards_not_chosen: bool = True
 
+    def my_turn(self):
+        return self.public_info["currents_turn"] == self.id_
+
+    async def start_game(self):
+        start_game = await ainput("start game [y/n]: ")
+        if start_game == "y":
+            return json.dumps({"type": "start_game"})
+
+    def choose_cards(self):
+        print("👉 SELECT PUBLIC CARDS")
+        choices = [
+            {"name": str(card), "value": card, "checked": False}
+            for card in self.private_info["private_cards"]
+        ]
+        questions = [
+            {
+                "type": "checkbox",
+                "name": "selection",
+                "message": "Choose your cards",
+                "choices": choices,
+            }
+        ]
+        selection = prompt_and_validate_length(questions, ShouldBeValidator(3))
+        self.cards_not_chosen = False
+        return json.dumps(
+            {
+                "type": "choose_public_cards",
+                "player_id": self.id_,
+                "cards": selection,
+            }
+        )
+
+    def create_play_options(self):
+        play_options = [
+            {"name": str(card), "value": {"type": "private_cards", "card": card}}
+            for card in self.private_info["private_cards"]
+        ]
+        if len(self.private_info["private_cards"]) == 0:
+            play_options.insert(
+                0,
+                {
+                    "name": "Play Hidden Card",
+                    "value": {"type": "hidden_card", "card": none_card},
+                },
+            )
+        else:
+            play_options.insert(
+                0, {"name": "Take Pile", "value": {"type": "take_play_pile", "card": none_card}}
+            )
+        return play_options
+
+    def prompt_user_options(self, play_options):
+        questions = [
+            {
+                "type": "checkbox",
+                "name": "selection",
+                "choices": play_options,
+                "message": "Choose your cards",
+            }
+        ]
+        card_selection = prompt_and_validate_length(questions, ShouldBeGreaterThanValidator(0))
+        high_low_choice = None
+        if card_selection[0]["card"]["rank"] == self.rules["special_rank"]["high_low"]:
+            questions = [
+                {
+                    "type": "list",
+                    "name": "high_low",
+                    "choices": [
+                        {"name": "Higher", "value": self.rules["choice"]["higher"]},
+                        {"name": "Lower", "value": self.rules["choice"]["lower"]},
+                    ],
+                    "message": "Action",
+                }
+            ]
+            high_low_choice = prompt(questions)["high_low"]
+        return (card_selection, high_low_choice)
+
+    def game_play(self):
+        play_options = self.create_play_options()
+        (card_selection, high_low_choice) = self.prompt_user_options(play_options)
+        if card_selection[0]["type"] == "take_play_pile":
+            req = dict({"type": "take_play_pile", "player_id": self.private_info["id"]})
+        elif card_selection[0]["type"] == "hidden_card":
+            req = dict({"type": "hidden_card", "player_id": self.private_info["id"]})
+        else:
+            req = {
+                "type": "private_cards",
+                "player_id": self.private_info["id"],
+                "cards": [x["card"] for x in card_selection],
+                "choice": high_low_choice,
+            }
+
+            return json.dumps(req)
+
     def consumer(self, message: str):
         if message is not None:
             event = json.loads(message)
@@ -88,40 +182,19 @@ class Client:
             self.consumer(await websocket.recv())
 
     async def producer(self):
+        await asyncio.sleep(1)
         if self.public_info is None:
-            start_game = await ainput("start game [y/n]: ")
-            if start_game == "y":
-                return json.dumps({"type": "start_game"})
+            return await self.start_game()
         else:
+            print(self.public_info["game_state"])
             if (
                 self.public_info["game_state"] == "PLAYERS_CHOOSE_PUBLIC_CARDS"
                 and self.cards_not_chosen is True
             ):
-                print("👉 SELECT PUBLIC CARDS")
-                choices = [
-                    {"name": str(card), "value": card, "checked": False}
-                    for card in self.private_info["private_cards"]
-                ]
-                questions = [
-                    {
-                        "type": "checkbox",
-                        "name": "selection",
-                        "message": "Choose your cards",
-                        "choices": choices,
-                    }
-                ]
-                selection = prompt_and_validate_length(questions, ShouldBeValidator(3))
-                self.cards_not_chosen = False
-                return json.dumps(
-                    {
-                        "type": "choose_public_cards",
-                        "player_id": self.id_,
-                        "cards": selection,
-                    }
-                )
-            elif self.public_info["game_state"] == "DURING_GAME":
-                print("where")
-                pass
+                return self.choose_cards()
+            elif self.public_info["game_state"] == "DURING_GAME" and self.my_turn():
+                print("DURING GAME")
+                return self.game_play()
 
     async def producer_handler(self, websocket):
         while True:
@@ -132,7 +205,6 @@ class Client:
     async def handler(self, websocket):
         consumer_task = asyncio.create_task(self.consumer_handler(websocket))
         producer_task = asyncio.create_task(self.producer_handler(websocket))
-        print("hi")
         done, pending = await asyncio.wait(
             [consumer_task, producer_task],
             return_when=asyncio.FIRST_COMPLETED,
@@ -147,11 +219,6 @@ async def main():
     uri = f"ws://localhost:8000/game/{join_game_id}"
     async with websockets.connect(uri) as websocket:
         await client.handler(websocket)
-
-        # response = await websocket.recv()
-
-        # print(f"<<< {response}")
-        # print("server request ...")
 
 
 if __name__ == "__main__":
