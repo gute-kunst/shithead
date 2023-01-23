@@ -8,7 +8,7 @@ from PyInquirer import prompt
 from pyshithead.models.game import GameManager, View
 from pyshithead.models.game.errors import PyshitheadError
 
-none_card: dict = dict({"rank": None, "suit": None})
+none_card: dict = {"rank": None, "suit": None}
 
 
 @dataclass
@@ -159,18 +159,17 @@ class ClientLocal:
             play_options = self.create_play_options()
             (card_selection, high_low_choice) = self.prompt_user_options(play_options)
             if card_selection[0]["type"] == "take_play_pile":
-                req = dict({"type": "take_play_pile", "player_id": self.private_info["id"]})
+                req = {"type": "take_play_pile", "player_id": self.private_info["id"]}
             elif card_selection[0]["type"] == "hidden_card":
-                req = dict({"type": "hidden_card", "player_id": self.private_info["id"]})
+                req = {"type": "hidden_card", "player_id": self.private_info["id"]}
             else:
-                req = dict(
-                    {
-                        "type": "private_cards",
-                        "player_id": self.private_info["id"],
-                        "cards": [x["card"] for x in card_selection],
-                        "choice": high_low_choice,
-                    }
-                )
+                req = {
+                    "type": "private_cards",
+                    "player_id": self.private_info["id"],
+                    "cards": [x["card"] for x in card_selection],
+                    "choice": high_low_choice,
+                }
+
             self.send_and_update(req)
 
     def run(self):
