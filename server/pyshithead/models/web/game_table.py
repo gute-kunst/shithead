@@ -14,7 +14,6 @@ class GameTable:
 
     async def add_client(self, websocket: WebSocket):
         client = await self.client_manager.connect(websocket)
-        self.game_id = 452
         await client.send(client.to_dict())
         await self.client_manager.broadcast(
             {
