@@ -87,7 +87,7 @@ def test_join_adds_client(client: TestClient):
         nbr_clients = asyncio.run(
             game_tables_manager.get_game_table_by_id(GAME_ID)
         ).client_manager.nbr_of_clients()
-        assert data_broadcast == "A new player joined #c: 1"
+        assert "A new player joined" in data_broadcast["message"]
         assert nbr_clients == 1
         assert (
             asyncio.run(game_tables_manager.get_game_table_by_id(GAME_ID))
@@ -106,11 +106,11 @@ def test_join_two_clients(ws_before_joined):
 
 def test_join_two_clients_server_response(ws_before_joined):
     (a, b) = ws_before_joined
-    assert {"player_id": 0} == a.receive_json()
-    assert "A new player joined #c: 1" == a.receive_json()
-    assert {"player_id": 1} == b.receive_json()
-    assert "A new player joined #c: 2" == a.receive_json()
-    assert "A new player joined #c: 2" == b.receive_json()
+    assert {"type": "player_id", "player_id": 0} == a.receive_json()
+    assert "A new player joined" in a.receive_json()["message"]
+    assert {"type": "player_id", "player_id": 1} == b.receive_json()
+    assert "A new player joined" in a.receive_json()["message"]
+    assert "A new player joined" in b.receive_json()["message"]
 
 
 def test_start_game(ws_on_joined):
