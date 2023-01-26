@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 from enum import StrEnum
 
 from pyshithead.models.game import (
     ALL_RANKS,
+    MAX_PLAYERS,
     BurnEvent,
     ChoosePublicCardsRequest,
     CircularDoublyLinkedList,
@@ -36,8 +39,8 @@ class Game:
         game_id: int = 1,
         state: GameState = GameState.PLAYERS_CHOOSE_PUBLIC_CARDS,
     ):
-        if len(players) > 5:
-            raise ValueError("too many players")
+        if len(players) > MAX_PLAYERS:
+            raise TooManyPlayersErrors(len(players), MAX_PLAYERS)
         self.active_players: CircularDoublyLinkedList = CircularDoublyLinkedList(players)
         self.ranking: list[Player] = []
         self.valid_ranks: set[int] = self.__all_cards_valid()
@@ -51,7 +54,7 @@ class Game:
         self.state: GameState = state
 
     @classmethod
-    def initialize(cls, players: list[Player], ranks=ALL_RANKS, suits=Suit):
+    def initialize(cls, players: list[Player], ranks=ALL_RANKS, suits=Suit) -> Game:
         game = cls(players=players, deck=Dealer.provide_shuffled_deck(ranks, suits))
         Dealer.deal_cards_to_players(game.deck, game.active_players)
         game.state = GameState.PLAYERS_CHOOSE_PUBLIC_CARDS
@@ -59,6 +62,7 @@ class Game:
 
     def process_playrequest(self, req: PlayRequest):
         if isinstance(req, ChoosePublicCardsRequest):
+            # TODO no "Play Request" as game state not modified (only player internals). Move it somewhere else
             req.process()
             if self.all_players_chosen_public_card():
                 self.state = GameState.DURING_GAME
@@ -66,8 +70,9 @@ class Game:
         if not req.player == self.get_player():
             raise RequestNotFromCurrentPlayerError(self.get_player())
         if not self.state == GameState.DURING_GAME:
-            raise RequestNotAllowedInGameState(self.get_player(), self.state)
+            raise RequestNotAllowedInGameStateError(self.get_player(), self.state)
         if isinstance(req, HiddenCardRequest):
+            # TODO no "Play Request" as game state not modified (only player internals). Move it somewhere else
             self.get_player().private_cards.put(
                 self.get_player().hidden_cards.take(req.cards.cards)
             )
@@ -88,12 +93,12 @@ class Game:
                 self.burn_event = BurnEvent.YES
         if isinstance(req, TakePlayPileRequest):
             if not set(self.get_player().private_cards.get_ranks()).isdisjoint(self.valid_ranks):
-                raise TakePlayPileNotAllowed(
+                raise TakePlayPileNotAllowedError(
                     "TakePlayPile request not allowed, check private cards",
                     self.get_player().id_,
                 )
             if self.get_player().eligible_to_play_hidden_card():
-                raise TakePlayPileNotAllowed(
+                raise TakePlayPileNotAllowedError(
                     "TakePlayPile request not allowed, play hidden card",
                     self.get_player().id_,
                 )

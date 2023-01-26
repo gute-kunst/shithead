@@ -1,6 +1,7 @@
 import pytest
 
 from pyshithead.models.game import SetOfCards
+from pyshithead.models.game.errors import CardsCannotBeTakenFromSetOfCardsError
 
 
 def test_setofcards_empty_initialize():
@@ -76,7 +77,7 @@ def test_setofcards_get_ranks_same(card_2t, card_2h):
 
 def test_setofcards_take_invalid_card(card_2t, card_2h):
     cardset = SetOfCards([card_2t])
-    with pytest.raises(ValueError):
+    with pytest.raises(CardsCannotBeTakenFromSetOfCardsError):
         cardset.take({card_2h})
 
 

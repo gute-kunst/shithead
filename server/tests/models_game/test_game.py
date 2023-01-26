@@ -26,7 +26,7 @@ def test_game_players(game_with_two_players_start: Game, valid_all):
 
 def test_game_take_playpile_while_empty(game_with_two_players_during_game_empty_playpile: Game):
     game = game_with_two_players_during_game_empty_playpile
-    with pytest.raises(TakePlayPileNotAllowed):
+    with pytest.raises(TakePlayPileNotAllowedError):
         req = TakePlayPileRequest(game.get_player())
         game.process_playrequest(req)
 
@@ -39,7 +39,7 @@ def test_game_take_playpile_while_should_play_hidden(
     game.deck.take_all()
     game.play_pile.put(game.get_player().public_cards.take_all())
     req = TakePlayPileRequest(game.get_player())
-    with pytest.raises(TakePlayPileNotAllowed):
+    with pytest.raises(TakePlayPileNotAllowedError):
         game.process_playrequest(req)
 
 

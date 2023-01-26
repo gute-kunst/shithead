@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import IntEnum
 
-from pyshithead.models.game import ALL_RANKS, BIGGEST_RANK, Player, SpecialRank
+from pyshithead.models.game import BIGGEST_RANK, Player, SpecialRank
 
 
 class NextPlayerEvent(IntEnum):
@@ -46,7 +46,7 @@ class RankEvent:
     rank_type: RankType
     top_rank: int
 
-    def get_valid_ranks(self, current_valid_ranks: set[int] = set(ALL_RANKS)) -> set[int]:
+    def get_valid_ranks(self, current_valid_ranks: set[int]) -> set[int]:
         valid_ranks: set[int] = set()
         if self.rank_type == RankType.TOPRANK:
             valid_ranks.update(

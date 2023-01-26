@@ -4,7 +4,7 @@ from pyshithead.models.game import Card, SpecialRank
 
 
 class PileOfCards:
-    def __init__(self, cards: list[Card] = []):
+    def __init__(self, cards: list[Card] = []):  # pylint: disable=dangerous-default-value
         self.cards: list[Card] = []
         for card in cards:
             self.cards.append(card)

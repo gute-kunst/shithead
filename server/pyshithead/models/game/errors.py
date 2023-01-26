@@ -10,6 +10,14 @@ class PyshitheadError(Exception):
         super().__init__(self.message)
 
 
+class CardsCannotBeTakenFromSetOfCardsError(PyshitheadError):
+    def __init__(self, set_of_cards, take_cards):
+        super().__init__(
+            message=f"take_cards {take_cards} is not a subset of set_of_cards {set_of_cards}",
+            object_id=set_of_cards,
+        )
+
+
 class RequestNotFromCurrentPlayerError(PyshitheadError):
     def __init__(self, player_id):
         super().__init__(message="It's another players turn", object_id=player_id)
@@ -81,7 +89,7 @@ class LinkedListNodeNotFoundError(PyshitheadError):
         super().__init__(message=f"Node with ID {node_id} not found", object_id=node_id)
 
 
-class TakePlayPileNotAllowed(PyshitheadError):
+class TakePlayPileNotAllowedError(PyshitheadError):
     def __init__(self, message, player_id):
         super().__init__(
             message=message,
@@ -89,9 +97,17 @@ class TakePlayPileNotAllowed(PyshitheadError):
         )
 
 
-class RequestNotAllowedInGameState(PyshitheadError):
+class RequestNotAllowedInGameStateError(PyshitheadError):
     def __init__(self, player_id, game_state):
         super().__init__(
             message=f"Request not allowed in game state {game_state}",
             object_id=player_id,
+        )
+
+
+class TooManyPlayersErrors(PyshitheadError):
+    def __init__(self, nbr_of_players, max_players):
+        super().__init__(
+            message=f"Only {max_players} supported, game initiated with {nbr_of_players}",
+            object_id=nbr_of_players,
         )

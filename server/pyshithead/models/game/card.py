@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import IntEnum
 
@@ -25,8 +27,10 @@ class Card:
     def __hash__(self):
         return hash(str(self.rank) + str(self.suit))
 
-    def __eq__(self, other):
+    def __eq__(self, other: object):
+        if not isinstance(other, Card):
+            return NotImplemented
         return self.rank == other.rank and self.suit == other.suit
 
     def __repr__(self):
-        return str(f"[rank: {self.rank} suit: {self.suit}]")
+        return str(f"<rank: {self.rank} suit: {self.suit}>")
