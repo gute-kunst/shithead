@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{ include = "pyshithead" }]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.11"
 websockets = "^10.4"
 PyInquirer = "^1.0.3"
 prompt-toolkit = "1.0.14"
