@@ -6,7 +6,8 @@ uvicorn main:app --reload
 import json
 
 import uvicorn
-from fastapi import FastAPI, HTMLResponse, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
 
 app = FastAPI()
 import logging
