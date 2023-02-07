@@ -1,4 +1,4 @@
-# Shithead Browsergame
+# Shithead Card Game
 
 
 ## Ressources
