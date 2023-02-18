@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Optional
 
+import model
 import websockets
 from PyInquirer import prompt
 
@@ -87,13 +88,7 @@ class Client:
         ]
         selection = prompt_and_validate_length(questions, ShouldBeValidator(3))
         self.cards_not_chosen = False
-        return json.dumps(
-            {
-                "type": "choose_public_cards",
-                "player_id": self.id_,
-                "cards": selection,
-            }
-        )
+        return model.ChoosePublicCardsRequest(player_id=self.id_, cards=selection).json()
 
     def create_play_options(self):
         play_options = [
@@ -124,7 +119,7 @@ class Client:
             }
         ]
         card_selection = prompt_and_validate_length(questions, ShouldBeGreaterThanValidator(0))
-        high_low_choice = None
+        high_low_choice = ""
         if card_selection[0]["card"]["rank"] == self.rules["special_rank"]["high_low"]:
             questions = [
                 {
@@ -144,18 +139,16 @@ class Client:
         play_options = self.create_play_options()
         (card_selection, high_low_choice) = self.prompt_user_options(play_options)
         if card_selection[0]["type"] == "take_play_pile":
-            req = dict({"type": "take_play_pile", "player_id": self.private_info["id"]})
+            req = model.TakePlayPileRequest(self.id_)
         elif card_selection[0]["type"] == "hidden_card":
-            req = dict({"type": "hidden_card", "player_id": self.private_info["id"]})
+            req = model.HiddenCardRequest(self.id_)
         else:
-            req = {
-                "type": "private_cards",
-                "player_id": self.private_info["id"],
-                "cards": [x["card"] for x in card_selection],
-                "choice": high_low_choice,
-            }
-
-            return json.dumps(req)
+            req = model.PrivateCardsRequest(
+                player_id=self.id_,
+                cards=[x["card"] for x in card_selection],
+                choice=high_low_choice,
+            )
+            return req.json()
 
     def consumer(self, message: str):
         if message is not None:
