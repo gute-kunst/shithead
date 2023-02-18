@@ -54,10 +54,10 @@ class GameManager:
         player = self.game.get_player(req["player_id"])
         print(player)
         if req["type"] == "choose_public_cards":
-            self.game.process_playrequest(ChoosePublicCardsRequest.from_dict(player, req))
+            self.game.process_choose_cards(ChoosePublicCardsRequest.from_dict(player, req))
         if req["type"] == "private_cards":
             self.game.process_playrequest(PrivateCardsRequest.from_dict(player, req))
         if req["type"] == "take_play_pile":
             self.game.process_playrequest(TakePlayPileRequest(player))
         if req["type"] == "hidden_card":
-            self.game.process_playrequest(HiddenCardRequest(player))
+            self.game.process_hidden_card(HiddenCardRequest(player))

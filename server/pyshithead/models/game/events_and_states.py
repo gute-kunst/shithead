@@ -1,7 +1,14 @@
 from dataclasses import dataclass
-from enum import IntEnum
+from enum import IntEnum, StrEnum
+from typing import Optional
 
 from pyshithead.models.game import BIGGEST_RANK, Player, SpecialRank
+
+
+class GameState(StrEnum):
+    PLAYERS_CHOOSE_PUBLIC_CARDS = "PLAYERS_CHOOSE_PUBLIC_CARDS"
+    DURING_GAME = "DURING_GAME"
+    GAME_OVER = "GAME_OVER"
 
 
 class NextPlayerEvent(IntEnum):
@@ -11,10 +18,17 @@ class NextPlayerEvent(IntEnum):
     NEXT_3 = 3  # skip double
     NEXT_4 = 4  # skip triple
 
+    def process(self, active_players):
+        active_players.next(int(self))
+
 
 class BurnEvent(IntEnum):
     NO = 1
     YES = 2
+
+    def process(self, play_pile):
+        if self == self.YES:
+            play_pile.take_all()  # removes the cards
 
 
 class Choice(IntEnum):
@@ -24,7 +38,13 @@ class Choice(IntEnum):
 
 @dataclass
 class PlayerIsFinishedEvent:
-    player: Player
+    player: Optional[Player]
+
+    def process(self, ranking, active_players):
+        if self.player is not None:
+            ranking.append(self.player)
+            active_players.remove_node(self.player)
+            self.player = None
 
 
 class RankType(IntEnum):
@@ -60,3 +80,20 @@ class RankEvent:
         elif self.rank_type == RankType.KEEPCURRENT:
             valid_ranks.update(current_valid_ranks)
         return valid_ranks
+
+    def process(self, valid_ranks):
+        valid_ranks = self.get_valid_ranks(valid_ranks)
+
+
+@dataclass
+class PlayEvents:
+    rank: RankEvent
+    burn: BurnEvent
+    next_player: NextPlayerEvent
+    player_is_finished: PlayerIsFinishedEvent
+
+    def process(self, play_pile, active_players, valid_ranks, ranking):
+        self.burn.process(play_pile)
+        self.next_player.process(active_players)
+        self.rank.process(valid_ranks)
+        self.player_is_finished.process(ranking, active_players)

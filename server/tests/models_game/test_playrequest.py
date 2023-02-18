@@ -6,8 +6,10 @@ from pyshithead.models.game import (
     Card,
     Choice,
     ChoosePublicCardsRequest,
+    GameState,
     HiddenCardRequest,
     NextPlayerEvent,
+    PileOfCards,
     Player,
     PrivateCardsRequest,
     RankEvent,
@@ -17,6 +19,59 @@ from pyshithead.models.game import (
     TakePlayPileRequest,
 )
 from pyshithead.models.game.errors import *
+
+
+def test_playrequest_validate_player_and_state(
+    two_players: list[Player],
+):
+    request = TakePlayPileRequest(two_players[0])
+    with pytest.raises(RequestNotFromCurrentPlayerError):
+        request.validate_player_and_state(two_players[1], GameState.DURING_GAME)
+    with pytest.raises(RequestNotAllowedInGameStateError):
+        request.validate_player_and_state(two_players[0], GameState.PLAYERS_CHOOSE_PUBLIC_CARDS)
+    request.validate_player_and_state(two_players[0], GameState.DURING_GAME)
+    assert True
+
+
+def test_takeplaypilerequest_process(player: Player, card_3h: Card, card_4p: Card, valid_all):
+    player.private_cards.put([card_3h])
+    play_pile = PileOfCards([card_4p])
+    valid_ranks = RankEvent(RankType.TOPRANK, card_4p.rank).get_valid_ranks(valid_all)
+    request = TakePlayPileRequest(player)
+    request.validate(valid_ranks)
+    request.process(play_pile)
+    assert play_pile.is_empty()
+    assert len(player.private_cards) == 2
+
+
+@pytest.mark.parametrize(
+    "public, private, expected",
+    [
+        (
+            lazy_fixture("three_cards"),
+            lazy_fixture("three_other_cards"),
+            NotEligibleForHiddenCardPlayError,
+        ),
+        ([], lazy_fixture("three_other_cards"), NotEligibleForHiddenCardPlayError),
+        (lazy_fixture("three_cards"), [], NotEligibleForHiddenCardPlayError),
+    ],
+)
+def test_hiddencardrequest_validate_raises_error(public, private, expected, three_more_other_cards):
+    player = Player(1)
+    player.public_cards = SetOfCards(public)
+    player.private_cards = SetOfCards(private)
+    player.hidden_cards = SetOfCards(three_more_other_cards)
+    with pytest.raises(expected):
+        HiddenCardRequest(player)
+
+
+def test_hiddencardrequest_validate(three_more_other_cards):
+    player = Player(1)
+    player.hidden_cards = SetOfCards(three_more_other_cards)
+    try:
+        HiddenCardRequest(player)
+    except NotEligibleForHiddenCardPlayError as error:
+        assert False, error.message
 
 
 def test_privatecardsrequest_cards_on_players_hands_false(player: Player, two_cards_equal_rank):
@@ -141,44 +196,6 @@ def test_choosepubliccardsrequest_process(player_with_6_private_cards: Player):
     assert len(p.public_cards) == 3
     assert p.public_cards.isdisjoint(p.private_cards) is True
     assert p.public_cards == SetOfCards(p_chosen_cards)
-
-
-def test_takeplaypile_consistency(player: Player, card_3h):
-    player.private_cards.put([card_3h])
-    try:
-        TakePlayPileRequest(player)
-    except PyshitheadError:
-        assert False
-
-
-@pytest.mark.parametrize(
-    "public, private, expected",
-    [
-        (
-            lazy_fixture("three_cards"),
-            lazy_fixture("three_other_cards"),
-            NotEligibleForHiddenCardPlayError,
-        ),
-        ([], lazy_fixture("three_other_cards"), NotEligibleForHiddenCardPlayError),
-        (lazy_fixture("three_cards"), [], NotEligibleForHiddenCardPlayError),
-    ],
-)
-def test_hiddencardrequest_validate_raises_error(public, private, expected, three_more_other_cards):
-    player = Player(1)
-    player.public_cards = SetOfCards(public)
-    player.private_cards = SetOfCards(private)
-    player.hidden_cards = SetOfCards(three_more_other_cards)
-    with pytest.raises(expected):
-        HiddenCardRequest(player)
-
-
-def test_hiddencardrequest_validate(three_more_other_cards):
-    player = Player(1)
-    player.hidden_cards = SetOfCards(three_more_other_cards)
-    try:
-        HiddenCardRequest(player)
-    except NotEligibleForHiddenCardPlayError as error:
-        assert False, error.message
 
 
 def test_privatecardrequest_from_dict(player_initialized: Player, two_cards_high_low):

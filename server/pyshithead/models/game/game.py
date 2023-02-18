@@ -1,33 +1,22 @@
 from __future__ import annotations
 
-from enum import StrEnum
-
 from pyshithead.models.game import (
     ALL_RANKS,
     MAX_PLAYERS,
-    BurnEvent,
     ChoosePublicCardsRequest,
     CircularDoublyLinkedList,
     Dealer,
+    GameState,
     HiddenCardRequest,
-    NextPlayerEvent,
     PileOfCards,
     Player,
-    PlayerIsFinishedEvent,
+    PlayEvents,
     PlayRequest,
     PrivateCardsRequest,
-    RankEvent,
-    RankType,
     Suit,
     TakePlayPileRequest,
 )
 from pyshithead.models.game.errors import *
-
-
-class GameState(StrEnum):
-    PLAYERS_CHOOSE_PUBLIC_CARDS = "PLAYERS_CHOOSE_PUBLIC_CARDS"
-    DURING_GAME = "DURING_GAME"
-    GAME_OVER = "GAME_OVER"
 
 
 class Game:
@@ -44,10 +33,6 @@ class Game:
         self.active_players: CircularDoublyLinkedList = CircularDoublyLinkedList(players)
         self.ranking: list[Player] = []
         self.valid_ranks: set[int] = self.__all_cards_valid()
-        self.rank_event: RankEvent
-        self.next_player_event: NextPlayerEvent
-        self.burn_event: BurnEvent
-        self.player_is_finished_event: Optional[PlayerIsFinishedEvent] = None
         self.game_id: int = game_id
         self.play_pile: PileOfCards = play_pile
         self.deck: PileOfCards = deck
@@ -60,61 +45,27 @@ class Game:
         game.state = GameState.PLAYERS_CHOOSE_PUBLIC_CARDS
         return game
 
-    def process_playrequest(self, req: PlayRequest):
-        if isinstance(req, ChoosePublicCardsRequest):
-            # TODO no "Play Request" as game state not modified (only player internals). Move it somewhere else
-            req.process()
-            if self.all_players_chosen_public_card():
-                self.state = GameState.DURING_GAME
-            return
-        if not req.player == self.get_player():
-            raise RequestNotFromCurrentPlayerError(self.get_player())
-        if not self.state == GameState.DURING_GAME:
-            raise RequestNotAllowedInGameStateError(self.get_player(), self.state)
-        if isinstance(req, HiddenCardRequest):
-            # TODO no "Play Request" as game state not modified (only player internals). Move it somewhere else
-            self.get_player().private_cards.put(
-                self.get_player().hidden_cards.take(req.cards.cards)
-            )
-            return
-        if isinstance(req, PrivateCardsRequest):
-            if not req.get_rank() in self.valid_ranks:
-                raise CardsNotEligibleOnPlayPileError
-            self.rank_event = req.get_rank_event()
-            self.next_player_event = req.get_next_player_event()
-            self.burn_event = req.get_burn_event()
-            self.play_pile.put(self.get_player().private_cards.take(req.cards.cards))
-            self.player_is_finished_event = self.check_for_player_is_finished()
-            Dealer.fillup_cards(self.deck, self.get_player())
-            four_of_a_kind = self.play_pile.has_four_times_same_rank_from_top()
-            if four_of_a_kind:
-                self.rank_event = RankEvent(RankType.TOPRANK, 2)
-                self.next_player_event = NextPlayerEvent.SAME
-                self.burn_event = BurnEvent.YES
-        if isinstance(req, TakePlayPileRequest):
-            if not set(self.get_player().private_cards.get_ranks()).isdisjoint(self.valid_ranks):
-                raise TakePlayPileNotAllowedError(
-                    "TakePlayPile request not allowed, check private cards",
-                    self.get_player().id_,
-                )
-            if self.get_player().eligible_to_play_hidden_card():
-                raise TakePlayPileNotAllowedError(
-                    "TakePlayPile request not allowed, play hidden card",
-                    self.get_player().id_,
-                )
-            self.burn_event = BurnEvent.NO
-            self.next_player_event = NextPlayerEvent.NEXT
-            self.rank_event = RankEvent(RankType.TOPRANK, 2)
-            self.get_player().private_cards.put(self.play_pile.take_all())
-        self.__process_burn()
-        self.__update_valid_cards()
-        self.update_next_player()
-        self.process_player_is_finished()
-        self.check_for_game_over()
+    def process_choose_cards(self, req: ChoosePublicCardsRequest):
+        req.process()
+        if self.all_players_chosen_public_card():
+            self.state = GameState.DURING_GAME
 
-    def __process_burn(self):
-        if self.burn_event == BurnEvent.YES:
-            self.play_pile.take_all()
+    def process_hidden_card(self, req: HiddenCardRequest):
+        req.validate_player_and_state(self.get_player(), self.state)
+        req.process()
+
+    def process_playrequest(self, req: PlayRequest):
+        req.validate_player_and_state(self.get_player(), self.state)
+        if isinstance(req, PrivateCardsRequest):
+            req.validate_cards_eligible(self.valid_ranks)
+            events: PlayEvents = req.process(self.play_pile, self.deck)
+
+        if isinstance(req, TakePlayPileRequest):
+            req.validate(valid_ranks=self.valid_ranks)
+            events = req.process(self.play_pile)
+
+        events.process(self.play_pile, self.active_players, self.valid_ranks, self.ranking)
+        self.check_for_game_over()
 
     def all_players_chosen_public_card(self):
         player_chosen_public_card = len(
@@ -135,25 +86,8 @@ class Game:
         else:
             return self.active_players[player_id]
 
-    def check_for_player_is_finished(self):
-        current_player = self.get_player()
-        if current_player.has_no_cards_anymore():
-            return PlayerIsFinishedEvent(current_player)
-
-    def process_player_is_finished(self):
-        if self.player_is_finished_event:
-            self.ranking.append(self.player_is_finished_event.player)
-            self.active_players.remove_node(self.player_is_finished_event.player)
-            self.player_is_finished_event = None
-
-    def update_next_player(self):
-        self.active_players.next(int(self.next_player_event))
-
     def __all_cards_valid(self) -> set[int]:
         return set(ALL_RANKS)
-
-    def __update_valid_cards(self):
-        self.valid_ranks = self.rank_event.get_valid_ranks(self.valid_ranks)
 
     def __str__(self) -> str:
         return str("Play order: " + str(self.active_players))

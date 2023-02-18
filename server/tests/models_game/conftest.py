@@ -49,6 +49,11 @@ def card_3p():
 
 
 @pytest.fixture
+def card_4p():
+    return Card(4, Suit.PIKES)
+
+
+@pytest.fixture
 def card_invisible_p():
     return Card(SpecialRank.INVISIBLE, Suit.PIKES)
 

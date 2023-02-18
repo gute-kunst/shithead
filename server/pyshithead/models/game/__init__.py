@@ -10,7 +10,7 @@ from .card import *
 from .pile_of_cards import *
 from .set_of_cards import *
 from .player import *
-from .events import *
+from .events_and_states import *
 from .linked_list import *
 from .dealer import *
 from .playrequest import *

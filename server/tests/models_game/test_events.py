@@ -1,4 +1,11 @@
-from pyshithead.models.game import ALL_RANKS, RankEvent, RankType, SpecialRank
+from pyshithead.models.game import (
+    ALL_RANKS,
+    BurnEvent,
+    PileOfCards,
+    RankEvent,
+    RankType,
+    SpecialRank,
+)
 
 
 def test_rankevent_get_all_valid_ranks():
@@ -38,3 +45,10 @@ def test_rankevent_get_valid_ranks_invisible_on_lower(valid_lower):
 def test_rankevent_get_valid_ranks_invisible_on_empty(valid_all):
     rank_event_invisible = RankEvent(RankType.KEEPCURRENT, top_rank=SpecialRank.INVISIBLE)
     assert valid_all == rank_event_invisible.get_valid_ranks(valid_all)
+
+
+def test_burn_event_process(card_2h):
+    play_pile = PileOfCards([card_2h])
+    event = BurnEvent.YES
+    event.process(play_pile)
+    assert play_pile.is_empty()

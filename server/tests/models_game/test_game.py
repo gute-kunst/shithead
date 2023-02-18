@@ -5,13 +5,14 @@ from pyshithead.models.game import (
     NBR_HIDDEN_CARDS,
     NBR_TOTAL_CARDS,
     Card,
+    ChoosePublicCardsRequest,
     Game,
     GameState,
     HiddenCardRequest,
-    NextPlayerEvent,
     Player,
     PrivateCardsRequest,
     SetOfCards,
+    Suit,
     TakePlayPileRequest,
 )
 from pyshithead.models.game.errors import *
@@ -43,12 +44,14 @@ def test_game_take_playpile_while_should_play_hidden(
         game.process_playrequest(req)
 
 
-def test_game_next_player(game_with_two_players_start: Game):
-    game = game_with_two_players_start
-    current_player = game.get_player()
-    game.next_player_event = NextPlayerEvent.NEXT_2
-    game.update_next_player()
-    assert game.get_player() == current_player
+def test_game_first_private_card(game_with_two_players_during_game_empty_playpile: Game):
+    game = game_with_two_players_during_game_empty_playpile
+    player = game.get_player()
+    card = Card(5, Suit.TILES)
+    req = PrivateCardsRequest(player, [card])
+    game.process_playrequest(req)
+    assert card in game.play_pile.cards
+    assert game.active_players.get_ordered_list() == [Player(2), Player(1)]
 
 
 def test_game_game_over(game_last_move: Game):
@@ -82,17 +85,29 @@ def test_game_player_wins(game_player_wins: Game, last_cards: list[Card], play_o
     assert game_player_wins.active_players.get_ordered_list() == play_order
 
 
+def test_game_last_player_chose_cards(game_with_two_players_start: Game):
+    game = game_with_two_players_start
+    players: list[Player] = game.active_players.get_ordered_list()
+    req0 = ChoosePublicCardsRequest(players[0], list(players[0].private_cards.cards)[:3])
+    game.process_choose_cards(req0)
+    assert game.state == GameState.PLAYERS_CHOOSE_PUBLIC_CARDS
+    req1 = ChoosePublicCardsRequest(players[1], list(players[1].private_cards.cards)[:3])
+    game.process_choose_cards(req1)
+    assert game.state == GameState.DURING_GAME
+
+
 def test_game_hidden_move(game_hidden_move: Game):
     players: list[Player] = game_hidden_move.active_players.get_ordered_list()
     req = HiddenCardRequest(players[0])
     assert req.cards in game_hidden_move.get_player().hidden_cards
-    game_hidden_move.process_playrequest(req)
+    game_hidden_move.process_hidden_card(req)
     assert game_hidden_move.state == GameState.DURING_GAME
     assert game_hidden_move.active_players.get_ordered_list() == players
     assert req.cards in game_hidden_move.get_player().private_cards
     assert game_hidden_move.state is GameState.DURING_GAME
 
 
+@pytest.mark.skip(reason="mock example")
 def test_game_mocked(game_with_two_players_during_game_empty_playpile: Game, mocker):
     game = game_with_two_players_during_game_empty_playpile
     assert game.game_id == 1

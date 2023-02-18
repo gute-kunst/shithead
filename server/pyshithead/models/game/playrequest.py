@@ -6,8 +6,13 @@ from pyshithead.models.game import (
     BurnEvent,
     Card,
     Choice,
+    Dealer,
+    GameState,
     NextPlayerEvent,
+    PileOfCards,
     Player,
+    PlayerIsFinishedEvent,
+    PlayEvents,
     RankEvent,
     RankType,
     SetOfCards,
@@ -22,6 +27,61 @@ class PlayRequest(ABC):
     @abstractmethod
     def validate(self):
         raise NotImplementedError("virtual method")
+
+    def validate_player_and_state(self, player: Player, state: GameState):
+        if not self.player == player:
+            raise RequestNotFromCurrentPlayerError(self.player)
+        if not state == GameState.DURING_GAME:
+            raise RequestNotAllowedInGameStateError(self.player, state)
+
+
+class TakePlayPileRequest(PlayRequest):
+    def __init__(self, player: Player):
+        self.player: Player = player
+
+    def validate(self, valid_ranks):
+        if not set(self.player.private_cards.get_ranks()).isdisjoint(valid_ranks):
+            raise TakePlayPileNotAllowedError(
+                "TakePlayPile request not allowed, check private cards",
+                self.player.id_,
+            )
+        if self.player.eligible_to_play_hidden_card():
+            raise TakePlayPileNotAllowedError(
+                "TakePlayPile request not allowed, play hidden card",
+                self.player.id_,
+            )
+
+    def get_play_events(self) -> PlayEvents:
+        return PlayEvents(
+            burn=BurnEvent.NO,
+            next_player=NextPlayerEvent.NEXT,
+            rank=RankEvent(RankType.TOPRANK, 2),
+            player_is_finished=PlayerIsFinishedEvent(None),
+        )
+
+    def process(self, play_pile):
+        self.player.private_cards.put(play_pile.take_all())
+        return self.get_play_events()
+
+
+class HiddenCardRequest(PlayRequest):
+    def __init__(
+        self,
+        player: Player,
+        consistency_check: bool = True,
+    ):
+        self.player = player
+        if consistency_check:
+            self.validate()
+
+        self.cards: SetOfCards = SetOfCards([self.player.hidden_cards.return_single()])
+
+    def validate(self):
+        if not self.player.eligible_to_play_hidden_card():
+            raise NotEligibleForHiddenCardPlayError
+
+    def process(self):
+        self.player.private_cards.put(self.player.hidden_cards.take(self.cards.cards))
 
 
 class CardsRequest(PlayRequest, ABC):
@@ -66,6 +126,14 @@ class CardsRequest(PlayRequest, ABC):
             burn_event = BurnEvent.YES
         return burn_event
 
+    def get_play_events(self) -> PlayEvents:
+        return PlayEvents(
+            rank=self.get_rank_event(),
+            burn=self.get_burn_event(),
+            next_player=self.get_next_player_event(),
+            player_is_finished=PlayerIsFinishedEvent(None),
+        )
+
     def validate_cards_on_players_hands(self):
         if not self.cards in self.player.private_cards:
             raise CardsNotInPlayersPrivateHandsError
@@ -86,6 +154,10 @@ class CardsRequest(PlayRequest, ABC):
             and self.cards.get_rank_if_equal() != SpecialRank.HIGHLOW
         ):
             raise CardsRequestHighLowChoiceWithoutHighLowCardError
+
+    def validate_cards_eligible(self, valid_ranks):
+        if not self.get_rank() in valid_ranks:
+            raise CardsNotEligibleOnPlayPileError
 
 
 class PrivateCardsRequest(CardsRequest):
@@ -113,22 +185,18 @@ class PrivateCardsRequest(CardsRequest):
         self.validate_ranks_are_equal()
         self.validate_high_low_consistency()
 
-
-class HiddenCardRequest(CardsRequest):
-    def __init__(
-        self,
-        player: Player,
-        consistency_check: bool = True,
-    ):
-        self.player = player
-        if consistency_check:
-            self.validate()
-
-        self.cards: SetOfCards = SetOfCards([self.player.hidden_cards.return_single()])
-
-    def validate(self):
-        if not self.player.eligible_to_play_hidden_card():
-            raise NotEligibleForHiddenCardPlayError
+    def process(self, play_pile: PileOfCards, deck: PileOfCards):
+        events = self.get_play_events()
+        play_pile.put(self.player.private_cards.take(self.cards.cards))
+        if self.player.has_no_cards_anymore():
+            events.player_is_finished = PlayerIsFinishedEvent(self.player)
+        Dealer.fillup_cards(deck, self.player)
+        four_of_a_kind = play_pile.has_four_times_same_rank_from_top()
+        if four_of_a_kind:
+            events.rank = RankEvent(RankType.TOPRANK, 2)
+            events.next_player = NextPlayerEvent.SAME
+            events.burn = BurnEvent.YES
+        return events
 
 
 class ChoosePublicCardsRequest(CardsRequest):
@@ -165,13 +233,3 @@ class ChoosePublicCardsRequest(CardsRequest):
 
     def process(self):
         self.player.public_cards = SetOfCards(self.player.private_cards.take(self.cards.cards))
-
-
-class TakePlayPileRequest(PlayRequest):
-    def __init__(self, player: Player, consistency_check: bool = True):
-        self.player: Player = player
-        if consistency_check:
-            self.validate()
-
-    def validate(self):
-        pass

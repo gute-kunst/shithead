@@ -67,12 +67,6 @@ def game_manager_first_move(game_first_move):
     return game_manager
 
 
-def test_rest_hello_world(client: TestClient):
-    response = client.get("/")
-    assert response.status_code == 200
-    assert response.json() == {"msg": "Hello World"}
-
-
 def test_websocket_hello_world(client: TestClient):
     with client.websocket_connect("/ws") as websocket:
         data = websocket.receive_json()

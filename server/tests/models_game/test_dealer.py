@@ -1,5 +1,3 @@
-import pytest
-
 from pyshithead.models.game import (
     NBR_HIDDEN_CARDS,
     NBR_TOTAL_CARDS,
@@ -16,11 +14,6 @@ def test_dealer_provide_shuffled_deck_has_no_duplicates():
     assert len(deck) == NBR_TOTAL_CARDS
     cardset = SetOfCards(deck.cards)
     assert len(cardset) == NBR_TOTAL_CARDS  # sets cannot contain duplicates
-
-
-@pytest.mark.skip(reason="later")
-def test_dealer_provide_shuffled_deck_is_random():
-    pass
 
 
 def test_dealer_deal_cards_to_players(two_players: list[Player]):
