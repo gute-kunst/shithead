@@ -1,6 +1,6 @@
 """
 start server with
-uvicorn main:app --reload
+uvicorn pyshithead.main:app --reload
 """
 
 import json
@@ -8,6 +8,8 @@ import json
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
+
+from pyshithead.models.common import request_models
 
 app = FastAPI()
 import logging
@@ -42,13 +44,9 @@ async def websocket_endpoint(websocket: WebSocket, game_id: int):
             data = await websocket.receive_json()
             if data["type"] == "start_game":
                 await game_table.start_game()
-            elif (
-                data["type"] == "private_cards"
-                or data["type"] == "take_play_pile"
-                or data["type"] == "hidden_card"
-                or data["type"] == "choose_public_cards"
-            ):
-                await game_table.game_request(data)
+            else:
+                request = request_models.request_factory(data)
+                await game_table.game_request(request)
     except WebSocketDisconnect:
         game_table.client_manager.disconnect(websocket)
         await game_table.client_manager.broadcast(f"Client left in Game #{game_id}")

@@ -2,6 +2,7 @@ import random
 
 from fastapi import WebSocket
 
+from pyshithead.models.common import request_models
 from pyshithead.models.game import GameManager, PyshitheadError
 from pyshithead.models.web import ClientManager
 
@@ -35,8 +36,8 @@ class GameTable:
         for client in self.client_manager.clients:
             await client.send(self.game_manager.get_private_infos(client.id_))
 
-    async def game_request(self, req: dict):
-        client = self.client_manager.get_client_by_id(req["player_id"])
+    async def game_request(self, req: request_models.BaseRequest):
+        client = self.client_manager.get_client_by_id(req.player_id)
         try:
             self.game_manager.process_request(req)
             await self.broadcast_game_state()

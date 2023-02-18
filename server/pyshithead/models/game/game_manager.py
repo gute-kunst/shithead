@@ -1,7 +1,8 @@
-from __future__ import print_function, unicode_literals
+# from __future__ import print_function, unicode_literals
 
 from typing import Optional
 
+from pyshithead.models.common import request_models
 from pyshithead.models.game import (
     Choice,
     ChoosePublicCardsRequest,
@@ -50,14 +51,14 @@ class GameManager:
             }
         )
 
-    def process_request(self, req: dict):
-        player = self.game.get_player(req["player_id"])
+    def process_request(self, req: request_models.BaseRequest):
+        player = self.game.get_player(req.player_id)
         print(player)
-        if req["type"] == "choose_public_cards":
-            self.game.process_choose_cards(ChoosePublicCardsRequest.from_dict(player, req))
-        if req["type"] == "private_cards":
-            self.game.process_playrequest(PrivateCardsRequest.from_dict(player, req))
-        if req["type"] == "take_play_pile":
+        if isinstance(req, request_models.ChoosePublicCardsRequest):
+            self.game.process_choose_cards(ChoosePublicCardsRequest.from_dict(player, req.dict()))
+        if isinstance(req, request_models.PrivateCardsRequest):
+            self.game.process_playrequest(PrivateCardsRequest.from_dict(player, req.dict()))
+        if isinstance(req, request_models.TakePlayPileRequest):
             self.game.process_playrequest(TakePlayPileRequest(player))
-        if req["type"] == "hidden_card":
+        if isinstance(req, request_models.HiddenCardRequest):
             self.game.process_hidden_card(HiddenCardRequest(player))
