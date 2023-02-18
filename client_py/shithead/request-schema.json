@@ -1,0 +1,116 @@
+{
+    "title": "Requests",
+    "definitions": {
+        "TakePlayPileRequest": {
+            "title": "TakePlayPileRequest",
+            "type": "object",
+            "properties": {
+                "player_id": {
+                    "title": "Player Id",
+                    "type": "integer"
+                },
+                "type": {
+                    "title": "Type",
+                    "default": "take_play_pile",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "player_id"
+            ]
+        },
+        "HiddenCardRequest": {
+            "title": "HiddenCardRequest",
+            "type": "object",
+            "properties": {
+                "player_id": {
+                    "title": "Player Id",
+                    "type": "integer"
+                },
+                "type": {
+                    "title": "Type",
+                    "default": "hidden_card",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "player_id"
+            ]
+        },
+        "Card": {
+            "title": "Card",
+            "type": "object",
+            "properties": {
+                "rank": {
+                    "title": "Rank",
+                    "type": "integer"
+                },
+                "suit": {
+                    "title": "Suit",
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "rank",
+                "suit"
+            ]
+        },
+        "ChoosePublicCardsRequest": {
+            "title": "ChoosePublicCardsRequest",
+            "type": "object",
+            "properties": {
+                "player_id": {
+                    "title": "Player Id",
+                    "type": "integer"
+                },
+                "type": {
+                    "title": "Type",
+                    "default": "choose_public_cards",
+                    "type": "string"
+                },
+                "cards": {
+                    "title": "Cards",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Card"
+                    }
+                }
+            },
+            "required": [
+                "player_id",
+                "cards"
+            ]
+        },
+        "PrivateCardsRequest": {
+            "title": "PrivateCardsRequest",
+            "type": "object",
+            "properties": {
+                "player_id": {
+                    "title": "Player Id",
+                    "type": "integer"
+                },
+                "type": {
+                    "title": "Type",
+                    "default": "private_cards",
+                    "type": "string"
+                },
+                "cards": {
+                    "title": "Cards",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Card"
+                    }
+                },
+                "choice": {
+                    "title": "Choice",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "player_id",
+                "cards",
+                "choice"
+            ]
+        }
+    }
+}
