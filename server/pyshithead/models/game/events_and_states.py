@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from enum import IntEnum, StrEnum
+from enum import Enum, IntEnum, StrEnum
 from typing import Optional
 
 from pyshithead.models.game import BIGGEST_RANK, Player, SpecialRank
@@ -31,9 +31,9 @@ class BurnEvent(IntEnum):
             play_pile.take_all()  # removes the cards
 
 
-class Choice(IntEnum):
-    HIGHER = 3
-    LOWER = 4
+class Choice(StrEnum):
+    HIGHER = "HIGHER"
+    LOWER = "LOWER"
 
 
 @dataclass
@@ -47,7 +47,7 @@ class PlayerIsFinishedEvent:
             self.player = None
 
 
-class RankType(IntEnum):
+class RankType(Enum):
     """
     TOPRANK: standard; all cards "">="" are valid incl. 2,5,10
     KEEPCURRENT: invisible
