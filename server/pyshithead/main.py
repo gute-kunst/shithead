@@ -25,9 +25,6 @@ game_tables_manager = GameTablesManager()
 async def read_main():
     return """
     <html>
-        <head>
-            <script async defer data-website-id="ee6a96f4-a876-46d3-8dda-6e10b55682d3" src="https://umami-production-38e4.up.railway.app/umami.js"></script>
-        </head>
         <body>
             <h1>Shithead Browser game</h1>
         </body>
