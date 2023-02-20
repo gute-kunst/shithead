@@ -7,8 +7,8 @@ from pytest_mock import MockerFixture
 
 from pyshithead import GAME_ID
 from pyshithead.main import app, game_tables_manager
+from pyshithead.models.common import GameManager
 from pyshithead.models.game.errors import CardsNotInPlayersPrivateHandsError
-from pyshithead.models.game.game_manager import GameManager
 
 from .models_game.conftest import *
 

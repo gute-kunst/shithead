@@ -4,13 +4,11 @@ from typing import Optional
 
 from pyshithead.models.common import request_models
 from pyshithead.models.game import (
-    Choice,
     ChoosePublicCardsRequest,
     Game,
     HiddenCardRequest,
     Player,
     PrivateCardsRequest,
-    SpecialRank,
     TakePlayPileRequest,
 )
 
@@ -23,33 +21,27 @@ class GameManager:
         print("game initialized")
 
     def get_private_infos(self, player_id: Optional[int] = None):
-        return {"type": "private_info", "data": self.game.get_player(player_id).get_private_info()}
+        return request_models.PrivateInfo(
+            data=request_models.PlayerPrivateInfo.from_player(self.game.get_player(player_id))
+        ).dict()
 
     def get_public_infos(self):
-        return {
-            "type": "public_info",
-            "data": {
-                "game_id": self.game.game_id,
-                "play_pile": [vars(card) for card in self.game.play_pile.cards],
-                "game_state": self.game.state,
-                "nbr_of_cards_in_deck": len(self.game.deck),
-                "currents_turn": self.game.get_player().id_,
-                "player_public_info": [
-                    player.get_public_info() for player in self.game.active_players
+        return request_models.PublicInfo(
+            data=request_models.PublicInfoData(
+                game_id=self.game.game_id,
+                play_pile=[vars(card) for card in self.game.play_pile.cards],
+                game_state=self.game.state,
+                nbr_of_cards_in_deck=len(self.game.deck),
+                currents_turn=self.game.get_player().id_,
+                player_public_info=[
+                    request_models.PlayerPublicInfo.from_player(player)
+                    for player in self.game.active_players
                 ],
-            },
-        }
+            )
+        ).dict()
 
     def get_rules(self):
-        return dict(
-            {
-                "type": "rules",
-                "data": {
-                    "special_rank": {"high_low": SpecialRank.HIGHLOW},
-                    "choice": {"higher": Choice.HIGHER, "lower": Choice.LOWER},
-                },
-            }
-        )
+        return request_models.Rules().dict()
 
     def process_request(self, req: request_models.BaseRequest):
         player = self.game.get_player(req.player_id)

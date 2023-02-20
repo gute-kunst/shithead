@@ -5,11 +5,11 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Optional
 
-import model
+import model as m
 import websockets
 from PyInquirer import prompt
 
-none_card: dict = dict({"rank": None, "suit": None})
+none_card = m.CardModel(rank=0, suit=0)  # TakePlayPile, HiddenCard
 
 
 @dataclass
@@ -57,15 +57,15 @@ async def ainput(prompt: str = ""):
 
 @dataclass
 class Client:
-    private_info: Optional[dict]
-    public_info: Optional[dict]
-    rules: Optional[dict]
+    private_info: Optional[m.PrivateInfo]
+    public_info: Optional[m.PublicInfo]
+    rules: Optional[m.Rules]
     players: list[int] = field(default_factory=list)
     id_: Optional[int] = None
     cards_not_chosen: bool = True
 
     def my_turn(self):
-        return self.public_info["currents_turn"] == self.id_
+        return self.public_info.data.currents_turn == self.id_
 
     async def start_game(self):
         start_game = await ainput("start game [y/n]: ")
@@ -76,7 +76,7 @@ class Client:
         print("👉 SELECT PUBLIC CARDS")
         choices = [
             {"name": str(card), "value": card, "checked": False}
-            for card in self.private_info["private_cards"]
+            for card in self.private_info.data.private_cards
         ]
         questions = [
             {
@@ -88,14 +88,14 @@ class Client:
         ]
         selection = prompt_and_validate_length(questions, ShouldBeValidator(3))
         self.cards_not_chosen = False
-        return model.ChoosePublicCardsRequest(player_id=self.id_, cards=selection).json()
+        return m.ChoosePublicCardsRequest(player_id=self.id_, cards=selection).json()
 
     def create_play_options(self):
         play_options = [
             {"name": str(card), "value": {"type": "private_cards", "card": card}}
-            for card in self.private_info["private_cards"]
+            for card in self.private_info.data.private_cards
         ]
-        if len(self.private_info["private_cards"]) == 0:
+        if len(self.private_info.data.private_cards) == 0:
             play_options.insert(
                 0,
                 {
@@ -120,14 +120,14 @@ class Client:
         ]
         card_selection = prompt_and_validate_length(questions, ShouldBeGreaterThanValidator(0))
         high_low_choice = ""
-        if card_selection[0]["card"]["rank"] == self.rules["special_rank"]["high_low"]:
+        if card_selection[0]["card"].rank == self.rules.data.high_low_rank:
             questions = [
                 {
                     "type": "list",
                     "name": "high_low",
                     "choices": [
-                        {"name": "Higher", "value": self.rules["choice"]["higher"]},
-                        {"name": "Lower", "value": self.rules["choice"]["lower"]},
+                        {"name": "Higher", "value": self.rules.data.choice.higher},
+                        {"name": "Lower", "value": self.rules.data.choice.lower},
                     ],
                     "message": "Action",
                 }
@@ -139,11 +139,11 @@ class Client:
         play_options = self.create_play_options()
         (card_selection, high_low_choice) = self.prompt_user_options(play_options)
         if card_selection[0]["type"] == "take_play_pile":
-            req = model.TakePlayPileRequest(self.id_)
+            req = m.TakePlayPileRequest(self.id_)
         elif card_selection[0]["type"] == "hidden_card":
-            req = model.HiddenCardRequest(self.id_)
+            req = m.HiddenCardRequest(self.id_)
         else:
-            req = model.PrivateCardsRequest(
+            req = m.PrivateCardsRequest(
                 player_id=self.id_,
                 cards=[x["card"] for x in card_selection],
                 choice=high_low_choice,
@@ -161,13 +161,13 @@ class Client:
                 print(event["message"])
                 print(f"all players : {self.players}")
             if event["type"] == "public_info":
-                self.public_info = event["data"]
+                self.public_info = m.PublicInfo(**event)
                 print("PUBLIC INFO: ", self.public_info)
             elif event["type"] == "private_info":
-                self.private_info = event["data"]
+                self.private_info = m.PrivateInfo(**event)
                 print("PRIVATE INFO: ", self.private_info)
             elif event["type"] == "rules":
-                self.rules = event["data"]
+                self.rules = m.Rules(**event)
                 print("RULES: ", self.rules)
 
     async def consumer_handler(self, websocket):
@@ -179,13 +179,13 @@ class Client:
         if self.public_info is None:
             return await self.start_game()
         else:
-            print(self.public_info["game_state"])
+            print(self.public_info.data.game_state)
             if (
-                self.public_info["game_state"] == "PLAYERS_CHOOSE_PUBLIC_CARDS"
+                self.public_info.data.game_state == "PLAYERS_CHOOSE_PUBLIC_CARDS"
                 and self.cards_not_chosen is True
             ):
                 return self.choose_cards()
-            elif self.public_info["game_state"] == "DURING_GAME" and self.my_turn():
+            elif self.public_info.data.game_state == "DURING_GAME" and self.my_turn():
                 print("DURING GAME")
                 return self.game_play()
 

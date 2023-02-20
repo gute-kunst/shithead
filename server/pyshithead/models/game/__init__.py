@@ -18,4 +18,3 @@ from .playrequest import *
 from .game import *
 
 from .view import *
-from .game_manager import *

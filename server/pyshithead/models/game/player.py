@@ -1,4 +1,5 @@
-from pyshithead.models.game import PublicCardsWereSelectedAlreadyError, SetOfCards
+from pyshithead.models.game import SetOfCards
+from pyshithead.models.game.errors import PublicCardsWereSelectedAlreadyError
 
 
 class Player:
@@ -41,21 +42,3 @@ class Player:
     def validate_eligible_to_choose_cards(self):
         if self.public_cards_were_selected:
             raise PublicCardsWereSelectedAlreadyError
-
-    def get_public_info(self):
-        return dict(
-            {
-                "id": self.id_,
-                "public_cards": [vars(card) for card in self.public_cards.cards],
-                "nbr_hidden_cards": len(self.hidden_cards),
-                "nbr_private_cards": len(self.private_cards),
-            }
-        )
-
-    def get_private_info(self):
-        return dict(
-            {
-                "id": self.id_,
-                "private_cards": [vars(card) for card in self.private_cards.cards],
-            }
-        )

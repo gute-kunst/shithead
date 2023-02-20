@@ -37,8 +37,8 @@
                 "player_id"
             ]
         },
-        "Card": {
-            "title": "Card",
+        "CardModel": {
+            "title": "CardModel",
             "type": "object",
             "properties": {
                 "rank": {
@@ -72,7 +72,7 @@
                     "title": "Cards",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/Card"
+                        "$ref": "#/definitions/CardModel"
                     }
                 }
             },
@@ -98,7 +98,7 @@
                     "title": "Cards",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/Card"
+                        "$ref": "#/definitions/CardModel"
                     }
                 },
                 "choice": {
@@ -111,6 +111,206 @@
                 "cards",
                 "choice"
             ]
+        },
+        "PlayerPublicInfo": {
+            "title": "PlayerPublicInfo",
+            "type": "object",
+            "properties": {
+                "id": {
+                    "title": "Id",
+                    "type": "integer"
+                },
+                "public_cards": {
+                    "title": "Public Cards",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/CardModel"
+                    }
+                },
+                "nbr_hidden_cards": {
+                    "title": "Nbr Hidden Cards",
+                    "type": "integer"
+                },
+                "nbr_private_cards": {
+                    "title": "Nbr Private Cards",
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "id",
+                "public_cards",
+                "nbr_hidden_cards",
+                "nbr_private_cards"
+            ]
+        },
+        "PublicInfoData": {
+            "title": "PublicInfoData",
+            "type": "object",
+            "properties": {
+                "game_id": {
+                    "title": "Game Id",
+                    "type": "integer"
+                },
+                "play_pile": {
+                    "title": "Play Pile",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/CardModel"
+                    }
+                },
+                "game_state": {
+                    "title": "Game State",
+                    "type": "string"
+                },
+                "nbr_of_cards_in_deck": {
+                    "title": "Nbr Of Cards In Deck",
+                    "type": "integer"
+                },
+                "currents_turn": {
+                    "title": "Currents Turn",
+                    "type": "integer"
+                },
+                "player_public_info": {
+                    "title": "Player Public Info",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PlayerPublicInfo"
+                    }
+                },
+                "type": {
+                    "title": "Type",
+                    "default": "public_info",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "game_id",
+                "play_pile",
+                "game_state",
+                "nbr_of_cards_in_deck",
+                "currents_turn",
+                "player_public_info"
+            ]
+        },
+        "PublicInfo": {
+            "title": "PublicInfo",
+            "type": "object",
+            "properties": {
+                "type": {
+                    "title": "Type",
+                    "default": "public_info",
+                    "type": "string"
+                },
+                "data": {
+                    "$ref": "#/definitions/PublicInfoData"
+                }
+            },
+            "required": [
+                "data"
+            ]
+        },
+        "PlayerPrivateInfo": {
+            "title": "PlayerPrivateInfo",
+            "type": "object",
+            "properties": {
+                "id": {
+                    "title": "Id",
+                    "type": "integer"
+                },
+                "private_cards": {
+                    "title": "Private Cards",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/CardModel"
+                    }
+                }
+            },
+            "required": [
+                "id",
+                "private_cards"
+            ]
+        },
+        "PrivateInfo": {
+            "title": "PrivateInfo",
+            "type": "object",
+            "properties": {
+                "type": {
+                    "title": "Type",
+                    "default": "private_info",
+                    "type": "string"
+                },
+                "data": {
+                    "$ref": "#/definitions/PlayerPrivateInfo"
+                }
+            },
+            "required": [
+                "data"
+            ]
+        },
+        "ChoiceModel": {
+            "title": "ChoiceModel",
+            "type": "object",
+            "properties": {
+                "higher": {
+                    "title": "Higher",
+                    "default": "HIGHER",
+                    "type": "string"
+                },
+                "lower": {
+                    "title": "Lower",
+                    "default": "LOWER",
+                    "type": "string"
+                }
+            }
+        },
+        "RulesData": {
+            "title": "RulesData",
+            "type": "object",
+            "properties": {
+                "high_low_rank": {
+                    "title": "High Low Rank",
+                    "default": 7,
+                    "type": "integer"
+                },
+                "choice": {
+                    "title": "Choice",
+                    "default": {
+                        "higher": "HIGHER",
+                        "lower": "LOWER"
+                    },
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ChoiceModel"
+                        }
+                    ]
+                }
+            }
+        },
+        "Rules": {
+            "title": "Rules",
+            "type": "object",
+            "properties": {
+                "type": {
+                    "title": "Type",
+                    "default": "rules",
+                    "type": "string"
+                },
+                "data": {
+                    "title": "Data",
+                    "default": {
+                        "high_low_rank": 7,
+                        "choice": {
+                            "higher": "HIGHER",
+                            "lower": "LOWER"
+                        }
+                    },
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/RulesData"
+                        }
+                    ]
+                }
+            }
         }
     }
 }
