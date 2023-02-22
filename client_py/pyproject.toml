@@ -39,6 +39,10 @@ line_length = 100
 disable = ["C0114", "C0115", "C0116"]
 max-line-length = 100
 
+[tool.pylint.MASTER]
+extension-pkg-whitelist = "pydantic"
+
+
 [tool.pytest.ini_options]
 testpaths = ["tests", "pyshithead"]
 
