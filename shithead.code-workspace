@@ -9,5 +9,29 @@
     {
       "path": "client_py"
     }
-  ]
+  ],
+  "settings": {
+    "cSpell.words": [
+      "codegen",
+      "datamodel",
+      "pydantic",
+      "uvicorn",
+      "websockets",
+      "cardset",
+      "cardsrequest",
+      "choosepubliccardsrequest",
+      "fastapi",
+      "fillup",
+      "hiddencardrequest",
+      "HIGHLOW",
+      "KEEPCURRENT",
+      "playpile",
+      "playrequest",
+      "pyshithead",
+      "setofcards",
+      "takeplaypile",
+      "TOPRANK",
+      "ainput"
+    ]
+  }
 }
