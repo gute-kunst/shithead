@@ -1,22 +1,4 @@
 {
   "python.testing.unittestEnabled": false,
-  "python.testing.pytestEnabled": true,
-  "cSpell.words": [
-    "cardset",
-    "cardsrequest",
-    "choosepubliccardsrequest",
-    "fastapi",
-    "fillup",
-    "hiddencardrequest",
-    "HIGHLOW",
-    "KEEPCURRENT",
-    "playpile",
-    "playrequest",
-    "pydantic",
-    "pyshithead",
-    "setofcards",
-    "takeplaypile",
-    "TOPRANK",
-    "uvicorn"
-  ]
+  "python.testing.pytestEnabled": true
 }
