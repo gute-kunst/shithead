@@ -1,6 +1,4 @@
 import pytest
-from pytest_lazyfixture import lazy_fixture
-
 from pyshithead.models.game import (
     NBR_HIDDEN_CARDS,
     NBR_TOTAL_CARDS,
@@ -16,6 +14,7 @@ from pyshithead.models.game import (
     TakePlayPileRequest,
 )
 from pyshithead.models.game.errors import *
+from pytest_lazyfixture import lazy_fixture
 
 
 def test_game_players(game_with_two_players_start: Game, valid_all):
@@ -52,6 +51,20 @@ def test_game_first_private_card(game_with_two_players_during_game_empty_playpil
     game.process_playrequest(req)
     assert card in game.play_pile.cards
     assert game.active_players.get_ordered_list() == [Player(2), Player(1)]
+
+
+def test_game_play_request_not_eligible(game_with_two_players_during_game_empty_playpile: Game):
+    game = game_with_two_players_during_game_empty_playpile
+    player1 = game.get_player()
+    card_high = Card(14, Suit.TILES)
+    card_low = Card(4, Suit.TILES)
+    player1.private_cards.put([card_high])
+    game.process_playrequest(PrivateCardsRequest(player1, [card_high]))
+
+    player2 = game.get_player()
+    player2.private_cards.put([card_low])
+    with pytest.raises(CardsNotEligibleOnPlayPileError):
+        game.process_playrequest(PrivateCardsRequest(player2, [card_low]))
 
 
 def test_game_game_over(game_last_move: Game):

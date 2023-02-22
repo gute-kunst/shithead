@@ -81,8 +81,10 @@ class RankEvent:
             valid_ranks.update(current_valid_ranks)
         return valid_ranks
 
-    def process(self, valid_ranks):
-        valid_ranks = self.get_valid_ranks(valid_ranks)
+    def process(self, valid_ranks: set[int]):
+        new_valid_ranks = self.get_valid_ranks(valid_ranks)
+        valid_ranks.clear()
+        valid_ranks.update(new_valid_ranks)
 
 
 @dataclass
