@@ -3,18 +3,16 @@ start server with
 uvicorn pyshithead.main:app --reload
 """
 
-import json
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 from pyshithead.models.common import request_models
+from pyshithead.models.web import GameTable, GameTablesManager
 
 app = FastAPI()
 import logging
-
-from pyshithead.models.web import GameTable, GameTablesManager
 
 logger = logging.getLogger("websockets")
 logger.setLevel(logging.DEBUG)

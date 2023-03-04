@@ -139,9 +139,9 @@ class Client:
         play_options = self.create_play_options()
         (card_selection, high_low_choice) = self.prompt_user_options(play_options)
         if card_selection[0]["type"] == "take_play_pile":
-            req = m.TakePlayPileRequest(self.id_)
+            req = m.TakePlayPileRequest(player_id=self.id_)
         elif card_selection[0]["type"] == "hidden_card":
-            req = m.HiddenCardRequest(self.id_)
+            req = m.HiddenCardRequest(player_id=self.id_)
         else:
             req = m.PrivateCardsRequest(
                 player_id=self.id_,
