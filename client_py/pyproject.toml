@@ -11,6 +11,7 @@ python = "^3.7.2"
 websockets = "^10.4"
 PyInquirer = "^1.0.3"
 pydantic = "^1.10.5"
+rich = "^13.3.1"
 
 
 [tool.poetry.group.dev.dependencies]
