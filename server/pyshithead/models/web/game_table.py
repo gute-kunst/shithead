@@ -15,16 +15,21 @@ class GameTable:
 
     async def add_client(self, websocket: WebSocket):
         client = await self.client_manager.connect(websocket)
-        await client.send(client.to_dict())
+        await client.send(request_models.ClientModel.from_client(client).dict())
+        await self.client_manager.broadcast_log(
+            message=f"A new player joined. player-id: {client.id_}"
+        )
+
         await self.client_manager.broadcast(
-            {
-                "type": "player",
-                "message": f"A new player joined. player-id: {client.id_}",
-                "data": {
-                    "nbr_of_players": self.client_manager.nbr_of_clients(),
-                    "players": [client.id_ for client in self.client_manager.clients],
-                },
-            }
+            request_models.GameTable(
+                data=request_models.GameTableData(
+                    nbr_of_players=self.client_manager.nbr_of_clients(),
+                    clients=[
+                        request_models.ClientModel.from_client(client)
+                        for client in self.client_manager.clients
+                    ],
+                )
+            ).dict()
         )
 
     async def start_game(self):

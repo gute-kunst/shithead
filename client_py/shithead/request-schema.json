@@ -103,13 +103,13 @@
                 },
                 "choice": {
                     "title": "Choice",
+                    "default": "",
                     "type": "string"
                 }
             },
             "required": [
                 "player_id",
-                "cards",
-                "choice"
+                "cards"
             ]
         },
         "PlayerPublicInfo": {
@@ -147,6 +147,11 @@
             "title": "PublicInfoData",
             "type": "object",
             "properties": {
+                "type": {
+                    "title": "Type",
+                    "default": "public_info",
+                    "type": "string"
+                },
                 "game_id": {
                     "title": "Game Id",
                     "type": "integer"
@@ -176,11 +181,6 @@
                     "items": {
                         "$ref": "#/definitions/PlayerPublicInfo"
                     }
-                },
-                "type": {
-                    "title": "Type",
-                    "default": "public_info",
-                    "type": "string"
                 }
             },
             "required": [
@@ -247,22 +247,6 @@
                 "data"
             ]
         },
-        "ChoiceModel": {
-            "title": "ChoiceModel",
-            "type": "object",
-            "properties": {
-                "higher": {
-                    "title": "Higher",
-                    "default": "HIGHER",
-                    "type": "string"
-                },
-                "lower": {
-                    "title": "Lower",
-                    "default": "LOWER",
-                    "type": "string"
-                }
-            }
-        },
         "RulesData": {
             "title": "RulesData",
             "type": "object",
@@ -271,18 +255,6 @@
                     "title": "High Low Rank",
                     "default": 7,
                     "type": "integer"
-                },
-                "choice": {
-                    "title": "Choice",
-                    "default": {
-                        "higher": "HIGHER",
-                        "lower": "LOWER"
-                    },
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/ChoiceModel"
-                        }
-                    ]
                 }
             }
         },
@@ -298,11 +270,7 @@
                 "data": {
                     "title": "Data",
                     "default": {
-                        "high_low_rank": 7,
-                        "choice": {
-                            "higher": "HIGHER",
-                            "lower": "LOWER"
-                        }
+                        "high_low_rank": 7
                     },
                     "allOf": [
                         {
@@ -311,6 +279,80 @@
                     ]
                 }
             }
+        },
+        "ClientModel": {
+            "title": "ClientModel",
+            "type": "object",
+            "properties": {
+                "type": {
+                    "title": "Type",
+                    "default": "client_id",
+                    "type": "string"
+                },
+                "client_id": {
+                    "title": "Client Id",
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "client_id"
+            ]
+        },
+        "GameTableData": {
+            "title": "GameTableData",
+            "type": "object",
+            "properties": {
+                "nbr_of_players": {
+                    "title": "Nbr Of Players",
+                    "type": "integer"
+                },
+                "clients": {
+                    "title": "Clients",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ClientModel"
+                    }
+                }
+            },
+            "required": [
+                "nbr_of_players",
+                "clients"
+            ]
+        },
+        "GameTable": {
+            "title": "GameTable",
+            "type": "object",
+            "properties": {
+                "type": {
+                    "title": "Type",
+                    "default": "current_game_table",
+                    "type": "string"
+                },
+                "data": {
+                    "$ref": "#/definitions/GameTableData"
+                }
+            },
+            "required": [
+                "data"
+            ]
+        },
+        "Log": {
+            "title": "Log",
+            "type": "object",
+            "properties": {
+                "type": {
+                    "title": "Type",
+                    "default": "log",
+                    "type": "string"
+                },
+                "message": {
+                    "title": "Message",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "message"
+            ]
         }
     }
 }

@@ -1,5 +1,6 @@
 from fastapi import WebSocket
 
+from pyshithead.models.common import request_models
 from pyshithead.models.web import Client
 
 
@@ -35,6 +36,10 @@ class ClientManager:
     async def broadcast(self, data: str | dict):
         for connection in self.get_connections():
             await connection.send_json(data)
+
+    async def broadcast_log(self, message: str):
+        for connection in self.get_connections():
+            await connection.send_json(request_models.Log(message=message).dict())
 
     def nbr_of_clients(self):
         return len(self.clients)

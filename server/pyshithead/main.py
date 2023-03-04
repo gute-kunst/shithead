@@ -47,7 +47,7 @@ async def websocket_endpoint(websocket: WebSocket, game_id: int):
                 await game_table.game_request(request)
     except WebSocketDisconnect:
         game_table.client_manager.disconnect(websocket)
-        await game_table.client_manager.broadcast(f"Client left in Game #{game_id}")
+        await game_table.client_manager.broadcast_log(message=f"Client left in Game #{game_id}")
 
 
 @app.websocket("/ws")

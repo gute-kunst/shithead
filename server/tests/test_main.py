@@ -3,11 +3,10 @@ import json
 
 import pytest
 from fastapi.testclient import TestClient
-from pytest_mock import MockerFixture
 
 from pyshithead import GAME_ID
 from pyshithead.main import app, game_tables_manager
-from pyshithead.models.common import GameManager
+from pyshithead.models.common import GameManager, request_models
 from pyshithead.models.game.errors import CardsNotInPlayersPrivateHandsError
 
 from .models_game.conftest import *
@@ -29,11 +28,11 @@ def ws_before_joined(client):
 @pytest.fixture
 def ws_on_joined(ws_before_joined):
     (a, b) = ws_before_joined
-    a.receive_json()
-    a.receive_json()
-    a.receive_json()
-    b.receive_json()
-    b.receive_json()
+    for _ in range(5):
+        a.receive_json()
+    for _ in range(3):
+        b.receive_json()
+
     yield (a, b)
 
 
@@ -77,7 +76,7 @@ def test_join_adds_client(client: TestClient):
     with client.websocket_connect(f"/game/{GAME_ID}") as websocket:
         data = websocket.receive_json()
         data_broadcast = websocket.receive_json()
-        assert "player_id" in data
+        assert "client_id" in data
         nbr_clients = asyncio.run(
             game_tables_manager.get_game_table_by_id(GAME_ID)
         ).client_manager.nbr_of_clients()
@@ -87,7 +86,7 @@ def test_join_adds_client(client: TestClient):
             asyncio.run(game_tables_manager.get_game_table_by_id(GAME_ID))
             .client_manager.clients[0]
             .id_
-            == data["player_id"]
+            == data["client_id"]
         )
 
 
@@ -100,11 +99,19 @@ def test_join_two_clients(ws_before_joined):
 
 def test_join_two_clients_server_response(ws_before_joined):
     (a, b) = ws_before_joined
-    assert {"type": "player_id", "player_id": 0} == a.receive_json()
-    assert "A new player joined" in a.receive_json()["message"]
-    assert {"type": "player_id", "player_id": 1} == b.receive_json()
-    assert "A new player joined" in a.receive_json()["message"]
-    assert "A new player joined" in b.receive_json()["message"]
+    a_responses = []
+    b_responses = []
+    for _ in range(5):
+        a_responses.append(a.receive_json())
+
+    assert len([None for res in a_responses if res["type"] == "client_id"]) == 1
+    assert len([None for res in a_responses if res["type"] == "current_game_table"]) == 2
+
+    for _ in range(3):
+        b_responses.append(b.receive_json())
+
+    assert len([None for res in b_responses if res["type"] == "client_id"]) == 1
+    assert len([None for res in b_responses if res["type"] == "current_game_table"]) == 1
 
 
 def test_start_game(ws_on_joined):
@@ -130,9 +137,7 @@ def test_start_game(ws_on_joined):
     assert a_private_info != b_private_info
 
 
-def test_start_game_deterministic(
-    ws_on_joined, game_with_two_players_during_game_empty_playpile, mocker: MockerFixture
-):
+def test_start_game_deterministic(ws_on_joined, game_with_two_players_during_game_empty_playpile):
     (a, b) = ws_on_joined
     a.send_json({"type": "start_game"})
     # RULES
@@ -163,11 +168,10 @@ def test_choose_cards(ws_on_joined, game_manager_choose_cards: GameManager):
     game_tables_manager.game_tables[0].game_manager = game_manager_choose_cards
     private_cards_a = list(game_manager_choose_cards.game.get_player(0).private_cards)
     a.send_json(
-        {
-            "type": "choose_public_cards",
-            "player_id": 0,
-            "cards": [vars(card) for card in private_cards_a[:3]],
-        }
+        request_models.ChoosePublicCardsRequest(
+            player_id=0,
+            cards=[request_models.CardModel(**vars(card)) for card in private_cards_a[:3]],
+        ).dict()
     )
     a_pub_info = a.receive_json()
     a_private_info = a.receive_json()
@@ -180,11 +184,10 @@ def test_choose_cards(ws_on_joined, game_manager_choose_cards: GameManager):
         game_tables_manager.game_tables[0].game_manager.game.get_player(1).private_cards
     )
     b.send_json(
-        {
-            "type": "choose_public_cards",
-            "player_id": 1,
-            "cards": [vars(card) for card in private_cards_b[:3]],
-        }
+        request_models.ChoosePublicCardsRequest(
+            player_id=1,
+            cards=[request_models.CardModel(**vars(card)) for card in private_cards_b[:3]],
+        ).dict()
     )
     b_pub_info_2 = b.receive_json()
     b_private_info_2 = b.receive_json()
@@ -200,13 +203,11 @@ def test_first_play_request(ws_on_joined, game_manager_first_move: GameManager):
         list(game_manager_first_move.game.get_player(0).private_cards), key=lambda card: card.rank
     )[0]
     a.send_json(
-        {
-            "type": "private_cards",
-            "player_id": 0,
-            "cards": [vars(card_to_play)],
-            "choice": "",
-        }
+        request_models.PrivateCardsRequest(
+            player_id=0, cards=[request_models.CardModel(**vars(card_to_play))]
+        ).dict()
     )
+
     b_pub_info = b.receive_json()
     assert b_pub_info["data"]["currents_turn"] == 1
     assert b_pub_info["data"]["play_pile"] == [vars(card_to_play)]
@@ -222,12 +223,9 @@ def test_invalid_play_request(ws_on_joined, game_manager_first_move: GameManager
     private_cards = list(game_manager_first_move.game.get_player(0).private_cards)
     assert card_not_in_hand not in private_cards
     a.send_json(
-        {
-            "type": "private_cards",
-            "player_id": 0,
-            "cards": [vars(card_not_in_hand)],
-            "choice": "",
-        }
+        request_models.PrivateCardsRequest(
+            player_id=0, cards=[request_models.CardModel(**vars(card_not_in_hand))]
+        ).dict()
     )
     a_private_info = a.receive_json()
     assert a_private_info["type"] == "invalid-request"

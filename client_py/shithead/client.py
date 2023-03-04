@@ -61,7 +61,7 @@ class Client:
     public_info: Optional[m.PublicInfo]
     rules: Optional[m.Rules]
     players: list[int] = field(default_factory=list)
-    id_: Optional[int] = None
+    id_: int = -1
     cards_not_chosen: bool = True
 
     def my_turn(self):
@@ -153,11 +153,11 @@ class Client:
     def consumer(self, message: str):
         if message is not None:
             event = json.loads(message)
-            if event["type"] == "player_id":
-                self.id_ = event["player_id"]
+            if event["type"] == "client_id":
+                self.id_ = event["client_id"]
                 print(f"my id : {self.id_}")
             if event["type"] == "player":
-                self.players = event["data"]["players"]
+                self.players = event["data"]["clients"]
                 print(event["message"])
                 print(f"all players : {self.players}")
             if event["type"] == "public_info":

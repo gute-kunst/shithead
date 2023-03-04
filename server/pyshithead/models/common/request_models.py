@@ -43,22 +43,22 @@ class BaseRequest(BaseModel):
 
 
 class TakePlayPileRequest(BaseRequest):
-    type = "take_play_pile"
+    type: str = "take_play_pile"
 
 
 class HiddenCardRequest(BaseRequest):
-    type = "hidden_card"
+    type: str = "hidden_card"
 
 
 class ChoosePublicCardsRequest(BaseRequest):
-    type = "choose_public_cards"
+    type: str = "choose_public_cards"
     cards: list[CardModel]
 
 
 class PrivateCardsRequest(BaseRequest):
-    type = "private_cards"
+    type: str = "private_cards"
     cards: list[CardModel]
-    choice: str  # either empty string Choice.LOWER, Choice.HIGHER
+    choice: str = ""  # either empty string Choice.LOWER, Choice.HIGHER
 
 
 def request_factory(data) -> BaseRequest:
@@ -79,7 +79,7 @@ class BaseResponse(BaseModel):
 
 
 class PublicInfoData(BaseModel):
-    type = "public_info"
+    type: str = "public_info"
     game_id: int
     play_pile: list[CardModel]
     game_state: str
@@ -95,22 +95,46 @@ class ChoiceModel(BaseModel):
 
 class RulesData(BaseModel):
     high_low_rank: int = SpecialRank.HIGHLOW
-    choice: ChoiceModel = ChoiceModel()
+    # choice: ChoiceModel = ChoiceModel()
+
+
+class Rules(BaseResponse):
+    type: str = "rules"
+    data: RulesData = RulesData()
 
 
 class PublicInfo(BaseResponse):
-    type = "public_info"
+    type: str = "public_info"
     data: PublicInfoData
 
 
 class PrivateInfo(BaseResponse):
-    type = "private_info"
+    type: str = "private_info"
     data: PlayerPrivateInfo
 
 
-class Rules(BaseResponse):
-    type = "rules"
-    data: RulesData = RulesData()
+class ClientModel(BaseModel):
+    type: str = "client_id"
+    client_id: int
+
+    @classmethod
+    def from_client(cls, client):
+        return cls(client_id=client.id_)
+
+
+class GameTableData(BaseModel):
+    nbr_of_players: int
+    clients: list[ClientModel]
+
+
+class GameTable(BaseModel):
+    type: str = "current_game_table"
+    data: GameTableData
+
+
+class Log(BaseModel):
+    type: str = "log"
+    message: str
 
 
 if __name__ == "__main__":
@@ -124,6 +148,8 @@ if __name__ == "__main__":
             PublicInfo,
             PrivateInfo,
             Rules,
+            GameTable,
+            Log,
         ],
         title="Requests",
     )
