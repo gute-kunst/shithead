@@ -23,6 +23,7 @@ pylint = "^2.15"
 coverage = { extras = ["toml"], version = "^6.5.0" }
 pytest-cov = "^4.0.0"
 datamodel-code-generator = "0.16.1"
+textual = {extras = ["dev"], version = "^0.13.0"}
 
 [build-system]
 requires = ["poetry-core"]
