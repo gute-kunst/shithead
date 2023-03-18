@@ -1,0 +1,11 @@
+
+.column {
+	width: 1fr;
+}
+
+#welcome>Horizontal{
+	height:auto;
+}
+#welcome>Horizontal>Static {
+	content-align: center middle;
+}
