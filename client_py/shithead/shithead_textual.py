@@ -8,7 +8,7 @@ import websockets
 from rich.columns import Columns
 from rich.markdown import Markdown
 from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal
+from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Button, Header, Input, Static, TextLog
 
 
@@ -89,30 +89,50 @@ class Client:
             task.cancel()
 
 
-# class Player(Static):
-#     private = 5
-#     public = 3
-#     hidden = 3
-#     player_id = 1
-#     player_name = "Blue-Ocean"
+class Card(Static):
+    def __init__(self, suit: str = "♥", rank: str = "3") -> None:
+        super().__init__("")
+        self.suit = suit
+        self.rank = rank
 
-#     def on_mount(self) -> ComposeResult:
-
-#         yield Static(Markdown(f"# {self.player_name}"))
-#         yield Static(f"id: {self.player_id}")
-#         yield Static(Columns([f"👋 {self.private}", f"👀 {self.public}", f"🙈 {self.hidden}"]))
-
-#     def on_click(self):
-#         self.private = 10
-#         self.update()
-
-
-class Welcome(Static):
     def compose(self) -> ComposeResult:
-        yield Static(Markdown(f"# Shithead"))
+        app.write_log(f"{self.suit} {self.rank}")
+        yield Static(f"{self.suit} {self.rank}")
+
+
+class Player(Static):
+    private = 5
+    public = 3
+    hidden = 3
+    player_id = 1
+    player_name = "Blue-Ocean"
+
+    def compose(self) -> ComposeResult:
+        app.write_log("creating player")
+        with Vertical(id="player"):
+            yield Static(Markdown(f"### {self.player_name} ({self.player_id})"))
+            yield Static(Columns([f"👋 {self.private}", f"🙈 {self.hidden}"]))
+            with Horizontal(classes="private-cards-container"):
+                yield Card("♣", "5")
+                yield Card("♥", "10")
+                yield Card("♦", "Q")
+
+    def on_click(self):
+        self.private = 10
+        self.update()
+
+
+class Game(Static):
+    def compose(self) -> ComposeResult:
+        with Container(id="sidebar"):
+            # yield Static("Players", id="player-heading")
+            yield Player()
+
         with Horizontal():
             yield Input(placeholder="Enter a Game ID", id="game-id", classes="column")
             yield Button("JOIN GAME(not working)", id="join-game")
+        yield Button("2")
+        yield Button("3")
 
     async def on_input_submitted(self, event: Input.Submitted):
         try:
@@ -132,7 +152,7 @@ class ShitheadApp(App):
         yield Header()
         with Horizontal():
             with Container(id="panel", classes="column"):
-                yield Welcome(id="welcome")
+                yield Game(id="welcome")
             with Container(id="log", classes="column"):
                 yield Static(Markdown("## Log"))
                 yield TextLog(
