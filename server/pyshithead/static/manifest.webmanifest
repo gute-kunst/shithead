@@ -1,0 +1,11 @@
+{
+  "name": "Shithead",
+  "short_name": "Shithead",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f1e8",
+  "theme_color": "#11231f",
+  "description": "Private mobile alpha for the Shithead card game.",
+  "icons": []
+}
+

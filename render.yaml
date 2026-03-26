@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: shithead-alpha
+    runtime: python
+    plan: free
+    rootDir: server
+    buildCommand: poetry install --only main --no-interaction
+    startCommand: poetry run python -m uvicorn pyshithead.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11

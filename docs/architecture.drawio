@@ -1,0 +1,124 @@
+<mxfile host="app.diagrams.net" modified="2026-03-26T16:10:00.000Z" agent="Codex" version="26.0.11">
+  <diagram id="runtime-architecture" name="Architecture">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="client_bg" value="Client Side" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;verticalAlign=top;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="20" y="150" width="260" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="server_bg" value="FastAPI Server" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;verticalAlign=top;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="340" y="40" width="980" height="610" as="geometry" />
+        </mxCell>
+        <mxCell id="engine_bg" value="Game Rules Engine" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;verticalAlign=top;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="850" y="300" width="430" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="player" value="Player&#xa;(terminal user)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="50" y="230" width="170" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="client" value="Python terminal client&#xa;client_py/shithead/client.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="50" y="320" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="main" value="main.py&#xa;FastAPI app" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="390" y="90" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="endpoint" value="WebSocket&#xa;/game/{game_id}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="390" y="210" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="aux" value="WebSocket /ws&#xa;auxiliary test endpoint" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="390" y="560" width="170" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="tables" value="GameTablesManager&#xa;(currently returns one table)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="620" y="90" width="210" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="table" value="GameTable&#xa;session orchestration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="620" y="210" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="schema" value="request_models&#xa;Pydantic protocol schema" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="620" y="360" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="clients" value="ClientManager&#xa;connect / disconnect / broadcast" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="620" y="500" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="manager" value="GameManager&#xa;transport-to-engine adapter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="900" y="210" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="game" value="Game&#xa;state machine" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="910" y="360" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="requests" value="PlayRequest types&#xa;choose_public_cards&#xa;private_cards&#xa;hidden_card&#xa;take_play_pile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="340" width="160" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="domain" value="Player / Dealer / PileOfCards&#xa;SetOfCards / events_and_states" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="980" y="500" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="messages_in" value="Inbound messages&#xa;start_game + typed requests" style="shape=note;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="180" y="70" width="130" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="messages_out" value="Outbound messages&#xa;client_id, current_game_table, log,&#xa;rules, public_info, private_info, invalid-request" style="shape=note;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="80" width="170" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="player" target="client">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="connect + send JSON" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="client" target="endpoint">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="endpoint" target="main">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="resolve game table" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="main" target="tables">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="tables" target="table">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="join / broadcast" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="table" target="clients">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="request_factory" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="main" target="schema">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="typed request" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="schema" target="table">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" value="start_game / game_request" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="table" target="manager">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" value="" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="manager" target="game">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" value="engine request objects" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="manager" target="requests">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" value="validate + process" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="requests" target="game">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" value="cards, players, events" style="endArrow=block;startArrow=block;html=1;rounded=0;" edge="1" parent="1" source="game" target="domain">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" value="rules / public_info / private_info" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="manager" target="schema">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" value="table updates / log / invalid-request" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="schema" target="clients">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" value="fan-out JSON responses" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="clients" target="endpoint">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e17" value="" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="endpoint" target="client">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e18" value="" style="dashed=1;endArrow=open;html=1;rounded=0;" edge="1" parent="1" source="main" target="aux">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e19" value="" style="dashed=1;endArrow=open;html=1;rounded=0;" edge="1" parent="1" source="messages_in" target="endpoint">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e20" value="" style="dashed=1;endArrow=open;html=1;rounded=0;" edge="1" parent="1" source="clients" target="messages_out">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
