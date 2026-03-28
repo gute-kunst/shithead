@@ -80,6 +80,10 @@ class StartGameRequest(BaseModel):
     player_token: str
 
 
+class RestoreSessionRequest(BaseModel):
+    player_token: str
+
+
 class ActionRequest(BaseModel):
     type: Literal[
         "choose_public_cards",

@@ -3,8 +3,8 @@ from .models import (
     ActionRequest,
     CreateGameRequest,
     JoinGameRequest,
+    RestoreSessionRequest,
     SessionAuthResponse,
     SessionSnapshotEvent,
     StartGameRequest,
 )
-

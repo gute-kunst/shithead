@@ -18,6 +18,7 @@ from pyshithead.models.session import (
     CreateGameRequest,
     GameSessionManager,
     JoinGameRequest,
+    RestoreSessionRequest,
     SessionAuthResponse,
     SessionSnapshotEvent,
     StartGameRequest,
@@ -80,6 +81,21 @@ async def start_game(invite_code: str, payload: StartGameRequest):
         raise _http_error(err) from err
     await session.broadcast_full_state()
     return SessionSnapshotEvent(data=session.build_snapshot())
+
+
+@app.post("/api/games/{invite_code}/restore", response_model=SessionAuthResponse)
+async def restore_game(invite_code: str, payload: RestoreSessionRequest):
+    try:
+        session = session_manager.get_session(invite_code)
+    except ValueError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+
+    try:
+        player = session.get_player_by_token(payload.player_token)
+    except ValueError as err:
+        raise _http_error(err) from err
+
+    return session.auth_response(player)
 
 
 @app.get("/api/games/{invite_code}", response_model=SessionSnapshotEvent)

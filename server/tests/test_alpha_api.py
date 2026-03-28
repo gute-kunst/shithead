@@ -36,6 +36,13 @@ def start_game(client: TestClient, invite_code: str, player_token: str):
     return response.json()
 
 
+def restore_session(client: TestClient, invite_code: str, player_token: str):
+    return client.post(
+        f"/api/games/{invite_code}/restore",
+        json={"player_token": player_token},
+    )
+
+
 def test_create_and_join_alpha_lobby():
     session_manager.sessions.clear()
     with TestClient(app, base_url="http://localhost") as client:
@@ -110,6 +117,43 @@ def test_start_game_and_reconnect_with_same_token():
                 assert reconnect_notice["type"] == "session_snapshot"
                 guest_after_reconnect = reconnect_notice["data"]["players"][1]
                 assert guest_after_reconnect["is_connected"] is True
+
+
+def test_restore_returns_player_scoped_private_state():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        guest = join_game(client, host["invite_code"], "Guest")
+        start_game(client, host["invite_code"], host["player_token"])
+
+        restored = restore_session(client, host["invite_code"], guest["player_token"])
+        assert restored.status_code == 200
+
+        payload = restored.json()
+        assert payload["invite_code"] == host["invite_code"]
+        assert payload["seat"] == 1
+        assert payload["snapshot"]["status"] == "IN_GAME"
+        assert payload["snapshot"]["players"][1]["display_name"] == "Guest"
+        assert payload["private_state"]["seat"] == 1
+        assert len(payload["private_state"]["private_cards"]) == 6
+
+
+def test_restore_rejects_unknown_player_token():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+
+        restored = restore_session(client, host["invite_code"], "invalid-token")
+        assert restored.status_code == 400
+        assert restored.json() == {"detail": "Unknown player token."}
+
+
+def test_restore_returns_not_found_for_missing_game():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        restored = restore_session(client, "MISSING", "invalid-token")
+        assert restored.status_code == 404
+        assert restored.json() == {"detail": "Game not found."}
 
 
 def test_choose_public_cards_over_new_websocket_flow():

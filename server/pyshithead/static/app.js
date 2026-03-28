@@ -10,6 +10,9 @@ const state = {
   error: "",
   ws: null,
   wsReady: false,
+  reconnectTimer: null,
+  restoringSession: false,
+  shouldReconnect: false,
   selectedCards: [],
   highLowChoice: "",
 };
@@ -48,19 +51,34 @@ function persistSession() {
   );
 }
 
-function clearSession() {
-  if (state.ws) {
-    state.ws.close();
+function clearReconnectTimer() {
+  if (state.reconnectTimer !== null) {
+    window.clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = null;
   }
+}
+
+function closeWebSocket({ allowReconnect = false } = {}) {
+  clearReconnectTimer();
+  state.shouldReconnect = allowReconnect;
+  state.wsReady = false;
+  const websocket = state.ws;
+  state.ws = null;
+  if (websocket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(websocket.readyState)) {
+    websocket.close();
+  }
+}
+
+function clearSession(errorMessage = "") {
+  closeWebSocket();
   state.inviteCode = "";
   state.playerToken = "";
   state.seat = null;
   state.displayName = "";
   state.snapshot = null;
   state.privateState = null;
-  state.error = "";
-  state.ws = null;
-  state.wsReady = false;
+  state.error = errorMessage;
+  state.restoringSession = false;
   state.selectedCards = [];
   state.highLowChoice = "";
   persistSession();
@@ -102,6 +120,15 @@ function suitLabel(suit) {
 
 function isRedSuit(suit) {
   return suit === 1 || suit === 2;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function ordinal(value) {
@@ -236,7 +263,13 @@ function applyAuthPayload(payload) {
   state.seat = payload.seat;
   state.snapshot = { type: "session_snapshot", data: payload.snapshot };
   state.privateState = { type: "private_state", data: payload.private_state };
+  state.displayName = payload.snapshot.players.find((player) => player.seat === payload.seat)?.display_name
+    || state.displayName;
+  state.error = "";
+  state.restoringSession = false;
+  resetSelection();
   persistSession();
+  render();
   connectWebSocket();
 }
 
@@ -269,13 +302,29 @@ async function restoreSession() {
   if (!state.inviteCode || !state.playerToken) {
     return;
   }
+  state.restoringSession = true;
+  state.error = "";
+  render();
   try {
-    const response = await api(`/api/games/${state.inviteCode}`);
-    state.snapshot = response;
-    connectWebSocket();
+    const response = await api(`/api/games/${state.inviteCode}/restore`, {
+      method: "POST",
+      body: JSON.stringify({ player_token: state.playerToken }),
+    });
+    applyAuthPayload(response);
   } catch (error) {
-    clearSession();
+    clearSession("Your saved session is no longer available. Join the game again if it is still active.");
   }
+}
+
+function scheduleReconnect() {
+  clearReconnectTimer();
+  if (!state.shouldReconnect || !state.playerToken) {
+    return;
+  }
+  state.reconnectTimer = window.setTimeout(() => {
+    state.reconnectTimer = null;
+    connectWebSocket();
+  }, 1200);
 }
 
 function connectWebSocket() {
@@ -285,24 +334,33 @@ function connectWebSocket() {
   if (state.ws && [WebSocket.OPEN, WebSocket.CONNECTING].includes(state.ws.readyState)) {
     return;
   }
+  clearReconnectTimer();
+  state.shouldReconnect = true;
 
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const ws = new WebSocket(
     `${protocol}//${window.location.host}/api/games/${state.inviteCode}/ws?token=${encodeURIComponent(state.playerToken)}`,
   );
+  state.ws = ws;
 
   ws.addEventListener("open", () => {
+    if (state.ws !== ws) {
+      return;
+    }
     state.wsReady = true;
     state.error = "";
     render();
   });
 
   ws.addEventListener("message", (event) => {
+    if (state.ws !== ws) {
+      return;
+    }
     const payload = JSON.parse(event.data);
     if (payload.type === "session_snapshot") {
       state.snapshot = payload;
       if (!payload.data.players.some((player) => player.seat === state.seat)) {
-        clearSession();
+        clearSession("Your saved session is no longer available. Join the game again if it is still active.");
         return;
       }
       if (payload.data.status === "GAME_OVER" || !isMyTurn()) {
@@ -318,15 +376,19 @@ function connectWebSocket() {
     }
   });
 
-  ws.addEventListener("close", () => {
-    state.wsReady = false;
-    render();
-    if (state.playerToken) {
-      window.setTimeout(connectWebSocket, 1200);
+  ws.addEventListener("close", (event) => {
+    if (state.ws !== ws) {
+      return;
     }
+    state.ws = null;
+    state.wsReady = false;
+    if (event.code === 1008) {
+      clearSession("Your saved session is no longer available. Join the game again if it is still active.");
+      return;
+    }
+    render();
+    scheduleReconnect();
   });
-
-  state.ws = ws;
 }
 
 async function startGame() {
@@ -431,8 +493,135 @@ function renderCard(card, selected, clickable = true) {
   `;
 }
 
+function relativeSeatIndex(snapshot, player) {
+  if (state.seat === null || snapshot.players.length === 0) {
+    return player.seat;
+  }
+  return (player.seat - state.seat + snapshot.players.length) % snapshot.players.length;
+}
+
+function seatPositionClass(snapshot, player) {
+  const relativeIndex = relativeSeatIndex(snapshot, player);
+  const layouts = {
+    1: ["seat-bottom"],
+    2: ["seat-bottom", "seat-top"],
+    3: ["seat-bottom", "seat-top-left", "seat-top-right"],
+    4: ["seat-bottom", "seat-left", "seat-top", "seat-right"],
+  };
+  return layouts[snapshot.players.length]?.[relativeIndex] || "seat-top";
+}
+
+function renderPublicCardChips(publicCards) {
+  if (publicCards.length === 0) {
+    return '<span class="seat-muted">No public cards</span>';
+  }
+  return publicCards
+    .map(
+      (card) => `
+        <span class="public-card-chip ${isRedSuit(card.suit) ? "red" : ""}">
+          ${rankLabel(card.rank)}${suitLabel(card.suit)}
+        </span>
+      `,
+    )
+    .join("");
+}
+
+function renderSeat(snapshot, player) {
+  const isCurrentTurn = player.seat === snapshot.current_turn_seat;
+  const isWinner = player.finished_position === 1;
+  const isYou = player.seat === state.seat;
+  const seatClasses = [
+    "seat-panel",
+    seatPositionClass(snapshot, player),
+    isCurrentTurn ? "current-turn" : "",
+    isWinner ? "winner" : "",
+    isYou ? "you" : "",
+    !player.is_connected ? "disconnected" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const seatBadges = [
+    isYou ? "You" : "",
+    player.is_host ? "Host" : "",
+    player.has_finished ? ordinal(player.finished_position) : "",
+    !player.is_connected ? "Offline" : "",
+  ]
+    .filter(Boolean)
+    .map((badge) => `<span class="seat-badge">${escapeHtml(badge)}</span>`)
+    .join("");
+
+  return `
+    <div class="${seatClasses}">
+      <div class="seat-header">
+        <strong>${escapeHtml(player.display_name)}</strong>
+        <div class="seat-badges">${seatBadges}</div>
+      </div>
+      <div class="seat-counts">
+        <span>Hand ${player.private_cards_count}</span>
+        <span>Hidden ${player.hidden_cards_count}</span>
+      </div>
+      <div class="seat-public-cards">${renderPublicCardChips(player.public_cards)}</div>
+    </div>
+  `;
+}
+
+function renderMiniCard(card) {
+  return `
+    <div class="mini-card ${isRedSuit(card.suit) ? "red" : ""}">
+      <span>${rankLabel(card.rank)}</span>
+      <span>${suitLabel(card.suit)}</span>
+    </div>
+  `;
+}
+
+function renderPilePreview(playPile) {
+  if (playPile.length === 0) {
+    return '<div class="pile-empty">Empty</div>';
+  }
+  return playPile
+    .slice(-4)
+    .map((card) => renderMiniCard(card))
+    .join("");
+}
+
+function currentPrompt(snapshot) {
+  if (snapshot.status === "LOBBY") {
+    return "Share the code, wait for enough players, then start.";
+  }
+  if (snapshot.status === "GAME_OVER") {
+    return "Final standings are ready below.";
+  }
+  if (canChoosePublicCards()) {
+    return `Pick 3 public cards for the table. ${state.selectedCards.length}/3 selected.`;
+  }
+  if (currentGameState() === "DURING_GAME" && isMyTurn()) {
+    if (selectedRank() === snapshot.rules.high_low_rank) {
+      return "Choose how the 7 changes the next player's turn.";
+    }
+    if (state.selectedCards.length > 0) {
+      return `${state.selectedCards.length} card${state.selectedCards.length === 1 ? "" : "s"} selected.`;
+    }
+    if (canPlayHiddenCard()) {
+      return "Your hidden cards are live. Play one blind or take the pile.";
+    }
+    return "Tap matching cards from your hand, then play them.";
+  }
+  if (currentGameState() === "DURING_GAME") {
+    return `Waiting for ${snapshot.current_turn_display_name || `Seat ${snapshot.current_turn_seat}`} to play.`;
+  }
+  return "Waiting for the game to begin.";
+}
+
 function renderLanding() {
   return `
+    ${state.restoringSession ? `
+      <section class="panel stack">
+        <h2>Restoring your game</h2>
+        <p class="muted">Reclaiming your seat and reconnecting to live updates.</p>
+      </section>
+    ` : ""}
+    ${state.error ? `<section class="panel error">${escapeHtml(state.error)}</section>` : ""}
     <section class="panel alpha-note stack">
       <h2>Alpha notice</h2>
       <p class="muted">
@@ -490,7 +679,7 @@ function renderStandings(snapshot) {
           .map(
             (player) => `
               <div class="standing-row">
-                <strong>${ordinal(player.finished_position)} - ${player.display_name}</strong>
+                <strong>${ordinal(player.finished_position)} - ${escapeHtml(player.display_name)}</strong>
                 <span>${player.seat === state.seat ? "You" : `Seat ${player.seat}`}</span>
               </div>
             `,
@@ -501,80 +690,73 @@ function renderStandings(snapshot) {
   `;
 }
 
-function renderPlayers(snapshot) {
-  return snapshot.players
-    .map((player) => {
-      const isCurrentTurn = player.seat === snapshot.current_turn_seat;
-      const isWinner = player.finished_position === 1;
-      const badges = [
-        player.is_host ? "Host" : "",
-        player.is_connected ? "Connected" : "Disconnected",
-        player.has_finished ? "Finished" : "",
-        player.seat === state.seat ? "You" : "",
-        isCurrentTurn ? "Current turn" : "",
-      ].filter(Boolean);
-
-      return `
-        <div class="panel stack player-panel ${isCurrentTurn ? "current-turn" : ""} ${isWinner ? "winner" : ""}">
-          <div>
-            <h3>${player.display_name}</h3>
-            <div class="chip-row">${badges.map((badge) => `<span class="player-chip">${badge}</span>`).join("")}</div>
-          </div>
-          ${player.finished_position ? `<div class="placement">${ordinal(player.finished_position)} place</div>` : ""}
-          <div class="muted tiny">Seat ${player.seat}</div>
-          <div class="tiny">Public cards: ${player.public_cards.map((card) => `${rankLabel(card.rank)}${suitLabel(card.suit)}`).join(" ") || "None yet"}</div>
-          <div class="tiny">Private cards: ${player.private_cards_count}</div>
-          <div class="tiny">Hidden cards: ${player.hidden_cards_count}</div>
-        </div>
-      `;
-    })
-    .join("");
-}
-
 function renderActions(snapshot) {
-  if (snapshot.status === "GAME_OVER") {
-    return "";
-  }
-
   const cards = privateCards();
   const selectedIds = new Set(state.selectedCards.map((card) => cardId(card)));
   const showHighLowChoice = selectedRank() === snapshot.rules.high_low_rank;
   const hasHighLowChoice = ["HIGHER", "LOWER"].includes(state.highLowChoice);
   const turnName = snapshot.current_turn_display_name || `Seat ${snapshot.current_turn_seat}`;
+  const dockClasses = [
+    "panel",
+    "hand-dock",
+    currentGameState() === "DURING_GAME" && !isMyTurn() ? "waiting" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return `
-    <section class="panel stack">
-      <div>
-        <p class="section-title">Your hand</p>
-        <div class="card-grid">
-          ${cards.map((card) => renderCard(card, selectedIds.has(cardId(card)))).join("") || '<p class="muted">No private cards in hand.</p>'}
+    <section class="${dockClasses}">
+      <div class="dock-header">
+        <div>
+          <p class="section-title">Your hand</p>
+          <strong class="dock-title">${cards.length} card${cards.length === 1 ? "" : "s"} ready</strong>
         </div>
+        ${state.selectedCards.length > 0 ? `<span class="selection-pill">${state.selectedCards.length} selected</span>` : ""}
+      </div>
+      <div class="dock-prompt">${escapeHtml(currentPrompt(snapshot))}</div>
+      <div class="hand-fan">
+        ${
+          cards.map((card) => renderCard(card, selectedIds.has(cardId(card)))).join("")
+            || '<p class="muted">No cards in hand right now.</p>'
+        }
       </div>
       <div class="actions">
         ${canChoosePublicCards() ? `
-          <div class="action-row">
-            <button class="button accent" id="choose-public">Lock selected public cards</button>
+          <div class="primary-action-row">
+            <button class="button accent full-width" id="choose-public">Lock selected public cards</button>
+          </div>
+          <div class="secondary-action-row">
             <button class="button secondary" id="clear-selection">Clear selection</button>
           </div>
-          <p class="muted tiny">Pick exactly 3 cards. These become your revealed cards for the table.</p>
         ` : ""}
         ${currentGameState() === "DURING_GAME" && isMyTurn() ? `
-          <div class="action-row">
-            <button class="button accent" id="play-cards" ${cards.length === 0 || (showHighLowChoice && !hasHighLowChoice) ? "disabled" : ""}>${showHighLowChoice && !hasHighLowChoice ? "Choose higher or lower first" : "Play selected cards"}</button>
+          <div class="primary-action-row">
+            <button class="button accent full-width" id="play-cards" ${cards.length === 0 || (showHighLowChoice && !hasHighLowChoice) ? "disabled" : ""}>${showHighLowChoice && !hasHighLowChoice ? "Choose higher or lower first" : "Play selected cards"}</button>
+          </div>
+          <div class="secondary-action-row">
             <button class="button secondary" id="take-pile">Take pile</button>
             <button class="button secondary" id="play-hidden" ${canPlayHiddenCard() ? "" : "disabled"}>Play hidden card</button>
             <button class="button secondary" id="clear-selection">Clear selection</button>
           </div>
         ` : ""}
         ${showHighLowChoice ? `
-          <p class="muted tiny">You selected a 7. Pick one before you can play it.</p>
-          <div class="action-row">
-            <button class="button ${state.highLowChoice === "HIGHER" ? "accent" : "secondary"}" id="choose-higher">Next player may play 7 or higher</button>
-            <button class="button ${state.highLowChoice === "LOWER" ? "accent" : "secondary"}" id="choose-lower">Next player may play 7 or lower</button>
+          <div class="choice-block">
+            <p class="muted tiny">You selected a 7. Pick the next-play direction before submitting.</p>
+            <div class="choice-row">
+              <button class="button ${state.highLowChoice === "HIGHER" ? "accent" : "secondary"}" id="choose-higher">7 or higher</button>
+              <button class="button ${state.highLowChoice === "LOWER" ? "accent" : "secondary"}" id="choose-lower">7 or lower</button>
+            </div>
           </div>
         ` : ""}
-        ${currentGameState() === "DURING_GAME" && !isMyTurn() ? `<p class="muted tiny">Waiting for ${turnName} to play.</p>` : ""}
+        ${currentGameState() === "DURING_GAME" && !isMyTurn() ? `<p class="muted tiny">Waiting for ${escapeHtml(turnName)}.</p>` : ""}
       </div>
+      <details class="help-drawer">
+        <summary>Rules and controls</summary>
+        <div class="help-copy stack">
+          <p class="muted">Pick 3 public cards first. After that, tap matching ranks in your hand and use the main play button.</p>
+          <p class="muted">7 changes the next player's direction, 8 skips, 10 burns, and hidden cards are only available when the hand is empty.</p>
+        </div>
+      </details>
     </section>
   `;
 }
@@ -584,17 +766,16 @@ function renderTable(snapshot) {
   const isHost = self && self.is_host;
   const activeTurnName = snapshot.current_turn_display_name || turnPlayer()?.display_name || null;
   const winningPlayer = winner();
+  const sortedPlayers = [...snapshot.players].sort(
+    (left, right) => relativeSeatIndex(snapshot, left) - relativeSeatIndex(snapshot, right),
+  );
 
   let turnHeadline = "Waiting in lobby";
-  let turnCopy = "Share the invite code and start once everyone has joined.";
+  let turnCopy = currentPrompt(snapshot);
   if (snapshot.status === "GAME_OVER") {
     turnHeadline = `${winningPlayer?.display_name || "A player"} won`;
-    turnCopy = "Final standings are shown below.";
   } else if (snapshot.game_state) {
     turnHeadline = isMyTurn() ? "Your turn" : `${activeTurnName} is up`;
-    turnCopy = isMyTurn()
-      ? "Your cards are selectable below. Play now or take the pile if you are blocked."
-      : "The highlighted player panel below shows whose turn it is.";
   }
 
   return `
@@ -605,39 +786,52 @@ function renderTable(snapshot) {
         <button class="button secondary" id="copy-code">Copy code</button>
         <button class="button secondary" id="leave-game">Leave game</button>
       </div>
-      <div class="turn-banner">
-        <span class="section-title">Turn</span>
-        <strong>${turnHeadline}</strong>
-        <span class="muted">${turnCopy}</span>
+      <div class="table-map">
+        <div class="table-surface"></div>
+        ${sortedPlayers.map((player) => renderSeat(snapshot, player)).join("")}
+        <div class="table-center">
+          <div class="turn-banner">
+            <span class="section-title">Turn</span>
+            <strong>${escapeHtml(turnHeadline)}</strong>
+            <span class="muted">${escapeHtml(turnCopy)}</span>
+          </div>
+          ${snapshot.status_message ? `
+            <div class="event-box">
+              <strong>Play Update</strong>
+              <span>${escapeHtml(snapshot.status_message)}</span>
+            </div>
+          ` : ""}
+          <div class="table-resources">
+            <div class="deck-orb">
+              <span class="resource-label">Deck</span>
+              <strong>${snapshot.cards_in_deck}</strong>
+            </div>
+            <div class="pile-zone">
+              <span class="resource-label">Play pile</span>
+              <div class="pile-preview">${renderPilePreview(snapshot.play_pile)}</div>
+              <span class="pile-caption">${snapshot.play_pile.length === 0 ? "No cards" : `${snapshot.play_pile.length} card${snapshot.play_pile.length === 1 ? "" : "s"}`}</span>
+            </div>
+          </div>
+          <div class="status-strip">
+            <span class="status-chip">${snapshot.status}</span>
+            <span class="status-chip">${snapshot.game_state || "Waiting for host"}</span>
+            ${activeTurnName ? `<span class="status-chip">Current player ${escapeHtml(activeTurnName)}</span>` : ""}
+          </div>
+        </div>
       </div>
-      ${snapshot.status_message ? `
-        <div class="event-box">
-          <strong>Play Update</strong>
-          <span>${snapshot.status_message}</span>
-        </div>
-      ` : ""}
-      <div class="status-strip">
-        <span class="status-chip">${snapshot.status}</span>
-        <span class="status-chip">${snapshot.game_state || "Waiting for host"}</span>
-        ${activeTurnName ? `<span class="status-chip">Current player ${activeTurnName}</span>` : ""}
-      </div>
-      <div class="card-stack">
-        <div class="stack-card deck-focus">
-          <strong>Cards left in deck</strong>
-          <span class="deck-number">${snapshot.cards_in_deck}</span>
-        </div>
-        <div class="stack-card">
-          <strong>Play pile</strong>
-          <span>${snapshot.play_pile.map((card) => `${rankLabel(card.rank)}${suitLabel(card.suit)}`).join(" ") || "Empty"}</span>
-        </div>
+      <div class="table-meta">
         <div class="stack-card">
           <strong>Rules</strong>
-          <span>7 sets the next player's direction. 10 burns. 8 skips.</span>
+          <span>7 changes direction. 8 skips. 10 burns. Hidden cards go live last.</span>
+        </div>
+        <div class="stack-card">
+          <strong>Table pulse</strong>
+          <span>The glowing seat is the active player. Bright event text marks burns, skips, and pile takes.</span>
         </div>
       </div>
       ${snapshot.status === "LOBBY" && isHost ? `
-        <div class="action-row">
-          <button class="button accent" id="start-game" ${snapshot.players.length < 2 ? "disabled" : ""}>Start game</button>
+        <div class="primary-action-row">
+          <button class="button accent full-width" id="start-game" ${snapshot.players.length < 2 ? "disabled" : ""}>Start game</button>
         </div>
       ` : ""}
     </section>
@@ -651,21 +845,9 @@ function renderApp() {
 
   return `
     ${renderTable(state.snapshot.data)}
-    ${state.error ? `<section class="panel error">${state.error}</section>` : ""}
+    ${state.error ? `<section class="panel error">${escapeHtml(state.error)}</section>` : ""}
     ${renderStandings(state.snapshot.data)}
     ${renderActions(state.snapshot.data)}
-    <section class="grid-two">
-      <article class="panel stack">
-        <h2>Players</h2>
-        <div class="player-list">${renderPlayers(state.snapshot.data)}</div>
-      </article>
-      <article class="panel stack">
-        <h2>How this alpha works</h2>
-        <p class="muted">Create or join with an invite code, keep the tab open, and reconnect automatically after a reload.</p>
-        <p class="muted">This alpha runs on a single live server. A deploy, restart, or long idle period can interrupt active games.</p>
-        <p class="muted">Public cards are selected first. During the game, play equal-ranked private cards, take the pile if needed, and use the hidden-card action only when available.</p>
-      </article>
-    </section>
   `;
 }
 
