@@ -20,6 +20,7 @@ const state = {
   turnNoticeCopy: "",
   lastTurnNoticeKey: "",
   turnNoticeTimer: null,
+  suppressCardTapUntil: 0,
 };
 
 const app = document.getElementById("app");
@@ -695,21 +696,29 @@ function handLayout(snapshot) {
   const playerCount = snapshot.players.length;
   const viewportWidth = window.innerWidth || 390;
   const viewportHeight = window.innerHeight || 844;
-  const compactViewport = viewportHeight < 760 || playerCount >= 4;
+  const compactViewport = viewportHeight < 760 || playerCount >= 4 || viewportWidth < 420;
+  const narrowViewport = viewportWidth < 400;
   const availableWidth = Math.max(viewportWidth - 64, 220);
-  const maxWidth = compactViewport ? 62 : 72;
-  const minWidth = compactViewport ? 40 : 46;
+  const maxWidth = compactViewport ? 46 : 72;
+  const minWidth = compactViewport ? 36 : 46;
   const stepFactor = cardCount >= 7 ? 0.48 : cardCount >= 5 ? 0.54 : 0.62;
   const fitWidth = cardCount <= 1
     ? maxWidth
     : Math.floor(availableWidth / (1 + Math.max(0, cardCount - 1) * stepFactor));
-  const shouldScroll = cardCount > 0 && fitWidth < minWidth;
+  const shouldScroll = (
+    cardCount > 0
+    && (
+      fitWidth < minWidth
+      || (compactViewport && cardCount >= 5)
+      || (narrowViewport && cardCount >= 4)
+    )
+  );
   const cardWidth = shouldScroll
-    ? (compactViewport ? 50 : 56)
+    ? (compactViewport ? (narrowViewport ? 35 : 38) : 56)
     : Math.max(minWidth, Math.min(maxWidth, fitWidth || maxWidth));
-  const overlap = Math.round(cardWidth * (shouldScroll ? 0.34 : 1 - stepFactor));
+  const overlap = Math.round(cardWidth * (shouldScroll ? 0.26 : 1 - stepFactor));
   const cardHeight = Math.round(cardWidth * 1.42);
-  const lift = Math.max(8, Math.round(cardHeight * 0.13));
+  const lift = Math.max(6, Math.round(cardHeight * 0.13));
   const classes = [
     shouldScroll ? "hand-layout-scroll" : "hand-layout-fit",
     cardWidth <= 52 ? "hand-layout-compact" : "",
@@ -1103,8 +1112,46 @@ function syncMobileGameLayout() {
 function wireEvents() {
   app.querySelectorAll("form").forEach((form) => form.addEventListener("submit", onSubmit));
 
+  const handFan = app.querySelector(".hand-fan");
+  if (handFan) {
+    let touchStartX = null;
+    let touchStartY = null;
+
+    handFan.addEventListener("touchstart", (event) => {
+      const touch = event.touches[0];
+      if (!touch) {
+        return;
+      }
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+    }, { passive: true });
+
+    handFan.addEventListener("touchmove", (event) => {
+      const touch = event.touches[0];
+      if (!touch || touchStartX === null || touchStartY === null) {
+        return;
+      }
+      const deltaX = Math.abs(touch.clientX - touchStartX);
+      const deltaY = Math.abs(touch.clientY - touchStartY);
+      if (deltaX > 10 && deltaX > deltaY) {
+        state.suppressCardTapUntil = Date.now() + 250;
+      }
+    }, { passive: true });
+
+    const clearTouchTrack = () => {
+      touchStartX = null;
+      touchStartY = null;
+    };
+
+    handFan.addEventListener("touchend", clearTouchTrack, { passive: true });
+    handFan.addEventListener("touchcancel", clearTouchTrack, { passive: true });
+  }
+
   app.querySelectorAll("[data-card-id]").forEach((button) => {
     button.addEventListener("click", () => {
+      if (Date.now() < state.suppressCardTapUntil) {
+        return;
+      }
       const card = privateCards().find((entry) => cardId(entry) === button.dataset.cardId);
       if (card) {
         toggleCard(card);

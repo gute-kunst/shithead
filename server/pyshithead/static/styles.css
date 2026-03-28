@@ -548,13 +548,17 @@ button {
   display: flex;
   overflow-x: auto;
   gap: 0;
-  padding: 0.8rem 0.2rem 1rem 0.2rem;
+  padding: 0.8rem 0.35rem 1rem;
   scrollbar-width: thin;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
 }
 
 .hand-fan .card {
   flex: 0 0 auto;
   margin-left: calc(-1 * var(--hand-card-overlap));
+  touch-action: pan-x;
 }
 
 .hand-fan .card:first-child {
@@ -762,6 +766,9 @@ body.game-active-mobile .eyebrow {
 body.game-active-mobile .app-root {
   height: 100%;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
   gap: 0.7rem;
 }
 
@@ -871,6 +878,9 @@ body.game-active-mobile .button.button-inline {
 body.game-active-mobile .game-screen.mobile-one-screen {
   height: 100%;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
   gap: 0.45rem;
   grid-template-rows: minmax(0, var(--mobile-table-height)) auto;
   align-items: stretch;
@@ -879,6 +889,9 @@ body.game-active-mobile .game-screen.mobile-one-screen {
 body.game-active-mobile .table-stage {
   height: 100%;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
   gap: 0.38rem;
   padding: 0.56rem;
 }
@@ -1084,6 +1097,10 @@ body.game-active-mobile .hand-dock {
   position: relative;
   bottom: auto;
   z-index: 1;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
   padding: 0.56rem 0.72rem calc(0.6rem + env(safe-area-inset-bottom));
   min-height: 0;
 }
@@ -1103,7 +1120,24 @@ body.game-active-mobile .dock-prompt {
 }
 
 body.game-active-mobile .hand-fan {
-  padding: 0.38rem 0.1rem 0.48rem;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  padding: 0.34rem 0.38rem 0.48rem;
+  min-height: calc(var(--hand-card-height) + var(--hand-card-lift) + 0.4rem);
+}
+
+body.game-active-mobile .card {
+  padding: 0.44rem 0.34rem;
+  border-radius: 16px;
+}
+
+body.game-active-mobile .card-rank {
+  font-size: 1rem;
+}
+
+body.game-active-mobile .card-suit {
+  font-size: 1.35rem;
 }
 
 body.game-active-mobile .secondary-action-row {
@@ -1164,10 +1198,24 @@ body.game-active-mobile .button {
 
 body.game-active-mobile .hand-layout-scroll .hand-fan {
   overflow-x: auto;
+  scrollbar-width: none;
+  scroll-padding-inline: 0.38rem;
 }
 
 body.game-active-mobile .hand-layout-fit .hand-fan {
   overflow-x: hidden;
+}
+
+body.game-active-mobile .hand-layout-scroll .hand-fan::-webkit-scrollbar {
+  display: none;
+}
+
+body.game-active-mobile .hand-layout-scroll .card {
+  scroll-snap-align: start;
+}
+
+body.game-active-mobile .hand-layout-scroll .hand-fan {
+  scroll-snap-type: x proximity;
 }
 
 @keyframes turnPulse {
