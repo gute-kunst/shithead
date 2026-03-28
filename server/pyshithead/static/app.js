@@ -22,6 +22,8 @@ const state = {
   lastTurnNoticeKey: "",
   turnNoticeTimer: null,
   suppressCardTapUntil: 0,
+  landingInviteCode: "",
+  pendingLandingNameFocus: false,
 };
 
 const app = document.getElementById("app");
@@ -56,6 +58,16 @@ function persistSession() {
       displayName: state.displayName,
     }),
   );
+}
+
+function loadInviteLink() {
+  const params = new URLSearchParams(window.location.search);
+  const inviteCode = (params.get("invite") || "").trim().toUpperCase();
+  if (!inviteCode) {
+    return;
+  }
+  state.landingInviteCode = inviteCode;
+  state.pendingLandingNameFocus = true;
 }
 
 function clearReconnectTimer() {
@@ -261,6 +273,12 @@ function selectedRank() {
 function resetSelection() {
   state.selectedCards = [];
   state.highLowChoice = "";
+}
+
+function buildInviteLink() {
+  const inviteUrl = new URL("/", window.location.origin);
+  inviteUrl.searchParams.set("invite", state.inviteCode);
+  return inviteUrl.toString();
 }
 
 function turnNoticePayload(snapshot) {
@@ -819,7 +837,7 @@ function renderLanding() {
         <form class="stack" data-mode="join">
           <div class="field">
             <label for="join-code">Invite code</label>
-            <input id="join-code" name="invite_code" maxlength="6" required placeholder="AB12CD" />
+            <input id="join-code" name="invite_code" maxlength="6" required placeholder="AB12CD" value="${escapeHtml(state.landingInviteCode)}" />
           </div>
           <div class="field">
             <label for="join-name">Display name</label>
@@ -1011,6 +1029,7 @@ function renderTable(snapshot) {
   const lobbyControls = showLobbyControls ? `
     <span class="invite-code">Invite code ${snapshot.invite_code}</span>
     <button class="button secondary" id="copy-code">Copy code</button>
+    <button class="button secondary" id="share-invite">Share invite</button>
   ` : "";
 
   return `
@@ -1255,6 +1274,34 @@ function wireEvents() {
     });
   }
 
+  const shareInviteButton = document.getElementById("share-invite");
+  if (shareInviteButton) {
+    shareInviteButton.addEventListener("click", async () => {
+      const inviteUrl = buildInviteLink();
+      try {
+        if (typeof navigator.share === "function") {
+          await navigator.share({
+            title: "Shithead invite",
+            text: `Join my Shithead game with invite code ${state.inviteCode}.`,
+            url: inviteUrl,
+          });
+          state.error = "Invite link shared.";
+        } else {
+          await navigator.clipboard.writeText(inviteUrl);
+          state.error = "Invite link copied.";
+        }
+      } catch (error) {
+        try {
+          await navigator.clipboard.writeText(inviteUrl);
+          state.error = "Invite link copied.";
+        } catch (clipboardError) {
+          state.error = "Share failed. You can still share the invite link manually.";
+        }
+      }
+      render();
+    });
+  }
+
   const leaveButton = document.getElementById("leave-game");
   if (leaveButton) {
     leaveButton.addEventListener("click", clearSession);
@@ -1273,11 +1320,19 @@ function render() {
     isMobileActiveGameLayout() && state.snapshot?.data?.status !== "LOBBY",
   );
   app.innerHTML = renderApp();
+  if (!state.snapshot && state.pendingLandingNameFocus) {
+    const joinNameInput = document.getElementById("join-name");
+    if (joinNameInput) {
+      joinNameInput.focus();
+      state.pendingLandingNameFocus = false;
+    }
+  }
   wireEvents();
   window.requestAnimationFrame(syncMobileGameLayout);
 }
 
 loadStoredSession();
+loadInviteLink();
 render();
 restoreSession();
 

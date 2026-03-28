@@ -148,6 +148,11 @@ button {
   align-items: center;
 }
 
+.controls .button,
+.table-map-controls .button {
+  white-space: nowrap;
+}
+
 .controls.hidden {
   display: none;
 }
@@ -933,8 +938,8 @@ body.game-active-mobile .status-chip {
 }
 
 body.game-active-mobile .controls .button {
-  padding: 0.72rem 0.9rem;
-  font-size: 0.9rem;
+  padding: 0.6rem 0.78rem;
+  font-size: 0.84rem;
 }
 
 body.game-started-mobile .table-stage {
@@ -960,6 +965,11 @@ body.game-active-mobile:not(.game-started-mobile) .table-map {
 body.game-active-mobile:not(.game-started-mobile) .table-map-controls {
   gap: 0.45rem;
   margin-bottom: 0.55rem;
+}
+
+body.game-active-mobile:not(.game-started-mobile) .table-map-controls .button {
+  padding: 0.58rem 0.74rem;
+  font-size: 0.8rem;
 }
 
 body.game-active-mobile .table-surface {
