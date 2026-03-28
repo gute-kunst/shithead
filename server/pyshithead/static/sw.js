@@ -1,4 +1,4 @@
-const CACHE_NAME = "shithead-alpha-v3";
+const CACHE_NAME = "shithead-alpha-v4";
 const APP_SHELL = ["/", "/static/styles.css", "/static/app.js", "/static/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
