@@ -205,6 +205,15 @@ button {
   border-radius: calc(var(--radius) - 4px);
 }
 
+.table-map-controls {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
 .table-surface {
   position: absolute;
   inset: 3.4rem 0.35rem 2.1rem;
@@ -745,6 +754,7 @@ body.game-active-mobile .page-shell {
 }
 
 body.game-active-mobile .hero {
+  display: none;
   padding: 0 0 0.45rem;
 }
 
@@ -770,6 +780,9 @@ body.game-active-mobile .app-root {
   width: 100%;
   max-width: 100%;
   gap: 0.7rem;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-items: stretch;
+  padding-top: 0.05rem;
 }
 
 .game-topbar {
@@ -896,6 +909,11 @@ body.game-active-mobile .table-stage {
   padding: 0.56rem;
 }
 
+body.game-active-mobile:not(.game-started-mobile) .table-stage {
+  display: flex;
+  flex-direction: column;
+}
+
 body.game-active-mobile .controls {
   gap: 0.45rem;
   justify-content: flex-start;
@@ -931,9 +949,25 @@ body.game-active-mobile .table-map {
   height: 100%;
 }
 
+body.game-active-mobile:not(.game-started-mobile) .table-map {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  padding: 0.52rem 0.42rem 0;
+}
+
+body.game-active-mobile:not(.game-started-mobile) .table-map-controls {
+  gap: 0.45rem;
+  margin-bottom: 0.55rem;
+}
+
 body.game-active-mobile .table-surface {
   inset: 1.5rem 0.1rem 0.35rem;
   border-radius: 50% / 44%;
+}
+
+body.game-active-mobile:not(.game-started-mobile) .table-surface {
+  inset: 4.7rem 0.1rem 0.35rem;
 }
 
 body.game-active-mobile .seat-panel {
@@ -971,6 +1005,10 @@ body.game-active-mobile .players-2 .seat-top {
   top: 0.35rem;
 }
 
+body.game-active-mobile:not(.game-started-mobile) .players-2 .seat-top {
+  top: 4.2rem;
+}
+
 body.game-active-mobile .players-2 .seat-bottom {
   bottom: 0.2rem;
 }
@@ -978,6 +1016,11 @@ body.game-active-mobile .players-2 .seat-bottom {
 body.game-active-mobile .players-3 .seat-top-left,
 body.game-active-mobile .players-3 .seat-top-right {
   top: 0.55rem;
+}
+
+body.game-active-mobile:not(.game-started-mobile) .players-3 .seat-top-left,
+body.game-active-mobile:not(.game-started-mobile) .players-3 .seat-top-right {
+  top: 4.1rem;
 }
 
 body.game-active-mobile .players-3 .seat-top-left {
@@ -1000,6 +1043,10 @@ body.game-active-mobile .players-4 .seat-top {
   top: 0.35rem;
 }
 
+body.game-active-mobile:not(.game-started-mobile) .players-4 .seat-top {
+  top: 4.1rem;
+}
+
 body.game-active-mobile .players-4 .seat-left,
 body.game-active-mobile .players-4 .seat-right {
   top: 57%;
@@ -1020,11 +1067,7 @@ body.game-active-mobile .players-4 .seat-bottom {
 body.game-active-mobile .table-center {
   width: min(100%, 12.2rem);
   gap: 0.35rem;
-  transform: translate(-50%, -24%);
-}
-
-body.game-active-mobile .players-2 .table-center {
-  transform: translate(-50%, -20%);
+  transform: translate(-50%, -50%);
 }
 
 body.game-active-mobile .turn-banner,
@@ -1153,6 +1196,18 @@ body.game-active-mobile .choice-row {
 
 body.game-active-mobile .button {
   padding: 0.76rem 0.9rem;
+}
+
+body.game-active-mobile:not(.game-started-mobile) #start-game {
+  padding: 0.5rem 0.9rem;
+  border-radius: 26px;
+  font-size: 0.9rem;
+  min-height: 3.25rem;
+  max-height: 3.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: start;
 }
 
 .turn-toast {

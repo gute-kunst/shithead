@@ -1,5 +1,13 @@
-const CACHE_NAME = "shithead-alpha-v4";
-const APP_SHELL = ["/", "/static/styles.css", "/static/app.js", "/static/manifest.webmanifest"];
+const CACHE_NAME = "shithead-alpha-v5";
+const APP_SHELL = [
+  "/",
+  "/static/styles.css",
+  "/static/app.js",
+  "/static/manifest.webmanifest",
+  "/static/icons/icon-180.png",
+  "/static/icons/icon-192.png",
+  "/static/icons/icon-512.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

@@ -691,6 +691,10 @@ function isMobileActiveGameLayout(snapshot = state.snapshot?.data) {
   return Boolean(snapshot) && snapshot.status !== "GAME_OVER" && window.innerWidth < 720;
 }
 
+function isMobileLobbyLayout(snapshot = state.snapshot?.data) {
+  return isMobileActiveGameLayout(snapshot) && snapshot.status === "LOBBY";
+}
+
 function handLayout(snapshot) {
   const cardCount = privateCards().length;
   const playerCount = snapshot.players.length;
@@ -926,14 +930,14 @@ function renderGameTopbar(snapshot) {
   if (!snapshot) {
     return "";
   }
-  const showCompactBrand = isMobileActiveGameLayout(snapshot) && snapshot.status !== "LOBBY";
+  const showCompactBrand = isMobileActiveGameLayout(snapshot);
 
   return `
     <div class="game-topbar ${showCompactBrand ? "" : "actions-only"}">
       ${showCompactBrand ? `
         <div class="game-topbar-title">
-          <span class="game-topbar-eyebrow">Private Mobile Alpha</span>
           <strong class="game-topbar-name">Shithead</strong>
+          <span class="game-topbar-eyebrow">Private Mobile Alpha</span>
         </div>
       ` : ""}
       <div class="game-topbar-actions">
@@ -979,6 +983,7 @@ function renderTable(snapshot) {
   const activeTurnName = snapshot.current_turn_display_name || turnPlayer()?.display_name || null;
   const winningPlayer = winner();
   const showLobbyControls = snapshot.status === "LOBBY";
+  const showMobileLobbyLayout = isMobileLobbyLayout(snapshot);
   const sortedPlayers = [...snapshot.players].sort(
     (left, right) => relativeSeatIndex(snapshot, left) - relativeSeatIndex(snapshot, right),
   );
@@ -991,13 +996,25 @@ function renderTable(snapshot) {
     turnHeadline = isMyTurn() ? "Your turn" : `${activeTurnName} is up`;
   }
 
+  const lobbyControls = showLobbyControls ? `
+    <span class="invite-code">Invite code ${snapshot.invite_code}</span>
+    <button class="button secondary" id="copy-code">Copy code</button>
+  ` : "";
+
   return `
     <section class="panel table-stage stack">
-      <div class="controls ${showLobbyControls ? "" : "hidden"}">
-        ${showLobbyControls ? `<span class="invite-code">Invite code ${snapshot.invite_code}</span>` : ""}
-        ${showLobbyControls ? '<button class="button secondary" id="copy-code">Copy code</button>' : ""}
-      </div>
+      ${showLobbyControls && !showMobileLobbyLayout ? `
+        <div class="controls">
+          ${lobbyControls}
+        </div>
+      ` : ""}
+      ${showMobileLobbyLayout && state.error ? `<div class="dock-error">${escapeHtml(state.error)}</div>` : ""}
       <div class="table-map">
+        ${showMobileLobbyLayout ? `
+          <div class="table-map-controls">
+            ${lobbyControls}
+          </div>
+        ` : ""}
         <div class="table-surface"></div>
         ${sortedPlayers.map((player) => renderSeat(snapshot, player)).join("")}
         ${renderTurnToast(snapshot)}
@@ -1054,6 +1071,7 @@ function renderApp() {
   }
 
   const snapshot = state.snapshot.data;
+  const showMobileLobbyLayout = isMobileLobbyLayout(snapshot);
   const gameScreenClasses = [
     "game-screen",
     `players-${snapshot.players.length}`,
@@ -1066,7 +1084,7 @@ function renderApp() {
     ${renderGameTopbar(snapshot)}
     <section class="${gameScreenClasses}">
       ${renderTable(snapshot)}
-      ${renderActions(snapshot)}
+      ${showMobileLobbyLayout ? "" : renderActions(snapshot)}
     </section>
     ${!isMobileActiveGameLayout(snapshot) && state.error ? `<section class="panel error">${escapeHtml(state.error)}</section>` : ""}
     ${renderStandings(snapshot)}
@@ -1089,7 +1107,7 @@ function syncMobileGameLayout() {
   const gameScreen = document.querySelector(".game-screen.mobile-one-screen");
   const handDock = document.querySelector(".hand-dock");
 
-  if (!pageShell || !appRoot || !gameScreen || !handDock) {
+  if (!pageShell || !appRoot || !gameScreen) {
     return;
   }
 
@@ -1099,7 +1117,7 @@ function syncMobileGameLayout() {
   const screenStyles = window.getComputedStyle(gameScreen);
   const screenGap = Number.parseFloat(screenStyles.rowGap || screenStyles.gap || "0") || 0;
   const topbarHeight = topbar?.getBoundingClientRect().height || 0;
-  const handHeight = handDock.getBoundingClientRect().height || 0;
+  const handHeight = handDock?.getBoundingClientRect().height || 0;
   const availableHeight = Math.max(0, shellRect.height - topbarHeight - appGap);
   const tableHeight = Math.max(0, availableHeight - handHeight - screenGap);
 
