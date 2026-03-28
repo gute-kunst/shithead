@@ -1,4 +1,5 @@
 const storageKey = "shithead.alpha.session";
+const playPilePreviewLimit = 6;
 
 const state = {
   inviteCode: "",
@@ -681,10 +682,21 @@ function renderPilePreview(playPile) {
     return '<div class="pile-empty">Empty</div>';
   }
   return playPile
-    .slice(0, 4)
+    .slice(0, playPilePreviewLimit)
     .reverse()
     .map((card) => renderMiniCard(card))
     .join("");
+}
+
+function playPileCaption(playPile) {
+  if (playPile.length === 0) {
+    return "No cards";
+  }
+  if (playPile.length > playPilePreviewLimit) {
+    const hiddenCount = playPile.length - playPilePreviewLimit;
+    return `+${hiddenCount} card${hiddenCount === 1 ? "" : "s"}`;
+  }
+  return `${playPile.length} card${playPile.length === 1 ? "" : "s"}`;
 }
 
 function isMobileActiveGameLayout(snapshot = state.snapshot?.data) {
@@ -1040,7 +1052,7 @@ function renderTable(snapshot) {
             <div class="pile-zone">
               <span class="resource-label">Play pile</span>
               <div class="pile-preview">${renderPilePreview(snapshot.play_pile)}</div>
-              <span class="pile-caption">${snapshot.play_pile.length === 0 ? "No cards" : `${snapshot.play_pile.length} card${snapshot.play_pile.length === 1 ? "" : "s"}`}</span>
+              <span class="pile-caption">${playPileCaption(snapshot.play_pile)}</span>
               ${renderPileAction(snapshot)}
             </div>
           </div>
