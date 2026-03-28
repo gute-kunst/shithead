@@ -15,6 +15,11 @@ const state = {
   shouldReconnect: false,
   selectedCards: [],
   highLowChoice: "",
+  turnNoticeVisible: false,
+  turnNoticeHeadline: "",
+  turnNoticeCopy: "",
+  lastTurnNoticeKey: "",
+  turnNoticeTimer: null,
 };
 
 const app = document.getElementById("app");
@@ -58,6 +63,30 @@ function clearReconnectTimer() {
   }
 }
 
+function clearTurnNoticeTimer() {
+  if (state.turnNoticeTimer !== null) {
+    window.clearTimeout(state.turnNoticeTimer);
+    state.turnNoticeTimer = null;
+  }
+}
+
+function hideTurnNotice() {
+  clearTurnNoticeTimer();
+  state.turnNoticeVisible = false;
+}
+
+function showTurnNotice(headline, copy) {
+  clearTurnNoticeTimer();
+  state.turnNoticeHeadline = headline;
+  state.turnNoticeCopy = copy;
+  state.turnNoticeVisible = true;
+  state.turnNoticeTimer = window.setTimeout(() => {
+    state.turnNoticeTimer = null;
+    state.turnNoticeVisible = false;
+    render();
+  }, 2600);
+}
+
 function closeWebSocket({ allowReconnect = false } = {}) {
   clearReconnectTimer();
   state.shouldReconnect = allowReconnect;
@@ -71,6 +100,7 @@ function closeWebSocket({ allowReconnect = false } = {}) {
 
 function clearSession(errorMessage = "") {
   closeWebSocket();
+  hideTurnNotice();
   state.inviteCode = "";
   state.playerToken = "";
   state.seat = null;
@@ -81,6 +111,7 @@ function clearSession(errorMessage = "") {
   state.restoringSession = false;
   state.selectedCards = [];
   state.highLowChoice = "";
+  state.lastTurnNoticeKey = "";
   persistSession();
   render();
 }
@@ -195,6 +226,25 @@ function canPlayHiddenCard() {
   );
 }
 
+function hasPlayablePrivateCard(snapshot = state.snapshot?.data) {
+  if (currentGameState() !== "DURING_GAME" || !isMyTurn()) {
+    return false;
+  }
+
+  const validRanks = new Set(snapshot?.current_valid_ranks || []);
+  return privateCards().some((card) => validRanks.has(card.rank));
+}
+
+function mustTakePile(snapshot = state.snapshot?.data) {
+  return (
+    currentGameState() === "DURING_GAME"
+    && isMyTurn()
+    && privateCards().length > 0
+    && !canPlayHiddenCard()
+    && !hasPlayablePrivateCard(snapshot)
+  );
+}
+
 function privateCards() {
   return state.privateState?.data?.private_cards || [];
 }
@@ -209,6 +259,51 @@ function selectedRank() {
 function resetSelection() {
   state.selectedCards = [];
   state.highLowChoice = "";
+}
+
+function turnNoticePayload(snapshot) {
+  let headline = "Waiting";
+  if (snapshot.status === "GAME_OVER") {
+    headline = `${winner()?.display_name || "A player"} won`;
+  } else if (snapshot.status === "LOBBY") {
+    headline = "Lobby";
+  } else if (isMyTurn()) {
+    headline = currentGameState() === "PLAYERS_CHOOSE_PUBLIC_CARDS" ? "Choose your cards" : "It's your turn!";
+  } else if (snapshot.current_turn_display_name) {
+    headline = `${snapshot.current_turn_display_name} is up`;
+  }
+
+  return {
+    key: [
+      snapshot.status,
+      snapshot.game_state || "",
+      snapshot.current_turn_seat ?? "none",
+      state.seat ?? "none",
+    ].join(":"),
+    headline,
+    copy: currentPrompt({ type: "session_snapshot", data: snapshot }),
+  };
+}
+
+function syncTurnNotice(snapshot, { suppress = false } = {}) {
+  if (!snapshot) {
+    hideTurnNotice();
+    state.lastTurnNoticeKey = "";
+    return;
+  }
+
+  const notice = turnNoticePayload(snapshot);
+  const hasChanged = notice.key !== state.lastTurnNoticeKey;
+  state.lastTurnNoticeKey = notice.key;
+
+  if (suppress || !isMobileActiveGameLayout(snapshot)) {
+    state.turnNoticeVisible = false;
+    return;
+  }
+
+  if (hasChanged) {
+    showTurnNotice(notice.headline, notice.copy);
+  }
 }
 
 function toggleCard(card) {
@@ -269,6 +364,7 @@ function applyAuthPayload(payload) {
   state.restoringSession = false;
   resetSelection();
   persistSession();
+  syncTurnNotice(payload.snapshot, { suppress: true });
   render();
   connectWebSocket();
 }
@@ -363,6 +459,7 @@ function connectWebSocket() {
         clearSession("Your saved session is no longer available. Join the game again if it is still active.");
         return;
       }
+      syncTurnNotice(payload.data);
       if (payload.data.status === "GAME_OVER" || !isMyTurn()) {
         resetSelection();
       }
@@ -399,6 +496,7 @@ async function startGame() {
     });
     state.snapshot = response;
     state.error = "";
+    syncTurnNotice(response.data);
     render();
   } catch (error) {
     state.error = error.message;
@@ -554,8 +652,10 @@ function renderSeat(snapshot, player) {
   return `
     <div class="${seatClasses}">
       <div class="seat-header">
-        <strong>${escapeHtml(player.display_name)}</strong>
-        <div class="seat-badges">${seatBadges}</div>
+        <div class="seat-title-row">
+          <strong>${escapeHtml(player.display_name)}</strong>
+          <div class="seat-badges">${seatBadges}</div>
+        </div>
       </div>
       <div class="seat-counts">
         <span>Hand ${player.private_cards_count}</span>
@@ -580,12 +680,57 @@ function renderPilePreview(playPile) {
     return '<div class="pile-empty">Empty</div>';
   }
   return playPile
-    .slice(-4)
+    .slice(0, 4)
+    .reverse()
     .map((card) => renderMiniCard(card))
     .join("");
 }
 
+function isMobileActiveGameLayout(snapshot = state.snapshot?.data) {
+  return Boolean(snapshot) && snapshot.status !== "GAME_OVER" && window.innerWidth < 720;
+}
+
+function handLayout(snapshot) {
+  const cardCount = privateCards().length;
+  const playerCount = snapshot.players.length;
+  const viewportWidth = window.innerWidth || 390;
+  const viewportHeight = window.innerHeight || 844;
+  const compactViewport = viewportHeight < 760 || playerCount >= 4;
+  const availableWidth = Math.max(viewportWidth - 64, 220);
+  const maxWidth = compactViewport ? 62 : 72;
+  const minWidth = compactViewport ? 40 : 46;
+  const stepFactor = cardCount >= 7 ? 0.48 : cardCount >= 5 ? 0.54 : 0.62;
+  const fitWidth = cardCount <= 1
+    ? maxWidth
+    : Math.floor(availableWidth / (1 + Math.max(0, cardCount - 1) * stepFactor));
+  const shouldScroll = cardCount > 0 && fitWidth < minWidth;
+  const cardWidth = shouldScroll
+    ? (compactViewport ? 50 : 56)
+    : Math.max(minWidth, Math.min(maxWidth, fitWidth || maxWidth));
+  const overlap = Math.round(cardWidth * (shouldScroll ? 0.34 : 1 - stepFactor));
+  const cardHeight = Math.round(cardWidth * 1.42);
+  const lift = Math.max(8, Math.round(cardHeight * 0.13));
+  const classes = [
+    shouldScroll ? "hand-layout-scroll" : "hand-layout-fit",
+    cardWidth <= 52 ? "hand-layout-compact" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return {
+    classes,
+    style: [
+      `--hand-card-width:${cardWidth}px`,
+      `--hand-card-height:${cardHeight}px`,
+      `--hand-card-overlap:${overlap}px`,
+      `--hand-card-lift:${lift}px`,
+    ].join(";"),
+  };
+}
+
 function currentPrompt(snapshot) {
+  const turnTarget = snapshot.current_turn_display_name
+    || (Number.isInteger(snapshot.current_turn_seat) ? `Seat ${snapshot.current_turn_seat}` : "the next player");
   if (snapshot.status === "LOBBY") {
     return "Share the code, wait for enough players, then start.";
   }
@@ -593,22 +738,22 @@ function currentPrompt(snapshot) {
     return "Final standings are ready below.";
   }
   if (canChoosePublicCards()) {
-    return `Pick 3 public cards for the table. ${state.selectedCards.length}/3 selected.`;
+    return "Pick 3 public cards for the table.";
   }
   if (currentGameState() === "DURING_GAME" && isMyTurn()) {
     if (selectedRank() === snapshot.rules.high_low_rank) {
       return "Choose how the 7 changes the next player's turn.";
     }
-    if (state.selectedCards.length > 0) {
-      return `${state.selectedCards.length} card${state.selectedCards.length === 1 ? "" : "s"} selected.`;
-    }
     if (canPlayHiddenCard()) {
-      return "Your hidden cards are live. Play one blind or take the pile.";
+      return "Your hidden cards are live. Take a hidden card.";
+    }
+    if (mustTakePile(snapshot)) {
+      return "No legal card to play. Take the pile.";
     }
     return "Tap matching cards from your hand, then play them.";
   }
   if (currentGameState() === "DURING_GAME") {
-    return `Waiting for ${snapshot.current_turn_display_name || `Seat ${snapshot.current_turn_seat}`} to play.`;
+    return `Waiting for ${turnTarget} to play.`;
   }
   return "Waiting for the game to begin.";
 }
@@ -695,25 +840,36 @@ function renderActions(snapshot) {
   const selectedIds = new Set(state.selectedCards.map((card) => cardId(card)));
   const showHighLowChoice = selectedRank() === snapshot.rules.high_low_rank;
   const hasHighLowChoice = ["HIGHER", "LOWER"].includes(state.highLowChoice);
-  const turnName = snapshot.current_turn_display_name || `Seat ${snapshot.current_turn_seat}`;
+  const turnName = snapshot.current_turn_display_name
+    || (Number.isInteger(snapshot.current_turn_seat) ? `Seat ${snapshot.current_turn_seat}` : "the next player");
+  const layout = handLayout(snapshot);
+  const showTakePileOverlay = mustTakePile(snapshot);
+  const showHiddenAction = canPlayHiddenCard();
+  const showMobileTurnPrompt = isMobileActiveGameLayout(snapshot) && currentGameState() === "DURING_GAME";
+  const showPlaySelectedAction = (
+    currentGameState() === "DURING_GAME"
+    && isMyTurn()
+    && !showHiddenAction
+    && !showTakePileOverlay
+  );
   const dockClasses = [
     "panel",
     "hand-dock",
+    layout.classes,
     currentGameState() === "DURING_GAME" && !isMyTurn() ? "waiting" : "",
   ]
     .filter(Boolean)
     .join(" ");
 
   return `
-    <section class="${dockClasses}">
+    <section class="${dockClasses}" style="${layout.style}">
       <div class="dock-header">
         <div>
           <p class="section-title">Your hand</p>
-          <strong class="dock-title">${cards.length} card${cards.length === 1 ? "" : "s"} ready</strong>
         </div>
-        ${state.selectedCards.length > 0 ? `<span class="selection-pill">${state.selectedCards.length} selected</span>` : ""}
       </div>
       <div class="dock-prompt">${escapeHtml(currentPrompt(snapshot))}</div>
+      ${state.error ? `<div class="dock-error">${escapeHtml(state.error)}</div>` : ""}
       <div class="hand-fan">
         ${
           cards.map((card) => renderCard(card, selectedIds.has(cardId(card)))).join("")
@@ -725,30 +881,26 @@ function renderActions(snapshot) {
           <div class="primary-action-row">
             <button class="button accent full-width" id="choose-public">Lock selected public cards</button>
           </div>
-          <div class="secondary-action-row">
-            <button class="button secondary" id="clear-selection">Clear selection</button>
-          </div>
         ` : ""}
-        ${currentGameState() === "DURING_GAME" && isMyTurn() ? `
+        ${showPlaySelectedAction ? `
           <div class="primary-action-row">
             <button class="button accent full-width" id="play-cards" ${cards.length === 0 || (showHighLowChoice && !hasHighLowChoice) ? "disabled" : ""}>${showHighLowChoice && !hasHighLowChoice ? "Choose higher or lower first" : "Play selected cards"}</button>
           </div>
-          <div class="secondary-action-row">
-            <button class="button secondary" id="take-pile">Take pile</button>
-            <button class="button secondary" id="play-hidden" ${canPlayHiddenCard() ? "" : "disabled"}>Play hidden card</button>
-            <button class="button secondary" id="clear-selection">Clear selection</button>
+        ` : ""}
+        ${showHiddenAction ? `
+          <div class="primary-action-row">
+            <button class="button accent full-width" id="play-hidden-primary">Take hidden card</button>
           </div>
         ` : ""}
         ${showHighLowChoice ? `
           <div class="choice-block">
-            <p class="muted tiny">You selected a 7. Pick the next-play direction before submitting.</p>
             <div class="choice-row">
               <button class="button ${state.highLowChoice === "HIGHER" ? "accent" : "secondary"}" id="choose-higher">7 or higher</button>
               <button class="button ${state.highLowChoice === "LOWER" ? "accent" : "secondary"}" id="choose-lower">7 or lower</button>
             </div>
           </div>
         ` : ""}
-        ${currentGameState() === "DURING_GAME" && !isMyTurn() ? `<p class="muted tiny">Waiting for ${escapeHtml(turnName)}.</p>` : ""}
+        ${currentGameState() === "DURING_GAME" && !isMyTurn() && !showMobileTurnPrompt ? `<p class="muted tiny">Waiting for ${escapeHtml(turnName)}.</p>` : ""}
       </div>
       <details class="help-drawer">
         <summary>Rules and controls</summary>
@@ -761,11 +913,63 @@ function renderActions(snapshot) {
   `;
 }
 
+function renderGameTopbar(snapshot) {
+  if (!snapshot) {
+    return "";
+  }
+  const showCompactBrand = isMobileActiveGameLayout(snapshot) && snapshot.status !== "LOBBY";
+
+  return `
+    <div class="game-topbar ${showCompactBrand ? "" : "actions-only"}">
+      ${showCompactBrand ? `
+        <div class="game-topbar-title">
+          <span class="game-topbar-eyebrow">Private Mobile Alpha</span>
+          <strong class="game-topbar-name">Shithead</strong>
+        </div>
+      ` : ""}
+      <div class="game-topbar-actions">
+        <span
+          class="connection-indicator ${state.wsReady ? "connected" : "reconnecting"}"
+          title="${state.wsReady ? "Live sync connected" : "Reconnecting"}"
+          aria-label="${state.wsReady ? "Live sync connected" : "Reconnecting"}"
+        ></span>
+        <button class="button secondary button-inline" id="leave-game-header">Leave</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderTurnToast(snapshot) {
+  if (!isMobileActiveGameLayout(snapshot) || !state.turnNoticeVisible) {
+    return "";
+  }
+
+  return `
+    <div class="turn-toast" aria-live="polite">
+      <strong>${escapeHtml(state.turnNoticeHeadline)}</strong>
+      <span>${escapeHtml(state.turnNoticeCopy)}</span>
+    </div>
+  `;
+}
+
+function renderPileAction(snapshot) {
+  if (!mustTakePile(snapshot)) {
+    return "";
+  }
+
+  return `
+    <button class="button accent pile-action" id="take-pile-overlay">
+      Take pile
+    </button>
+  `;
+}
+
 function renderTable(snapshot) {
   const self = me();
   const isHost = self && self.is_host;
   const activeTurnName = snapshot.current_turn_display_name || turnPlayer()?.display_name || null;
   const winningPlayer = winner();
+  const showLobbyControls = snapshot.status === "LOBBY";
   const sortedPlayers = [...snapshot.players].sort(
     (left, right) => relativeSeatIndex(snapshot, left) - relativeSeatIndex(snapshot, right),
   );
@@ -780,21 +984,22 @@ function renderTable(snapshot) {
 
   return `
     <section class="panel table-stage stack">
-      <div class="controls">
-        <span class="invite-code">Invite code ${snapshot.invite_code}</span>
-        <span class="status-chip ${state.wsReady ? "live" : "wait"}">${state.wsReady ? "Live sync connected" : "Reconnecting"}</span>
-        <button class="button secondary" id="copy-code">Copy code</button>
-        <button class="button secondary" id="leave-game">Leave game</button>
+      <div class="controls ${showLobbyControls ? "" : "hidden"}">
+        ${showLobbyControls ? `<span class="invite-code">Invite code ${snapshot.invite_code}</span>` : ""}
+        ${showLobbyControls ? '<button class="button secondary" id="copy-code">Copy code</button>' : ""}
       </div>
       <div class="table-map">
         <div class="table-surface"></div>
         ${sortedPlayers.map((player) => renderSeat(snapshot, player)).join("")}
+        ${renderTurnToast(snapshot)}
         <div class="table-center">
-          <div class="turn-banner">
-            <span class="section-title">Turn</span>
-            <strong>${escapeHtml(turnHeadline)}</strong>
-            <span class="muted">${escapeHtml(turnCopy)}</span>
-          </div>
+          ${!isMobileActiveGameLayout(snapshot) ? `
+            <div class="turn-banner">
+              <span class="section-title">Turn</span>
+              <strong>${escapeHtml(turnHeadline)}</strong>
+              <span class="muted">${escapeHtml(turnCopy)}</span>
+            </div>
+          ` : ""}
           ${snapshot.status_message ? `
             <div class="event-box">
               <strong>Play Update</strong>
@@ -810,12 +1015,8 @@ function renderTable(snapshot) {
               <span class="resource-label">Play pile</span>
               <div class="pile-preview">${renderPilePreview(snapshot.play_pile)}</div>
               <span class="pile-caption">${snapshot.play_pile.length === 0 ? "No cards" : `${snapshot.play_pile.length} card${snapshot.play_pile.length === 1 ? "" : "s"}`}</span>
+              ${renderPileAction(snapshot)}
             </div>
-          </div>
-          <div class="status-strip">
-            <span class="status-chip">${snapshot.status}</span>
-            <span class="status-chip">${snapshot.game_state || "Waiting for host"}</span>
-            ${activeTurnName ? `<span class="status-chip">Current player ${escapeHtml(activeTurnName)}</span>` : ""}
           </div>
         </div>
       </div>
@@ -843,12 +1044,60 @@ function renderApp() {
     return renderLanding();
   }
 
+  const snapshot = state.snapshot.data;
+  const gameScreenClasses = [
+    "game-screen",
+    `players-${snapshot.players.length}`,
+    isMobileActiveGameLayout(snapshot) ? "mobile-one-screen" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return `
-    ${renderTable(state.snapshot.data)}
-    ${state.error ? `<section class="panel error">${escapeHtml(state.error)}</section>` : ""}
-    ${renderStandings(state.snapshot.data)}
-    ${renderActions(state.snapshot.data)}
+    ${renderGameTopbar(snapshot)}
+    <section class="${gameScreenClasses}">
+      ${renderTable(snapshot)}
+      ${renderActions(snapshot)}
+    </section>
+    ${!isMobileActiveGameLayout(snapshot) && state.error ? `<section class="panel error">${escapeHtml(state.error)}</section>` : ""}
+    ${renderStandings(snapshot)}
   `;
+}
+
+function syncMobileGameLayout() {
+  const root = document.documentElement;
+  if (!isMobileActiveGameLayout()) {
+    root.style.removeProperty("--mobile-available-height");
+    root.style.removeProperty("--mobile-topbar-height");
+    root.style.removeProperty("--mobile-hand-height");
+    root.style.removeProperty("--mobile-table-height");
+    return;
+  }
+
+  const pageShell = document.querySelector(".page-shell");
+  const appRoot = document.getElementById("app");
+  const topbar = document.querySelector(".game-topbar");
+  const gameScreen = document.querySelector(".game-screen.mobile-one-screen");
+  const handDock = document.querySelector(".hand-dock");
+
+  if (!pageShell || !appRoot || !gameScreen || !handDock) {
+    return;
+  }
+
+  const shellRect = pageShell.getBoundingClientRect();
+  const appStyles = window.getComputedStyle(appRoot);
+  const appGap = Number.parseFloat(appStyles.rowGap || appStyles.gap || "0") || 0;
+  const screenStyles = window.getComputedStyle(gameScreen);
+  const screenGap = Number.parseFloat(screenStyles.rowGap || screenStyles.gap || "0") || 0;
+  const topbarHeight = topbar?.getBoundingClientRect().height || 0;
+  const handHeight = handDock.getBoundingClientRect().height || 0;
+  const availableHeight = Math.max(0, shellRect.height - topbarHeight - appGap);
+  const tableHeight = Math.max(0, availableHeight - handHeight - screenGap);
+
+  root.style.setProperty("--mobile-available-height", `${Math.round(availableHeight)}px`);
+  root.style.setProperty("--mobile-topbar-height", `${Math.round(topbarHeight)}px`);
+  root.style.setProperty("--mobile-hand-height", `${Math.round(handHeight)}px`);
+  root.style.setProperty("--mobile-table-height", `${Math.round(tableHeight)}px`);
 }
 
 function wireEvents() {
@@ -878,17 +1127,19 @@ function wireEvents() {
     takePile.addEventListener("click", submitTakePile);
   }
 
+  const takePileOverlay = document.getElementById("take-pile-overlay");
+  if (takePileOverlay) {
+    takePileOverlay.addEventListener("click", submitTakePile);
+  }
+
   const playHidden = document.getElementById("play-hidden");
   if (playHidden) {
     playHidden.addEventListener("click", submitHiddenCard);
   }
 
-  const clearSelectionButton = document.getElementById("clear-selection");
-  if (clearSelectionButton) {
-    clearSelectionButton.addEventListener("click", () => {
-      resetSelection();
-      render();
-    });
+  const playHiddenPrimary = document.getElementById("play-hidden-primary");
+  if (playHiddenPrimary) {
+    playHiddenPrimary.addEventListener("click", submitHiddenCard);
   }
 
   const chooseHigher = document.getElementById("choose-higher");
@@ -931,16 +1182,39 @@ function wireEvents() {
   if (leaveButton) {
     leaveButton.addEventListener("click", clearSession);
   }
+
+  const headerLeaveButton = document.getElementById("leave-game-header");
+  if (headerLeaveButton) {
+    headerLeaveButton.addEventListener("click", clearSession);
+  }
 }
 
 function render() {
+  document.body.classList.toggle("game-active-mobile", isMobileActiveGameLayout());
+  document.body.classList.toggle(
+    "game-started-mobile",
+    isMobileActiveGameLayout() && state.snapshot?.data?.status !== "LOBBY",
+  );
   app.innerHTML = renderApp();
   wireEvents();
+  window.requestAnimationFrame(syncMobileGameLayout);
 }
 
 loadStoredSession();
 render();
 restoreSession();
+
+window.addEventListener("resize", () => {
+  if (state.snapshot) {
+    render();
+  }
+});
+
+window.addEventListener("orientationchange", () => {
+  if (state.snapshot) {
+    render();
+  }
+});
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/static/sw.js").then(() => {
