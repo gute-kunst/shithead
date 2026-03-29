@@ -13,6 +13,7 @@ from pyshithead.models.game import (
     PlayEvents,
     PlayRequest,
     PrivateCardsRequest,
+    STANDARD_SUITS,
     Suit,
     TakePlayPileRequest,
 )
@@ -39,7 +40,7 @@ class Game:
         self.state: GameState = state
 
     @classmethod
-    def initialize(cls, players: list[Player], ranks=ALL_RANKS, suits=Suit) -> Game:
+    def initialize(cls, players: list[Player], ranks=ALL_RANKS, suits=STANDARD_SUITS) -> Game:
         game = cls(players=players, deck=Dealer.provide_shuffled_deck(ranks, suits))
         Dealer.deal_cards_to_players(game.deck, game.active_players)
         game.state = GameState.PLAYERS_CHOOSE_PUBLIC_CARDS

@@ -1,5 +1,7 @@
 const storageKey = "shithead.alpha.session";
 const playPilePreviewLimit = 6;
+const jokerRank = 15;
+const jokerAllowedRanks = [3, 4, 6, 7, 8, 9, 11, 12, 13, 14];
 
 const state = {
   inviteCode: "",
@@ -26,6 +28,7 @@ const state = {
   pendingLandingNameFocus: false,
   restoreRetryTimer: null,
   restoreRetryCount: 0,
+  jokerRank: null,
 };
 
 const app = document.getElementById("app");
@@ -169,6 +172,17 @@ function cardId(card) {
   return `${card.rank}-${card.suit}`;
 }
 
+function isJokerCard(card) {
+  return Boolean(card && (card.is_joker || card.rank === jokerRank));
+}
+
+function cardEffectiveRank(card) {
+  if (!card) {
+    return null;
+  }
+  return isJokerCard(card) && Number.isInteger(card.effective_rank) ? card.effective_rank : card.rank;
+}
+
 function rankLabel(rank) {
   const map = {
     2: "2",
@@ -184,6 +198,7 @@ function rankLabel(rank) {
     12: "Q",
     13: "K",
     14: "A",
+    15: "JKR",
   };
   return map[rank] || String(rank);
 }
@@ -194,12 +209,14 @@ function suitLabel(suit) {
     2: "&hearts;",
     3: "&clubs;",
     4: "&spades;",
+    5: "&#9733;",
+    6: "&#9734;",
   };
   return map[suit] || "?";
 }
 
 function isRedSuit(suit) {
-  return suit === 1 || suit === 2;
+  return suit === 1 || suit === 2 || suit === 5;
 }
 
 function escapeHtml(value) {
@@ -281,7 +298,12 @@ function hasPlayablePrivateCard(snapshot = state.snapshot?.data) {
   }
 
   const validRanks = new Set(snapshot?.current_valid_ranks || []);
-  return privateCards().some((card) => validRanks.has(card.rank));
+  return privateCards().some((card) => {
+    if (isJokerCard(card)) {
+      return jokerAllowedRanks.some((rank) => validRanks.has(rank));
+    }
+    return validRanks.has(card.rank);
+  });
 }
 
 function mustTakePile(snapshot = state.snapshot?.data) {
@@ -302,12 +324,80 @@ function selectedRank() {
   if (state.selectedCards.length === 0) {
     return null;
   }
-  return state.selectedCards[0].rank;
+  const nonJokerRank = selectedNonJokerRank();
+  if (nonJokerRank !== null) {
+    return nonJokerRank;
+  }
+  return state.jokerRank;
 }
 
 function resetSelection() {
   state.selectedCards = [];
   state.highLowChoice = "";
+  state.jokerRank = null;
+}
+
+function selectedHasJoker() {
+  return state.selectedCards.some((card) => isJokerCard(card));
+}
+
+function selectedNonJokerRank() {
+  const ranks = [...new Set(state.selectedCards.filter((card) => !isJokerCard(card)).map((card) => card.rank))];
+  if (ranks.length !== 1) {
+    return null;
+  }
+  return ranks[0];
+}
+
+function pendingJokerCard() {
+  return state.privateState?.data?.pending_joker_card || null;
+}
+
+function hasPendingJokerSelection() {
+  return Boolean(state.privateState?.data?.pending_joker_selection && pendingJokerCard());
+}
+
+function jokerOptions(snapshot = state.snapshot?.data, cards = state.selectedCards) {
+  if (!cards.some((card) => isJokerCard(card))) {
+    return [];
+  }
+  const validRanks = new Set(snapshot?.current_valid_ranks || []);
+  const nonJokerRanks = [...new Set(cards.filter((card) => !isJokerCard(card)).map((card) => card.rank))];
+  if (nonJokerRanks.length > 1) {
+    return [];
+  }
+  if (nonJokerRanks.length === 1) {
+    const [rank] = nonJokerRanks;
+    return jokerAllowedRanks.includes(rank) && validRanks.has(rank) ? [rank] : [];
+  }
+  return jokerAllowedRanks.filter((rank) => validRanks.has(rank));
+}
+
+function syncJokerSelection() {
+  if (state.selectedCards.length === 0) {
+    state.jokerRank = null;
+    state.highLowChoice = "";
+    return;
+  }
+
+  if (selectedHasJoker()) {
+    const nonJokerRank = selectedNonJokerRank();
+    if (nonJokerRank !== null) {
+      state.jokerRank = nonJokerRank;
+    } else if (!jokerOptions().includes(state.jokerRank)) {
+      state.jokerRank = null;
+    }
+  } else {
+    state.jokerRank = null;
+  }
+
+  if (selectedRank() !== state.snapshot?.data?.rules.high_low_rank) {
+    state.highLowChoice = "";
+  }
+}
+
+function playRank() {
+  return selectedHasJoker() ? state.jokerRank : selectedRank();
 }
 
 function buildInviteLink() {
@@ -365,6 +455,7 @@ function toggleCard(card) {
   const exists = state.selectedCards.some((selected) => cardId(selected) === cardId(card));
   if (exists) {
     state.selectedCards = state.selectedCards.filter((selected) => cardId(selected) !== cardId(card));
+    syncJokerSelection();
     render();
     return;
   }
@@ -382,9 +473,34 @@ function toggleCard(card) {
   }
 
   if (currentGameState() === "DURING_GAME") {
-    if (state.selectedCards.length === 0 || selectedRank() === card.rank) {
+    const nonJokerRank = selectedNonJokerRank();
+    if (isJokerCard(card)) {
+      if (nonJokerRank !== null && !jokerAllowedRanks.includes(nonJokerRank)) {
+        state.error = "Jokers cannot be 2, 5, or 10.";
+        render();
+        return;
+      }
       state.selectedCards = [...state.selectedCards, card];
       state.error = "";
+      syncJokerSelection();
+    } else if (selectedHasJoker() && nonJokerRank === null && state.selectedCards.length > 0) {
+      if (!jokerAllowedRanks.includes(card.rank)) {
+        state.error = "Jokers cannot be 2, 5, or 10.";
+        render();
+        return;
+      }
+      state.selectedCards = [...state.selectedCards, card];
+      state.error = "";
+      syncJokerSelection();
+    } else if (state.selectedCards.length === 0 || nonJokerRank === card.rank) {
+      if (selectedHasJoker() && !jokerAllowedRanks.includes(card.rank)) {
+        state.error = "Jokers cannot be 2, 5, or 10.";
+        render();
+        return;
+      }
+      state.selectedCards = [...state.selectedCards, card];
+      state.error = "";
+      syncJokerSelection();
     } else {
       state.error = "You can only select cards of the same rank.";
     }
@@ -589,6 +705,11 @@ function connectWebSocket() {
       render();
     } else if (payload.type === "private_state") {
       state.privateState = payload;
+      if (payload.data.pending_joker_selection) {
+        state.selectedCards = [];
+        state.jokerRank = payload.data.pending_joker_card?.effective_rank || null;
+        state.highLowChoice = "";
+      }
       render();
     } else if (payload.type === "action_error") {
       state.error = payload.message;
@@ -655,8 +776,13 @@ function submitPlayCards() {
     render();
     return;
   }
+  if (selectedHasJoker() && !state.jokerRank) {
+    state.error = "Choose what the joker should be first.";
+    render();
+    return;
+  }
   if (
-    selectedRank() === state.snapshot.data.rules.high_low_rank &&
+    playRank() === state.snapshot.data.rules.high_low_rank &&
     !["HIGHER", "LOWER"].includes(state.highLowChoice)
   ) {
     state.error = "Choose whether the next player must go higher or may go lower.";
@@ -666,7 +792,8 @@ function submitPlayCards() {
   sendAction({
     type: "play_private_cards",
     cards: state.selectedCards,
-    choice: selectedRank() === state.snapshot.data.rules.high_low_rank ? state.highLowChoice : "",
+    choice: playRank() === state.snapshot.data.rules.high_low_rank ? state.highLowChoice : "",
+    joker_rank: selectedHasJoker() ? state.jokerRank : null,
   });
   resetSelection();
 }
@@ -677,6 +804,33 @@ function submitTakePile() {
 
 function submitHiddenCard() {
   sendAction({ type: "play_hidden_card" });
+}
+
+function submitResolveJoker() {
+  if (!hasPendingJokerSelection()) {
+    state.error = "No joker is waiting to be resolved.";
+    render();
+    return;
+  }
+  if (!state.jokerRank) {
+    state.error = "Choose what the joker should be first.";
+    render();
+    return;
+  }
+  if (
+    state.jokerRank === state.snapshot.data.rules.high_low_rank &&
+    !["HIGHER", "LOWER"].includes(state.highLowChoice)
+  ) {
+    state.error = "Choose whether the next player must go higher or may go lower.";
+    render();
+    return;
+  }
+  sendAction({
+    type: "resolve_joker",
+    choice: state.jokerRank === state.snapshot.data.rules.high_low_rank ? state.highLowChoice : "",
+    joker_rank: state.jokerRank,
+  });
+  resetSelection();
 }
 
 function onSubmit(event) {
@@ -702,14 +856,21 @@ function renderCard(card, selected, clickable = true) {
   if (selected) {
     classes.push("selected");
   }
+  if (isJokerCard(card)) {
+    classes.push("joker");
+  }
   if (isRedSuit(card.suit)) {
     classes.push("red");
   }
   const disabled = clickable ? "" : "disabled";
+  const rankMarkup = isJokerCard(card) ? "Jkr" : rankLabel(card.rank);
+  const detailMarkup = isJokerCard(card)
+    ? `<span class="card-joker-tag">${card.effective_rank ? `as ${rankLabel(card.effective_rank)}` : "wild"}</span>`
+    : `<span class="card-suit">${suitLabel(card.suit)}</span>`;
   return `
     <button class="${classes.join(" ")}" data-card-id="${cardId(card)}" ${disabled}>
-      <span class="card-rank">${rankLabel(card.rank)}</span>
-      <span class="card-suit">${suitLabel(card.suit)}</span>
+      <span class="card-rank">${rankMarkup}</span>
+      ${detailMarkup}
     </button>
   `;
 }
@@ -740,7 +901,9 @@ function renderPublicCardChips(publicCards) {
     .map(
       (card) => `
         <span class="public-card-chip ${isRedSuit(card.suit) ? "red" : ""}">
-          ${rankLabel(card.rank)}${suitLabel(card.suit)}
+          ${isJokerCard(card)
+    ? `Joker${card.effective_rank ? ` as ${rankLabel(card.effective_rank)}` : ""}`
+    : `${rankLabel(card.rank)}${suitLabel(card.suit)}`}
         </span>
       `,
     )
@@ -791,9 +954,9 @@ function renderSeat(snapshot, player) {
 
 function renderMiniCard(card) {
   return `
-    <div class="mini-card ${isRedSuit(card.suit) ? "red" : ""}">
-      <span>${rankLabel(card.rank)}</span>
-      <span>${suitLabel(card.suit)}</span>
+    <div class="mini-card ${isRedSuit(card.suit) ? "red" : ""} ${isJokerCard(card) ? "joker" : ""}">
+      <span>${isJokerCard(card) ? "Jkr" : rankLabel(card.rank)}</span>
+      <span>${isJokerCard(card) ? (card.effective_rank ? `as ${rankLabel(card.effective_rank)}` : "wild") : suitLabel(card.suit)}</span>
     </div>
   `;
 }
@@ -887,7 +1050,13 @@ function currentPrompt(snapshot) {
     return "Pick 3 public cards for the table.";
   }
   if (currentGameState() === "DURING_GAME" && isMyTurn()) {
-    if (selectedRank() === snapshot.rules.high_low_rank) {
+    if (hasPendingJokerSelection()) {
+      return "Choose which rank the revealed joker should be.";
+    }
+    if (selectedHasJoker() && !state.jokerRank) {
+      return "Choose which rank the joker should be before playing.";
+    }
+    if (playRank() === snapshot.rules.high_low_rank) {
       return "Choose how the 7 changes the next player's turn.";
     }
     if (canPlayHiddenCard()) {
@@ -1000,7 +1169,11 @@ function renderStandings(snapshot) {
 function renderActions(snapshot) {
   const cards = privateCards();
   const selectedIds = new Set(state.selectedCards.map((card) => cardId(card)));
-  const showHighLowChoice = selectedRank() === snapshot.rules.high_low_rank;
+  const pendingCard = pendingJokerCard();
+  const pendingJoker = hasPendingJokerSelection();
+  const jokerChoices = pendingJoker ? jokerOptions(snapshot, [pendingCard]) : jokerOptions(snapshot);
+  const currentPlayRank = pendingJoker ? state.jokerRank : playRank();
+  const showHighLowChoice = currentPlayRank === snapshot.rules.high_low_rank;
   const hasHighLowChoice = ["HIGHER", "LOWER"].includes(state.highLowChoice);
   const turnName = snapshot.current_turn_display_name
     || (Number.isInteger(snapshot.current_turn_seat) ? `Seat ${snapshot.current_turn_seat}` : "the next player");
@@ -1013,6 +1186,7 @@ function renderActions(snapshot) {
     && isMyTurn()
     && !showHiddenAction
     && !showTakePileOverlay
+    && !pendingJoker
   );
   const dockClasses = [
     "panel",
@@ -1032,13 +1206,32 @@ function renderActions(snapshot) {
       </div>
       <div class="dock-prompt">${escapeHtml(currentPrompt(snapshot))}</div>
       ${state.error ? `<div class="dock-error">${escapeHtml(state.error)}</div>` : ""}
-      <div class="hand-fan">
-        ${
-          cards.map((card) => renderCard(card, selectedIds.has(cardId(card)))).join("")
-            || '<p class="muted">No cards in hand right now.</p>'
-        }
-      </div>
+      ${pendingJoker ? `
+        <div class="joker-pending-card">
+          ${renderCard(pendingCard, false, false)}
+        </div>
+      ` : `
+        <div class="hand-fan">
+          ${
+            cards.map((card) => renderCard(card, selectedIds.has(cardId(card)))).join("")
+              || '<p class="muted">No cards in hand right now.</p>'
+          }
+        </div>
+      `}
       <div class="actions">
+        ${(pendingJoker || selectedHasJoker()) ? `
+          <div class="choice-block">
+            <strong class="choice-title">${pendingJoker ? "Choose the revealed joker" : "Choose the joker rank"}</strong>
+            <div class="joker-choice-row">
+              ${jokerChoices.map((rank) => `
+                <button
+                  class="button ${state.jokerRank === rank ? "accent" : "secondary"}"
+                  data-joker-rank="${rank}"
+                >${rankLabel(rank)}</button>
+              `).join("")}
+            </div>
+          </div>
+        ` : ""}
         ${canChoosePublicCards() ? `
           <div class="primary-action-row">
             <button class="button accent full-width" id="choose-public">Lock selected public cards</button>
@@ -1046,7 +1239,12 @@ function renderActions(snapshot) {
         ` : ""}
         ${showPlaySelectedAction ? `
           <div class="primary-action-row">
-            <button class="button accent full-width" id="play-cards" ${cards.length === 0 || (showHighLowChoice && !hasHighLowChoice) ? "disabled" : ""}>${showHighLowChoice && !hasHighLowChoice ? "Choose higher or lower first" : "Play selected cards"}</button>
+            <button class="button accent full-width" id="play-cards" ${cards.length === 0 || (selectedHasJoker() && !state.jokerRank) || (showHighLowChoice && !hasHighLowChoice) ? "disabled" : ""}>${selectedHasJoker() && !state.jokerRank ? "Choose joker rank first" : showHighLowChoice && !hasHighLowChoice ? "Choose higher or lower first" : "Play selected cards"}</button>
+          </div>
+        ` : ""}
+        ${pendingJoker ? `
+          <div class="primary-action-row">
+            <button class="button accent full-width" id="resolve-joker" ${(state.jokerRank === null || (showHighLowChoice && !hasHighLowChoice)) ? "disabled" : ""}>${showHighLowChoice && !hasHighLowChoice ? "Choose higher or lower first" : "Play revealed joker"}</button>
           </div>
         ` : ""}
         ${showHiddenAction ? `
@@ -1357,6 +1555,17 @@ function wireEvents() {
     playHiddenPrimary.addEventListener("click", submitHiddenCard);
   }
 
+  app.querySelectorAll("[data-joker-rank]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.jokerRank = Number(button.dataset.jokerRank);
+      if (state.jokerRank !== state.snapshot?.data?.rules.high_low_rank) {
+        state.highLowChoice = "";
+      }
+      state.error = "";
+      render();
+    });
+  });
+
   const chooseHigher = document.getElementById("choose-higher");
   if (chooseHigher) {
     chooseHigher.addEventListener("click", () => {
@@ -1373,6 +1582,11 @@ function wireEvents() {
       state.error = "";
       render();
     });
+  }
+
+  const resolveJoker = document.getElementById("resolve-joker");
+  if (resolveJoker) {
+    resolveJoker.addEventListener("click", submitResolveJoker);
   }
 
   const startButton = document.getElementById("start-game");

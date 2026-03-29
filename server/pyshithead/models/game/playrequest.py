@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 from pyshithead.models.game import (
+    JOKER_ALLOWED_RANKS,
     NBR_HIDDEN_CARDS,
     BurnEvent,
     Card,
@@ -19,6 +20,14 @@ from pyshithead.models.game import (
     SpecialRank,
 )
 from pyshithead.models.game.errors import *
+
+
+def _card_from_payload(payload: dict) -> Card:
+    return Card(
+        rank=payload["rank"],
+        suit=payload["suit"],
+        effective_rank=payload.get("effective_rank"),
+    )
 
 
 class PlayRequest(ABC):
@@ -87,16 +96,31 @@ class HiddenCardRequest(PlayRequest):
 class CardsRequest(PlayRequest, ABC):
     cards: SetOfCards
     choice: Optional[Choice]
+    joker_rank: Optional[int]
 
     @abstractmethod
     def validate(self):
         raise NotImplementedError("virtual method")
 
+    def contains_joker(self) -> bool:
+        return any(card.is_joker for card in self.cards)
+
+    def get_non_joker_ranks(self) -> set[int]:
+        return {card.rank for card in self.cards if not card.is_joker}
+
+    def get_effective_rank(self):
+        non_joker_ranks = self.get_non_joker_ranks()
+        if self.contains_joker():
+            return self.joker_rank
+        if len(non_joker_ranks) == 1:
+            return next(iter(non_joker_ranks))
+        return None
+
     def get_rank(self):
-        return self.cards.get_rank_if_equal()
+        return self.get_effective_rank()
 
     def get_rank_event(self) -> RankEvent:
-        top_rank = self.cards.get_rank_if_equal()
+        top_rank = self.get_effective_rank()
         rank_type = RankType.TOPRANK
         if self.choice in [Choice.HIGHER, Choice.LOWER]:
             rank_type = RankType(self.choice)
@@ -108,15 +132,16 @@ class CardsRequest(PlayRequest, ABC):
 
     def get_next_player_event(self) -> NextPlayerEvent:
         next_player_event = NextPlayerEvent.NEXT
-        ranks = self.cards.get_ranks()
-        if ranks[0] == SpecialRank.SKIP:
-            if len(ranks) == 1:
+        effective_rank = self.get_effective_rank()
+        card_count = len(self.cards)
+        if effective_rank == SpecialRank.SKIP:
+            if card_count == 1:
                 next_player_event = NextPlayerEvent.NEXT_2
-            elif len(ranks) == 2:
+            elif card_count == 2:
                 next_player_event = NextPlayerEvent.NEXT_3
-            elif len(ranks) == 3:
+            elif card_count == 3:
                 next_player_event = NextPlayerEvent.NEXT_4
-        if ranks[0] == SpecialRank.BURN:
+        if effective_rank == SpecialRank.BURN:
             next_player_event = NextPlayerEvent.SAME
         return next_player_event
 
@@ -139,20 +164,29 @@ class CardsRequest(PlayRequest, ABC):
             raise CardsNotInPlayersPrivateHandsError
 
     def validate_ranks_are_equal(self):
+        non_joker_ranks = self.get_non_joker_ranks()
+        if len(non_joker_ranks) > 1:
+            raise CardsRequestRanksNotEqualError
+        if self.contains_joker():
+            if self.joker_rank is None:
+                raise JokerRankRequiredError
+            if self.joker_rank not in JOKER_ALLOWED_RANKS:
+                raise JokerRankNotAllowedError
+            if len(non_joker_ranks) == 1 and next(iter(non_joker_ranks)) != self.joker_rank:
+                raise JokerRankMismatchError
+            return
         if not self.cards.rank_is_equal():
             raise CardsRequestRanksNotEqualError
 
     def validate_high_low_consistency(self):
-        if self.cards.get_rank_if_equal() == SpecialRank.HIGHLOW and self.choice not in [
+        effective_rank = self.get_effective_rank()
+        if effective_rank == SpecialRank.HIGHLOW and self.choice not in [
             Choice.HIGHER,
             Choice.LOWER,
         ]:
             raise CardsRequestHighLowCardWithoutChoiceError
 
-        if (
-            self.choice in [Choice.HIGHER, Choice.LOWER]
-            and self.cards.get_rank_if_equal() != SpecialRank.HIGHLOW
-        ):
+        if self.choice in [Choice.HIGHER, Choice.LOWER] and effective_rank != SpecialRank.HIGHLOW:
             raise CardsRequestHighLowChoiceWithoutHighLowCardError
 
     def validate_cards_eligible(self, valid_ranks):
@@ -166,18 +200,23 @@ class PrivateCardsRequest(CardsRequest):
         player: Player,
         cards: list[Card],
         choice: Optional[Choice] = None,
+        joker_rank: Optional[int] = None,
         consistency_check: bool = True,
     ):
         self.player = player
         self.cards = SetOfCards(cards)
         self.choice: Optional[Choice] = choice
+        self.joker_rank: Optional[int] = joker_rank
         if consistency_check:
             self.validate()
 
     @classmethod
     def from_dict(cls, player: Player, data: dict):
         return PrivateCardsRequest(
-            player=player, cards=[Card(**card) for card in data["cards"]], choice=data["choice"]
+            player=player,
+            cards=[_card_from_payload(card) for card in data["cards"]],
+            choice=data["choice"],
+            joker_rank=data.get("joker_rank"),
         )
 
     def validate(self):
@@ -187,7 +226,14 @@ class PrivateCardsRequest(CardsRequest):
 
     def process(self, play_pile: PileOfCards, deck: PileOfCards):
         events = self.get_play_events()
-        play_pile.put(self.player.private_cards.take(self.cards.cards))
+        played_cards = self.player.private_cards.take(self.cards.cards)
+        effective_rank = self.get_effective_rank()
+        if effective_rank is not None:
+            played_cards = {
+                card.with_effective_rank(effective_rank) if card.is_joker else card
+                for card in played_cards
+            }
+        play_pile.put(played_cards)
         if self.player.has_no_cards_anymore():
             events.player_is_finished = PlayerIsFinishedEvent(self.player)
         Dealer.fillup_cards(deck, self.player)
@@ -219,7 +265,7 @@ class ChoosePublicCardsRequest(CardsRequest):
     def from_dict(cls, player: Player, data: dict):
         return ChoosePublicCardsRequest(
             player=player,
-            public_choice_cards=[Card(**card) for card in data["cards"]],
+            public_choice_cards=[_card_from_payload(card) for card in data["cards"]],
         )
 
     def validate_correct_number_was_chosen(self):

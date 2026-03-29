@@ -3,10 +3,12 @@ from pyshithead.models.game import (
     NBR_HIDDEN_CARDS,
     Card,
     CircularDoublyLinkedList,
+    JOKER_RANK,
     PileOfCards,
     Player,
     SetOfCards,
-    Suit,
+    JOKER_SUITS,
+    STANDARD_SUITS,
 )
 
 
@@ -30,14 +32,16 @@ class Dealer:
                 player.public_cards = SetOfCards(deck.take_from_top(NBR_HIDDEN_CARDS))
 
     @classmethod
-    def provide_shuffled_deck(cls, ranks=ALL_RANKS, suits=Suit) -> PileOfCards:
+    def provide_shuffled_deck(cls, ranks=ALL_RANKS, suits=STANDARD_SUITS) -> PileOfCards:
         deck = cls.provide_deck(ranks, suits)
         deck.shuffle()
         return deck
 
     @classmethod
-    def provide_deck(cls, ranks=ALL_RANKS, suits=Suit) -> PileOfCards:
-        return PileOfCards([Card(i, suit) for suit in suits for i in ranks])
+    def provide_deck(cls, ranks=ALL_RANKS, suits=STANDARD_SUITS) -> PileOfCards:
+        cards = [Card(i, suit) for suit in suits for i in ranks]
+        cards.extend(Card(JOKER_RANK, suit) for suit in JOKER_SUITS)
+        return PileOfCards(cards)
 
     @classmethod
     def fillup_cards(cls, deck: PileOfCards, player: Player):

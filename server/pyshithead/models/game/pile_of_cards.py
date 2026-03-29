@@ -37,17 +37,18 @@ class PileOfCards:
         INVISIBLE card wont stop counting"""
         if len(self.cards) < 3:
             return False
-        top_rank = self.cards[0].rank
+        top_rank = self.cards[0].resolved_rank
         rank_counter = 1
         for card in self.cards[1:]:
-            if card.rank == top_rank:
+            card_rank = card.resolved_rank
+            if card_rank == top_rank:
                 rank_counter += 1
                 if rank_counter == 4:
                     return True
                 continue
-            if card.rank == SpecialRank.INVISIBLE:
+            if card_rank == SpecialRank.INVISIBLE:
                 continue
-            elif card.rank != top_rank:
+            elif card_rank != top_rank:
                 return False
         return False
 

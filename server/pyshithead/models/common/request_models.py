@@ -10,6 +10,8 @@ from pyshithead.models.game import Choice, Player, SpecialRank
 class CardModel(BaseModel):
     rank: int
     suit: int
+    effective_rank: int | None = None
+    is_joker: bool = False
 
 
 class PlayerPublicInfo(BaseModel):
@@ -59,6 +61,13 @@ class PrivateCardsRequest(BaseRequest):
     type: str = "private_cards"
     cards: list[CardModel]
     choice: str = ""  # either empty string Choice.LOWER, Choice.HIGHER
+    joker_rank: int | None = None
+
+
+class ResolveJokerRequest(BaseRequest):
+    type: str = "resolve_joker"
+    choice: str = ""
+    joker_rank: int
 
 
 def request_factory(data) -> BaseRequest:
@@ -70,6 +79,8 @@ def request_factory(data) -> BaseRequest:
         return HiddenCardRequest(**data)
     elif data["type"] == "take_play_pile":
         return TakePlayPileRequest(**data)
+    elif data["type"] == "resolve_joker":
+        return ResolveJokerRequest(**data)
     else:
         raise ValueError("wrong request type")  # TODO create custom error
 
@@ -145,6 +156,7 @@ if __name__ == "__main__":
             HiddenCardRequest,
             ChoosePublicCardsRequest,
             PrivateCardsRequest,
+            ResolveJokerRequest,
             PublicInfo,
             PrivateInfo,
             Rules,

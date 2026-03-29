@@ -484,6 +484,10 @@ button {
   color: #b23018;
 }
 
+.mini-card.joker {
+  background: linear-gradient(180deg, #fff2d9 0%, #efd5aa 100%);
+}
+
 .pile-empty,
 .pile-caption {
   color: rgba(247, 239, 225, 0.76);
@@ -615,6 +619,21 @@ button {
   color: #b23018;
 }
 
+.card.joker {
+  background: linear-gradient(180deg, #fff6e4 0%, #f0d8af 100%);
+}
+
+.card-joker-tag {
+  align-self: end;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(16, 38, 31, 0.08);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .actions,
 .primary-action-row,
 .choice-block {
@@ -630,6 +649,30 @@ button {
   padding: 0.8rem 0.9rem;
   border-radius: 18px;
   background: rgba(16, 38, 31, 0.04);
+}
+
+.choice-title {
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.joker-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.joker-choice-row .button {
+  min-width: 3.2rem;
+  padding: 0.7rem 0.9rem;
+}
+
+.joker-pending-card {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 0.2rem 0.1rem;
 }
 
 .button {
@@ -1213,6 +1256,16 @@ body.game-active-mobile .secondary-action-row {
 body.game-active-mobile .choice-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
+}
+
+body.game-active-mobile .joker-choice-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+body.game-active-mobile .joker-choice-row .button {
+  min-width: 0;
+  padding: 0.62rem 0.45rem;
 }
 
 body.game-active-mobile .button {

@@ -10,7 +10,7 @@ from fastapi import WebSocket
 from starlette.websockets import WebSocketState
 
 from pyshithead.models.common import GameManager, request_models
-from pyshithead.models.game import MAX_PLAYERS, PyshitheadError, SpecialRank
+from pyshithead.models.game import Card, HiddenCardRequest, MAX_PLAYERS, PrivateCardsRequest, PyshitheadError, SpecialRank
 from pyshithead.models.session.models import (
     ActionErrorEvent,
     ActionRequest,
@@ -65,6 +65,8 @@ class GameSession:
         self.game_manager: Optional[GameManager] = None
         self.players: list[SessionPlayer] = []
         self.last_status_message: str | None = None
+        self.pending_joker_seat: int | None = None
+        self.pending_joker_card: Card | None = None
         host = self._add_player(host_name)
         self.host_seat = host.seat
         self.host_token = host.token
@@ -108,18 +110,36 @@ class GameSession:
 
         self.game_manager = GameManager(player_ids=[player.seat for player in self.players])
         self.last_status_message = None
+        self.pending_joker_seat = None
+        self.pending_joker_card = None
         self._sync_status()
+
+    def _serialize_card(self, card: Card) -> CardModel:
+        return CardModel(
+            rank=int(card.rank),
+            suit=int(card.suit),
+            effective_rank=card.effective_rank,
+            is_joker=card.is_joker,
+        )
+
+    def _effective_rank(self, card: Card) -> int:
+        return card.effective_rank if card.effective_rank is not None else int(card.rank)
+
+    def _clear_pending_joker(self):
+        self.pending_joker_seat = None
+        self.pending_joker_card = None
 
     def _top_rank_chain_count(self, cards: list) -> int:
         if not cards:
             return 0
-        top_rank = cards[0].rank
+        top_rank = self._effective_rank(cards[0])
         rank_counter = 1
         for card in cards[1:]:
-            if card.rank == top_rank:
+            card_rank = self._effective_rank(card)
+            if card_rank == top_rank:
                 rank_counter += 1
                 continue
-            if card.rank == SpecialRank.INVISIBLE:
+            if card_rank == SpecialRank.INVISIBLE:
                 continue
             break
         return rank_counter
@@ -127,21 +147,23 @@ class GameSession:
     def _build_status_message(
         self,
         player: SessionPlayer,
-        action: ActionRequest,
+        action_type: str,
         played_rank: int | None,
+        choice: str,
         previous_play_pile: list,
         current_play_pile: list,
+        played_card_count: int,
     ) -> str | None:
-        if action.type == "take_play_pile":
+        if action_type == "take_play_pile":
             return f"{player.display_name} took the play pile."
 
-        if action.type != "play_private_cards" or played_rank is None:
+        if action_type not in {"play_private_cards", "resolve_joker"} or played_rank is None:
             return None
 
         if played_rank == SpecialRank.HIGHLOW:
-            if action.choice == "HIGHER":
+            if choice == "HIGHER":
                 return "7 or higher!"
-            if action.choice == "LOWER":
+            if choice == "LOWER":
                 return "7 or lower!"
 
         if played_rank == SpecialRank.BURN:
@@ -151,8 +173,8 @@ class GameSession:
             return "Skip!"
 
         previous_chain_count = self._top_rank_chain_count(previous_play_pile)
-        if previous_chain_count > 0 and previous_play_pile[0].rank == played_rank:
-            if previous_chain_count + len(action.cards) >= 4 and len(current_play_pile) == 0:
+        if previous_chain_count > 0 and self._effective_rank(previous_play_pile[0]) == played_rank:
+            if previous_chain_count + played_card_count >= 4 and len(current_play_pile) == 0:
                 return "Burn! Four of a kind cleared the pile."
 
         return None
@@ -196,7 +218,7 @@ class GameSession:
             private_cards_count = 0
 
             if game_player is not None:
-                public_cards = [CardModel(**vars(card)) for card in game_player.public_cards.cards]
+                public_cards = [self._serialize_card(card) for card in game_player.public_cards.cards]
                 hidden_cards_count = len(game_player.hidden_cards)
                 private_cards_count = len(game_player.private_cards)
 
@@ -226,16 +248,17 @@ class GameSession:
             invite_code=self.invite_code,
             status=self.status,
             host_seat=self.host_seat,
-            game_state=str(self.game_manager.game.state),
-            current_turn_seat=self.game_manager.game.get_player().id_,
-            current_turn_display_name=self.get_player_by_seat(
-                self.game_manager.game.get_player().id_
-            ).display_name,
-            current_valid_ranks=sorted(int(rank) for rank in self.game_manager.game.valid_ranks),
-            status_message=self.last_status_message,
-            cards_in_deck=len(self.game_manager.game.deck),
-            play_pile=[CardModel(**vars(card)) for card in self.game_manager.game.play_pile.cards],
-            players=players,
+                game_state=str(self.game_manager.game.state),
+                current_turn_seat=self.game_manager.game.get_player().id_,
+                current_turn_display_name=self.get_player_by_seat(
+                    self.game_manager.game.get_player().id_
+                ).display_name,
+                current_valid_ranks=sorted(int(rank) for rank in self.game_manager.game.valid_ranks),
+                status_message=self.last_status_message,
+                pending_joker_selection=self.pending_joker_card is not None,
+                cards_in_deck=len(self.game_manager.game.deck),
+                play_pile=[self._serialize_card(card) for card in self.game_manager.game.play_pile.cards],
+                players=players,
         )
 
     def build_private_state(self, seat: int) -> PrivateState:
@@ -244,7 +267,13 @@ class GameSession:
             return PrivateState(seat=seat, private_cards=[])
         return PrivateState(
             seat=seat,
-            private_cards=[CardModel(**vars(card)) for card in game_player.private_cards.cards],
+            pending_joker_selection=self.pending_joker_seat == seat and self.pending_joker_card is not None,
+            pending_joker_card=(
+                self._serialize_card(self.pending_joker_card)
+                if self.pending_joker_seat == seat and self.pending_joker_card is not None
+                else None
+            ),
+            private_cards=[self._serialize_card(card) for card in game_player.private_cards.cards],
         )
 
     def auth_response(self, player: SessionPlayer) -> SessionAuthResponse:
@@ -265,9 +294,16 @@ class GameSession:
                 player_id=player.seat,
                 cards=cards,
                 choice=action.choice,
+                joker_rank=action.joker_rank,
             )
         if action.type == "play_hidden_card":
             return request_models.HiddenCardRequest(player_id=player.seat)
+        if action.type == "resolve_joker":
+            return request_models.ResolveJokerRequest(
+                player_id=player.seat,
+                joker_rank=action.joker_rank or 0,
+                choice=action.choice,
+            )
         if action.type == "take_play_pile":
             return request_models.TakePlayPileRequest(player_id=player.seat)
         raise ValueError("Unsupported action type.")
@@ -278,16 +314,56 @@ class GameSession:
 
         player = self.get_player_by_token(player_token)
         previous_play_pile = list(self.game_manager.game.play_pile.cards)
-        played_rank = action.cards[0].rank if action.cards else None
-        request = self._request_from_action(player, action)
-        self.game_manager.process_request(request)
+        played_rank = None
+        played_card_count = 0
+
+        if self.pending_joker_card is not None:
+            if player.seat != self.pending_joker_seat:
+                raise ValueError("Waiting for the active player to choose the joker rank.")
+            if action.type != "resolve_joker":
+                raise ValueError("Choose the revealed joker rank before taking another action.")
+
+            request = PrivateCardsRequest(
+                player=self.game_manager.game.get_player(player.seat),
+                cards=[self.pending_joker_card],
+                choice=action.choice,
+                joker_rank=action.joker_rank,
+            )
+            self.game_manager.game.process_playrequest(request)
+            played_rank = action.joker_rank
+            played_card_count = 1
+            self._clear_pending_joker()
+        elif action.type == "play_hidden_card":
+            hidden_request = HiddenCardRequest(self.game_manager.game.get_player(player.seat))
+            self.game_manager.game.process_hidden_card(hidden_request)
+            revealed_card = next(iter(hidden_request.cards.cards))
+            if revealed_card.is_joker:
+                self.pending_joker_seat = player.seat
+                self.pending_joker_card = revealed_card
+                self.last_status_message = f"{player.display_name} revealed a joker."
+            else:
+                self.last_status_message = None
+            self._sync_status()
+            return
+        else:
+            request = self._request_from_action(player, action)
+            self.game_manager.process_request(request)
+            played_rank = (
+                action.joker_rank
+                if action.joker_rank is not None
+                else (action.cards[0].effective_rank or action.cards[0].rank if action.cards else None)
+            )
+            played_card_count = len(action.cards)
+
         current_play_pile = list(self.game_manager.game.play_pile.cards)
         self.last_status_message = self._build_status_message(
             player=player,
-            action=action,
+            action_type=action.type,
             played_rank=played_rank,
+            choice=action.choice,
             previous_play_pile=previous_play_pile,
             current_play_pile=current_play_pile,
+            played_card_count=played_card_count,
         )
         self._sync_status()
 

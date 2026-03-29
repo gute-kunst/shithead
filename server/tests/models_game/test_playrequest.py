@@ -8,6 +8,7 @@ from pyshithead.models.game import (
     ChoosePublicCardsRequest,
     GameState,
     HiddenCardRequest,
+    JOKER_RANK,
     NextPlayerEvent,
     PileOfCards,
     Player,
@@ -17,6 +18,7 @@ from pyshithead.models.game import (
     SetOfCards,
     SpecialRank,
     TakePlayPileRequest,
+    Suit,
 )
 from pyshithead.models.game.errors import *
 
@@ -204,3 +206,26 @@ def test_privatecardrequest_from_dict(player_initialized: Player, two_cards_high
     req = PrivateCardsRequest.from_dict(player=player_initialized, data=d)
     assert req.cards == SetOfCards(two_cards_high_low)
     assert req.choice == Choice.LOWER
+
+
+def test_privatecardsrequest_rejects_joker_as_banned_rank(player: Player):
+    joker = Card(JOKER_RANK, Suit.JOKER_RED)
+    player.private_cards = SetOfCards([joker])
+    with pytest.raises(JokerRankNotAllowedError):
+        PrivateCardsRequest(player, [joker], joker_rank=10)
+
+
+def test_privatecardsrequest_joker_counts_for_four_of_a_kind_burn(player: Player):
+    cards = [
+        Card(6, Suit.HEART),
+        Card(6, Suit.TILES),
+        Card(6, Suit.CLOVERS),
+        Card(JOKER_RANK, Suit.JOKER_RED),
+    ]
+    player.private_cards = SetOfCards(cards)
+    request = PrivateCardsRequest(player, cards, joker_rank=6)
+
+    events = request.process(PileOfCards(), PileOfCards())
+
+    assert request.get_rank() == 6
+    assert events.burn == BurnEvent.YES

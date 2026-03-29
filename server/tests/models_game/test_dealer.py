@@ -1,4 +1,5 @@
 from pyshithead.models.game import (
+    JOKER_RANK,
     NBR_HIDDEN_CARDS,
     NBR_TOTAL_CARDS,
     CircularDoublyLinkedList,
@@ -14,6 +15,7 @@ def test_dealer_provide_shuffled_deck_has_no_duplicates():
     assert len(deck) == NBR_TOTAL_CARDS
     cardset = SetOfCards(deck.cards)
     assert len(cardset) == NBR_TOTAL_CARDS  # sets cannot contain duplicates
+    assert len([card for card in deck.cards if card.rank == JOKER_RANK]) == 2
 
 
 def test_dealer_deal_cards_to_players(two_players: list[Player]):

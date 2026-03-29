@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from pyshithead.main import app, session_manager
-from pyshithead.models.game import Card, GameState, PileOfCards, SetOfCards, SpecialRank, Suit
+from pyshithead.models.game import Card, GameState, JOKER_RANK, PileOfCards, SetOfCards, SpecialRank, Suit
 from pyshithead.models.session.models import ActionRequest, CardModel
 
 
@@ -144,7 +144,7 @@ def test_restore_rejects_unknown_player_token():
         host = create_game(client, "Host")
 
         restored = restore_session(client, host["invite_code"], "invalid-token")
-        assert restored.status_code == 400
+        assert restored.status_code == 401
         assert restored.json() == {"detail": "Unknown player token."}
 
 
@@ -257,3 +257,43 @@ def test_snapshot_exposes_player_name_when_pile_is_taken():
 
         snapshot = session.build_snapshot()
         assert snapshot.status_message == "Host took the play pile."
+
+
+def test_hidden_joker_requires_resolution_and_stays_visible_on_play_pile():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        game = session.game_manager.game
+        game.state = GameState.DURING_GAME
+        game.deck = PileOfCards()
+        game.play_pile = PileOfCards()
+        game.valid_ranks = set(range(2, 15))
+
+        host_player = game.get_player(0)
+        guest_player = game.get_player(1)
+        host_player.private_cards = SetOfCards()
+        host_player.public_cards = SetOfCards()
+        host_player.hidden_cards = SetOfCards([Card(JOKER_RANK, Suit.JOKER_RED)])
+        guest_player.private_cards = SetOfCards([Card(9, Suit.HEART)])
+        guest_player.public_cards = SetOfCards()
+
+        session.apply_action(host["player_token"], ActionRequest(type="play_hidden_card"))
+
+        pending_snapshot = session.build_snapshot()
+        pending_private_state = session.build_private_state(0)
+        assert pending_snapshot.pending_joker_selection is True
+        assert pending_snapshot.current_turn_seat == 0
+        assert pending_private_state.pending_joker_selection is True
+        assert pending_private_state.pending_joker_card.is_joker is True
+
+        session.apply_action(host["player_token"], ActionRequest(type="resolve_joker", joker_rank=8))
+
+        resolved_snapshot = session.build_snapshot()
+        assert resolved_snapshot.pending_joker_selection is False
+        assert resolved_snapshot.status_message == "Skip!"
+        assert resolved_snapshot.play_pile[0].is_joker is True
+        assert resolved_snapshot.play_pile[0].effective_rank == 8

@@ -15,6 +15,8 @@ class SessionStatus(StrEnum):
 class CardModel(BaseModel):
     rank: int
     suit: int
+    effective_rank: int | None = None
+    is_joker: bool = False
 
 
 class PlayerSnapshot(BaseModel):
@@ -42,6 +44,7 @@ class SessionSnapshot(BaseModel):
     current_turn_display_name: str | None = None
     current_valid_ranks: list[int] = Field(default_factory=list)
     status_message: str | None = None
+    pending_joker_selection: bool = False
     cards_in_deck: int = 0
     play_pile: list[CardModel] = Field(default_factory=list)
     players: list[PlayerSnapshot] = Field(default_factory=list)
@@ -50,6 +53,8 @@ class SessionSnapshot(BaseModel):
 
 class PrivateState(BaseModel):
     seat: int
+    pending_joker_selection: bool = False
+    pending_joker_card: CardModel | None = None
     private_cards: list[CardModel] = Field(default_factory=list)
 
 
@@ -89,10 +94,12 @@ class ActionRequest(BaseModel):
         "choose_public_cards",
         "play_private_cards",
         "play_hidden_card",
+        "resolve_joker",
         "take_play_pile",
     ]
     cards: list[CardModel] = Field(default_factory=list)
     choice: str = ""
+    joker_rank: int | None = None
 
 
 class SessionAuthResponse(BaseModel):

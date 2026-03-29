@@ -11,7 +11,6 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from pyshithead.models.common import request_models
 from pyshithead.models.game import PyshitheadError
 from pyshithead.models.session import (
     ActionRequest,
@@ -23,7 +22,6 @@ from pyshithead.models.session import (
     SessionSnapshotEvent,
     StartGameRequest,
 )
-from pyshithead.models.web import GameTable, GameTablesManager
 
 app = FastAPI()
 
@@ -31,7 +29,6 @@ logger = logging.getLogger("websockets")
 logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler())
 
-game_tables_manager = GameTablesManager()
 session_manager = GameSessionManager()
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -129,23 +126,6 @@ async def session_websocket(websocket: WebSocket, invite_code: str, token: str):
                 await session.send_full_state(session.get_player_by_token(token))
     except WebSocketDisconnect:
         await session.disconnect(token)
-
-
-@app.websocket("/game/{game_id}")
-async def websocket_endpoint(websocket: WebSocket, game_id: int):
-    game_table: GameTable = await game_tables_manager.get_game_table_by_id(game_id)
-    await game_table.add_client(websocket)
-    try:
-        while True:
-            data = await websocket.receive_json()
-            if data["type"] == "start_game":
-                await game_table.start_game()
-            else:
-                request = request_models.request_factory(data)
-                await game_table.game_request(request)
-    except WebSocketDisconnect:
-        game_table.client_manager.disconnect(websocket)
-        await game_table.client_manager.broadcast_log(message=f"Client left in Game #{game_id}")
 
 
 @app.websocket("/ws")

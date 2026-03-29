@@ -58,6 +58,27 @@ class CardsRequestHighLowChoiceWithoutHighLowCardError(PyshitheadError):
         )
 
 
+class JokerRankRequiredError(PyshitheadError):
+    def __init__(self):
+        super().__init__(
+            message="Choose which rank the joker should be before playing it.",
+        )
+
+
+class JokerRankNotAllowedError(PyshitheadError):
+    def __init__(self):
+        super().__init__(
+            message="Joker can only be 3, 4, 6, 7, 8, 9, J, Q, K, or A.",
+        )
+
+
+class JokerRankMismatchError(PyshitheadError):
+    def __init__(self):
+        super().__init__(
+            message="Jokers must match the other selected cards.",
+        )
+
+
 class NotEligibleForHiddenCardPlayError(PyshitheadError):
     def __init__(self):
         super().__init__(message="Play private and public cards first")

@@ -3,12 +3,20 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import IntEnum
 
+from pyshithead.models.game import JOKER_RANK
+
 
 class Suit(IntEnum):
     TILES = 1
     HEART = 2
     CLOVERS = 3
     PIKES = 4
+    JOKER_RED = 5
+    JOKER_BLACK = 6
+
+
+STANDARD_SUITS = [Suit.TILES, Suit.HEART, Suit.CLOVERS, Suit.PIKES]
+JOKER_SUITS = [Suit.JOKER_RED, Suit.JOKER_BLACK]
 
 
 class SpecialRank(IntEnum):
@@ -23,6 +31,20 @@ class SpecialRank(IntEnum):
 class Card:
     rank: int
     suit: Suit
+    effective_rank: int | None = None
+
+    @property
+    def is_joker(self) -> bool:
+        return self.rank == JOKER_RANK
+
+    @property
+    def resolved_rank(self) -> int:
+        if self.is_joker and self.effective_rank is not None:
+            return self.effective_rank
+        return self.rank
+
+    def with_effective_rank(self, effective_rank: int) -> "Card":
+        return Card(rank=self.rank, suit=self.suit, effective_rank=effective_rank)
 
     def __hash__(self):
         return hash(str(self.rank) + str(self.suit))
@@ -33,4 +55,8 @@ class Card:
         return self.rank == other.rank and self.suit == other.suit
 
     def __repr__(self):
-        return str(f"<rank: {self.rank} suit: {self.suit}>")
+        return str(
+            f"<rank: {self.rank} suit: {self.suit}"
+            + (f" effective_rank: {self.effective_rank}" if self.effective_rank is not None else "")
+            + ">"
+        )
