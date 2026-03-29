@@ -3,8 +3,8 @@ start server with
 uvicorn pyshithead.main:app --reload
 """
 
-from pathlib import Path
 import logging
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -25,9 +25,7 @@ from pyshithead.models.session import (
 
 app = FastAPI()
 
-logger = logging.getLogger("websockets")
-logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler())
+logger = logging.getLogger(__name__)
 
 session_manager = GameSessionManager()
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -109,7 +107,8 @@ async def session_websocket(websocket: WebSocket, invite_code: str, token: str):
     try:
         session = session_manager.get_session(invite_code)
         await session.connect(token, websocket)
-    except ValueError:
+    except ValueError as err:
+        logger.info("Rejected websocket connection for invite %s: %s", invite_code, err)
         await websocket.close(code=1008)
         return
 
@@ -126,12 +125,6 @@ async def session_websocket(websocket: WebSocket, invite_code: str, token: str):
                 await session.send_full_state(session.get_player_by_token(token))
     except WebSocketDisconnect:
         await session.disconnect(token)
-
-
-@app.websocket("/ws")
-async def websocket(websocket: WebSocket):
-    await websocket.accept()
-    await websocket.send_json({"msg": "Hello WebSocket"})
 
 
 if __name__ == "__main__":

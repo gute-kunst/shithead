@@ -1,13 +1,58 @@
-const CACHE_NAME = "shithead-alpha-v5";
+const CACHE_NAME = "shithead-alpha-v17";
 const APP_SHELL = [
   "/",
-  "/static/styles.css",
-  "/static/app.js",
-  "/static/manifest.webmanifest",
+  "/static/styles.css?v=20260329m",
+  "/static/app.js?v=20260329m",
+  "/static/manifest.webmanifest?v=20260329m",
   "/static/icons/icon-180.png",
   "/static/icons/icon-192.png",
   "/static/icons/icon-512.png",
 ];
+
+function isSameOrigin(url) {
+  return url.origin === self.location.origin;
+}
+
+function isApiRequest(url) {
+  return isSameOrigin(url) && url.pathname.startsWith("/api/");
+}
+
+function isNavigationRequest(request) {
+  return request.mode === "navigate";
+}
+
+function isStaticAssetRequest(url) {
+  return isSameOrigin(url) && url.pathname.startsWith("/static/");
+}
+
+async function putIfOk(request, response) {
+  if (!response || !response.ok) {
+    return response;
+  }
+  const cache = await caches.open(CACHE_NAME);
+  await cache.put(request, response.clone());
+  return response;
+}
+
+async function navigationStrategy(request) {
+  try {
+    const response = await fetch(request);
+    await putIfOk(request, response);
+    return response;
+  } catch {
+    return (await caches.match(request)) || (await caches.match("/"));
+  }
+}
+
+async function staticAssetStrategy(request) {
+  const cached = await caches.match(request);
+  if (cached) {
+    return cached;
+  }
+  const response = await fetch(request);
+  await putIfOk(request, response);
+  return response;
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -27,17 +72,18 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") {
     return;
   }
+
   const url = new URL(event.request.url);
-  if (url.pathname.startsWith("/api/")) {
+  if (!isSameOrigin(url) || isApiRequest(url)) {
     return;
   }
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        const cloned = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
-        return response;
-      })
-      .catch(() => caches.match(event.request)),
-  );
+
+  if (isNavigationRequest(event.request)) {
+    event.respondWith(navigationStrategy(event.request));
+    return;
+  }
+
+  if (isStaticAssetRequest(url)) {
+    event.respondWith(staticAssetStrategy(event.request));
+  }
 });

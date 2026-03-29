@@ -2,6 +2,7 @@ const storageKey = "shithead.alpha.session";
 const playPilePreviewLimit = 6;
 const jokerRank = 15;
 const jokerAllowedRanks = [3, 4, 6, 7, 8, 9, 11, 13, 12, 14];
+const jokerSymbol = "★";
 
 const state = {
   inviteCode: "",
@@ -25,6 +26,8 @@ const state = {
   turnNoticeTimer: null,
   suppressCardTapUntil: 0,
   landingInviteCode: "",
+  landingOpenBucket: "",
+  landingJoinFirst: false,
   pendingLandingNameFocus: false,
   restoreRetryTimer: null,
   restoreRetryCount: 0,
@@ -79,7 +82,18 @@ function loadInviteLink() {
     return;
   }
   state.landingInviteCode = inviteCode;
+  state.landingOpenBucket = "join";
+  state.landingJoinFirst = true;
   state.pendingLandingNameFocus = true;
+}
+
+function toggleLandingBucket(bucket) {
+  const nextBucket = state.landingOpenBucket === bucket ? "" : bucket;
+  state.landingOpenBucket = nextBucket;
+  if (nextBucket === "join" && state.landingInviteCode) {
+    state.pendingLandingNameFocus = true;
+  }
+  render();
 }
 
 function clearReconnectTimer() {
@@ -253,7 +267,7 @@ function rankLabel(rank) {
     12: "Q",
     13: "K",
     14: "A",
-    15: "JKR",
+    15: jokerSymbol,
   };
   return map[rank] || String(rank);
 }
@@ -924,7 +938,7 @@ function renderCard(card, selected, clickable = true) {
     classes.push("red");
   }
   const disabled = clickable ? "" : "disabled";
-  const rankMarkup = isJokerCard(card) ? "Jkr" : rankLabel(card.rank);
+  const rankMarkup = isJokerCard(card) ? jokerSymbol : rankLabel(card.rank);
   const detailMarkup = isJokerCard(card)
     ? `<span class="card-joker-tag">${card.effective_rank ? `as ${rankLabel(card.effective_rank)}` : "wild"}</span>`
     : `<span class="card-suit">${suitLabel(card.suit)}</span>`;
@@ -986,7 +1000,7 @@ function renderSeatMiniCard(card) {
   const isJoker = isJokerCard(card);
   return `
     <span class="seat-mini-card ${isRedSuit(card.suit) ? "red" : ""} ${isJoker ? "joker" : ""}">
-      <span class="seat-mini-rank">${isJoker ? "J" : rankLabel(card.rank)}</span>
+      <span class="seat-mini-rank">${isJoker ? jokerSymbol : rankLabel(card.rank)}</span>
       <span class="seat-mini-suit">${isJoker ? (card.effective_rank ? rankLabel(card.effective_rank) : "?" ) : suitLabel(card.suit)}</span>
     </span>
   `;
@@ -1067,7 +1081,7 @@ function renderSeat(snapshot, player) {
 function renderMiniCard(card) {
   return `
     <div class="mini-card ${isRedSuit(card.suit) ? "red" : ""} ${isJokerCard(card) ? "joker" : ""}">
-      <span>${isJokerCard(card) ? "Jkr" : rankLabel(card.rank)}</span>
+      <span>${isJokerCard(card) ? jokerSymbol : rankLabel(card.rank)}</span>
       <span>${isJokerCard(card) ? (card.effective_rank ? `as ${rankLabel(card.effective_rank)}` : "wild") : suitLabel(card.suit)}</span>
     </div>
   `;
@@ -1223,63 +1237,129 @@ function currentPrompt(snapshot) {
   return "Waiting for the game to begin.";
 }
 
+function renderLandingTopbar() {
+  return `
+    <div class="game-topbar">
+      <div class="game-topbar-title">
+        <strong class="game-topbar-name">Shithead</strong>
+        <span class="game-topbar-eyebrow">Private Mobile Alpha</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderLandingBucket(bucket) {
+  const expanded = state.landingOpenBucket === bucket;
+  const isCreate = bucket === "create";
+  const title = isCreate ? "Create table" : "Join a table";
+  const copy = isCreate
+    ? "Start a private lobby and get an invite code for the other players."
+    : "Enter the invite code and your display name to claim a seat.";
+  const buttonLabel = isCreate ? "Create game" : "Join game";
+  const formMarkup = isCreate
+    ? `
+      <form class="stack" data-mode="create">
+        <div class="field">
+          <label for="create-name">Display name</label>
+          <input id="create-name" name="display_name" maxlength="24" required placeholder="your-name" />
+        </div>
+        <button class="button accent" type="submit">${buttonLabel}</button>
+      </form>
+    `
+    : `
+      <form class="stack" data-mode="join">
+        <div class="field">
+          <label for="join-code">Invite code</label>
+          <input id="join-code" name="invite_code" maxlength="6" required placeholder="AB12CD" value="${escapeHtml(state.landingInviteCode)}" />
+        </div>
+        <div class="field">
+          <label for="join-name">Display name</label>
+          <input id="join-name" name="display_name" maxlength="24" required placeholder="your-name" />
+        </div>
+        <button class="button" type="submit">${buttonLabel}</button>
+      </form>
+    `;
+
+  return `
+    <article class="landing-table-card ${expanded ? "landing-table-card-expanded" : "landing-table-card-collapsed"} stack">
+      <button
+        class="landing-bucket-toggle"
+        type="button"
+        data-landing-bucket="${bucket}"
+        aria-expanded="${expanded ? "true" : "false"}"
+      >
+        <span class="landing-bucket-copy">
+          <strong>${title}</strong>
+        </span>
+        <span class="landing-bucket-icon" aria-hidden="true">${expanded ? "-" : "+"}</span>
+      </button>
+      <div class="landing-bucket-panel" aria-hidden="${expanded ? "false" : "true"}">
+        <div class="landing-bucket-panel-inner stack">
+          <p class="muted">${copy}</p>
+          ${formMarkup}
+        </div>
+      </div>
+    </article>
+  `;
+}
+
 function renderLanding() {
   const showSavedSessionCard = hasSavedSession();
+  const landingBuckets = state.landingJoinFirst
+    ? [renderLandingBucket("join"), renderLandingBucket("create")]
+    : [renderLandingBucket("create"), renderLandingBucket("join")];
   return `
-    ${showSavedSessionCard ? `
-      <section class="panel stack">
-        <h2>${state.restoringSession ? "Restoring your game" : "Resume saved game"}</h2>
-        <p class="muted">
-          ${state.restoringSession
+    ${renderLandingTopbar()}
+    <section class="game-screen landing-screen">
+      <section class="panel table-stage landing-table-stage">
+        <div class="table-map landing-table-map">
+          <div class="table-surface"></div>
+          <div class="landing-table-content">
+            <div class="landing-table-banner-row">
+              <section class="landing-table-banner landing-alpha-banner">
+                <strong>Alpha notice</strong>
+                <p>Keep the tab open while you play. Live games can reset after a deploy, restart, or a long period of inactivity.</p>
+              </section>
+            </div>
+            <div class="landing-form-row">
+              ${landingBuckets.join("")}
+            </div>
+            ${showSavedSessionCard ? `
+              <div class="landing-table-banner-row landing-table-banner-row-bottom">
+                <section class="landing-table-banner landing-table-resume stack">
+                  <div>
+                    <strong>${state.restoringSession ? "Restoring your game" : "Resume saved game"}</strong>
+                    <p class="muted">
+                      ${state.restoringSession
     ? "Reclaiming your seat and reconnecting to live updates."
     : "A saved game was found on this device. You can restore it or forget it."}
-        </p>
-        <div class="status-strip">
-          <span class="status-chip">Invite ${escapeHtml(state.inviteCode)}</span>
-          ${state.displayName ? `<span class="status-chip">${escapeHtml(state.displayName)}</span>` : ""}
+                    </p>
+                  </div>
+                  <div class="status-strip">
+                    <span class="status-chip">Invite ${escapeHtml(state.inviteCode)}</span>
+                    ${state.displayName ? `<span class="status-chip">${escapeHtml(state.displayName)}</span>` : ""}
+                  </div>
+                  ${state.error ? `<div class="dock-error">${escapeHtml(state.error)}</div>` : ""}
+                  ${!state.restoringSession ? `
+                    <div class="secondary-action-row">
+                      <button class="button accent" id="restore-session">Restore saved session</button>
+                      <button class="button secondary" id="forget-session">Forget saved session</button>
+                    </div>
+                  ` : ""}
+                </section>
+              </div>
+            ` : state.error ? `
+              <div class="landing-table-banner-row landing-table-banner-row-bottom">
+                <section class="landing-table-banner landing-table-error">
+                  <strong>${escapeHtml(state.error)}</strong>
+                </section>
+              </div>
+            ` : ""}
+          </div>
+          <button class="table-help-trigger" id="open-rules-menu" type="button" aria-label="Open rules" title="Rules">?</button>
+          ${renderRulesMenu()}
         </div>
-        ${state.error ? `<div class="dock-error">${escapeHtml(state.error)}</div>` : ""}
-        ${!state.restoringSession ? `
-          <div class="secondary-action-row">
-            <button class="button accent" id="restore-session">Restore saved session</button>
-            <button class="button secondary" id="forget-session">Forget saved session</button>
-          </div>
-        ` : ""}
       </section>
-    ` : ""}
-    ${state.error && !showSavedSessionCard ? `<section class="panel error">${escapeHtml(state.error)}</section>` : ""}
-    <section class="panel alpha-note stack">
-      <h2>Alpha notice</h2>
-      <p class="muted">Keep the tab open while you play.</p>
-      <p class="muted">Live games can reset after a deploy, restart, or a long period of inactivity.</p>
-    </section>
-    <section class="grid-two">
-      <article class="panel stack">
-        <h2>Create a table</h2>
-        <p class="muted">Start a private lobby and get an invite code for the other players.</p>
-        <form class="stack" data-mode="create">
-          <div class="field">
-            <label for="create-name">Display name</label>
-            <input id="create-name" name="display_name" maxlength="24" required placeholder="Johannes" />
-          </div>
-          <button class="button accent" type="submit">Create game</button>
-        </form>
-      </article>
-      <article class="panel stack">
-        <h2>Join a table</h2>
-        <p class="muted">Enter the invite code and your display name to claim a seat.</p>
-        <form class="stack" data-mode="join">
-          <div class="field">
-            <label for="join-code">Invite code</label>
-            <input id="join-code" name="invite_code" maxlength="6" required placeholder="AB12CD" value="${escapeHtml(state.landingInviteCode)}" />
-          </div>
-          <div class="field">
-            <label for="join-name">Display name</label>
-            <input id="join-name" name="display_name" maxlength="24" required placeholder="Mira" />
-          </div>
-          <button class="button" type="submit">Join game</button>
-        </form>
-      </article>
     </section>
   `;
 }
@@ -1638,7 +1718,7 @@ function renderApp() {
 
 function syncMobileGameLayout() {
   const root = document.documentElement;
-  if (!isMobileActiveGameLayout()) {
+  if (!document.body.classList.contains("game-active-mobile")) {
     root.style.removeProperty("--mobile-available-height");
     root.style.removeProperty("--mobile-topbar-height");
     root.style.removeProperty("--mobile-hand-height");
@@ -1649,7 +1729,7 @@ function syncMobileGameLayout() {
   const pageShell = document.querySelector(".page-shell");
   const appRoot = document.getElementById("app");
   const topbar = document.querySelector(".game-topbar");
-  const gameScreen = document.querySelector(".game-screen.mobile-one-screen");
+  const gameScreen = document.querySelector(".game-screen.mobile-one-screen, .landing-screen");
   const handDock = document.querySelector(".hand-dock");
 
   if (!pageShell || !appRoot || !gameScreen) {
@@ -1664,7 +1744,9 @@ function syncMobileGameLayout() {
   const topbarHeight = topbar?.getBoundingClientRect().height || 0;
   const handHeight = handDock?.getBoundingClientRect().height || 0;
   const availableHeight = Math.max(0, shellRect.height - topbarHeight - appGap);
-  const tableHeight = Math.max(0, availableHeight - handHeight - screenGap);
+  const tableHeight = handDock
+    ? Math.max(0, availableHeight - handHeight - screenGap)
+    : availableHeight;
 
   root.style.setProperty("--mobile-available-height", `${Math.round(availableHeight)}px`);
   root.style.setProperty("--mobile-topbar-height", `${Math.round(topbarHeight)}px`);
@@ -1807,6 +1889,12 @@ function wireEvents() {
     });
   }
 
+  app.querySelectorAll("[data-landing-bucket]").forEach((button) => {
+    button.addEventListener("click", () => {
+      toggleLandingBucket(button.dataset.landingBucket);
+    });
+  });
+
   const forgetSessionButton = document.getElementById("forget-session");
   if (forgetSessionButton) {
     forgetSessionButton.addEventListener("click", forgetSavedSession);
@@ -1869,7 +1957,7 @@ function wireEvents() {
 }
 
 function render() {
-  document.body.classList.toggle("game-active-mobile", isMobileActiveGameLayout());
+  document.body.classList.toggle("game-active-mobile", !state.snapshot || isMobileActiveGameLayout());
   document.body.classList.toggle(
     "game-started-mobile",
     isMobileActiveGameLayout() && state.snapshot?.data?.status !== "LOBBY",
@@ -1928,7 +2016,7 @@ window.addEventListener("orientationchange", () => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/static/sw.js").then(() => {
+  navigator.serviceWorker.register("/static/sw.js?v=20260329m").then(() => {
     if (navigator.serviceWorker.controller) {
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         window.location.reload();

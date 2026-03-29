@@ -129,6 +129,216 @@ button {
   min-height: 0;
 }
 
+.landing-screen {
+  height: calc(var(--mobile-table-height, 100%) - 0.95rem);
+  min-height: calc(var(--mobile-table-height, 100%) - 0.95rem);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.landing-table-stage {
+  height: 100%;
+}
+
+.landing-table-map {
+  min-height: 32rem;
+}
+
+.landing-table-map .table-surface {
+  inset: 0.4rem 0.1rem 1.2rem;
+}
+
+.landing-table-content {
+  position: relative;
+  z-index: 2;
+  min-height: 32rem;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 0.9rem;
+  padding: 0.55rem 0.35rem 1.5rem;
+}
+
+.landing-table-banner-row {
+  display: flex;
+  justify-content: center;
+}
+
+.landing-table-banner {
+  width: min(100%, 29rem);
+  padding: 0.78rem 0.9rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(12, 31, 25, 0.44);
+  color: #f7efe1;
+  box-shadow: 0 12px 28px rgba(8, 23, 19, 0.14);
+  backdrop-filter: blur(10px);
+}
+
+.landing-table-banner strong,
+.landing-table-card h2 {
+  margin: 0;
+  color: #f7efe1;
+}
+
+.landing-table-banner p,
+.landing-table-card p {
+  margin: 0.3rem 0 0;
+}
+
+.landing-alpha-banner {
+  background: linear-gradient(180deg, rgba(76, 114, 98, 0.58) 0%, rgba(22, 52, 42, 0.54) 100%);
+}
+
+.landing-table-resume,
+.landing-table-error {
+  width: min(100%, 24rem);
+}
+
+.landing-table-error {
+  background: linear-gradient(180deg, rgba(122, 56, 32, 0.68) 0%, rgba(97, 38, 21, 0.58) 100%);
+}
+
+.landing-form-row {
+  align-self: center;
+  width: min(100%, 22.5rem);
+  margin: 0 auto;
+  display: grid;
+  gap: 0.85rem;
+  align-content: center;
+  min-height: 22rem;
+}
+
+.landing-table-card {
+  padding: 1rem 0.95rem;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(12, 31, 25, 0.5);
+  color: #f7efe1;
+  box-shadow: 0 12px 28px rgba(8, 23, 19, 0.16);
+  backdrop-filter: blur(10px);
+  transition:
+    padding 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.landing-table-card-collapsed {
+  gap: 0;
+  padding: 0.25rem;
+}
+
+.landing-table-card-expanded {
+  gap: 0.8rem;
+}
+
+.landing-bucket-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 160ms ease;
+}
+
+.landing-table-card-collapsed .landing-bucket-toggle {
+  padding: 0.58rem 0.72rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.landing-table-card-expanded .landing-bucket-toggle {
+  align-items: flex-start;
+}
+
+.landing-table-card-expanded {
+  box-shadow: 0 16px 32px rgba(8, 23, 19, 0.2);
+}
+
+.landing-bucket-copy {
+  display: grid;
+  gap: 0.24rem;
+  min-width: 0;
+}
+
+.landing-bucket-copy strong {
+  color: #f7efe1;
+  font-size: 1.05rem;
+}
+
+.landing-bucket-icon {
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f7efe1;
+  font-size: 1.2rem;
+  font-weight: 500;
+  line-height: 1;
+  transition: transform 180ms ease, background 180ms ease;
+}
+
+.landing-bucket-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-0.2rem);
+  transition:
+    grid-template-rows 190ms ease,
+    opacity 140ms ease,
+    transform 190ms ease;
+}
+
+.landing-bucket-panel-inner {
+  overflow: hidden;
+}
+
+.landing-table-card-expanded .landing-bucket-panel {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.landing-table-card-expanded .landing-bucket-icon {
+  transform: rotate(180deg);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.landing-table-card .muted,
+.landing-table-banner .muted {
+  color: rgba(247, 239, 225, 0.76);
+}
+
+.landing-table-card .field label {
+  color: rgba(247, 239, 225, 0.84);
+}
+
+.landing-table-card input {
+  background: rgba(255, 252, 246, 0.96);
+}
+
+.landing-table-card .button,
+.landing-table-resume .button {
+  width: 100%;
+}
+
+.landing-table-resume .status-strip {
+  justify-content: flex-start;
+}
+
 .controls {
   display: flex;
   flex-wrap: wrap;
@@ -657,6 +867,12 @@ button {
   font-weight: 700;
 }
 
+.mini-card span:last-child {
+  justify-self: end;
+  line-height: 0.82;
+  text-align: left;
+}
+
 .mini-card:last-child {
   margin-right: 0;
 }
@@ -889,6 +1105,7 @@ button {
   background: rgba(16, 38, 31, 0.08);
   font-size: 0.72rem;
   font-weight: 800;
+  line-height: 0.9;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -1217,6 +1434,13 @@ body.game-active-mobile .game-screen.mobile-one-screen {
   align-items: stretch;
 }
 
+body.game-active-mobile .landing-screen {
+  height: calc(var(--mobile-table-height) - 1.4rem);
+  min-height: calc(var(--mobile-table-height) - 1.4rem);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+}
+
 body.game-active-mobile .table-stage {
   height: 100%;
   min-height: 0;
@@ -1230,6 +1454,10 @@ body.game-active-mobile .table-stage {
 body.game-active-mobile:not(.game-started-mobile) .table-stage {
   display: flex;
   flex-direction: column;
+}
+
+body.game-active-mobile .landing-table-stage {
+  padding: 0.56rem 0.56rem 0.82rem;
 }
 
 body.game-active-mobile .controls {
@@ -1274,6 +1502,86 @@ body.game-active-mobile:not(.game-started-mobile) .table-map {
   padding: 0.52rem 0.42rem 0;
 }
 
+body.game-active-mobile .landing-table-map {
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+}
+
+body.game-active-mobile .landing-table-map .table-surface {
+  inset: 0.15rem 0.1rem 1.45rem;
+}
+
+body.game-active-mobile .landing-table-content {
+  min-height: 0;
+  gap: 0.75rem;
+  padding: 0.4rem 0.22rem 1.35rem;
+  overflow-y: auto;
+}
+
+body.game-active-mobile .landing-table-banner {
+  width: min(100%, 20rem);
+  padding: 0.68rem 0.78rem;
+  border-radius: 16px;
+}
+
+body.game-active-mobile .landing-table-banner strong {
+  font-size: 0.86rem;
+}
+
+body.game-active-mobile .landing-table-banner p {
+  font-size: 0.73rem;
+  line-height: 1.28;
+}
+
+body.game-active-mobile .landing-form-row {
+  width: min(100%, 19.75rem);
+  gap: 0.72rem;
+  min-height: 21rem;
+}
+
+body.game-active-mobile .landing-table-card {
+  padding: 0.88rem 0.82rem;
+  border-radius: 18px;
+}
+
+body.game-active-mobile .landing-table-card-collapsed {
+  padding: 0.22rem;
+}
+
+body.game-active-mobile .landing-table-card-expanded {
+  gap: 0.72rem;
+}
+
+body.game-active-mobile .landing-table-card h2 {
+  font-size: 1rem;
+}
+
+body.game-active-mobile .landing-table-card p,
+body.game-active-mobile .landing-table-card .field label {
+  font-size: 0.78rem;
+}
+
+body.game-active-mobile .landing-table-card-collapsed .landing-bucket-toggle {
+  padding: 0.5rem 0.64rem;
+  border-radius: 15px;
+}
+
+body.game-active-mobile .landing-bucket-copy strong {
+  font-size: 0.96rem;
+}
+
+body.game-active-mobile .landing-bucket-icon {
+  width: 1.8rem;
+  height: 1.8rem;
+  font-size: 1.05rem;
+}
+
+body.game-active-mobile .landing-table-card .button,
+body.game-active-mobile .landing-table-resume .button {
+  min-height: 2.3rem;
+}
+
 body.game-active-mobile:not(.game-started-mobile) .table-map-controls {
   gap: 0.45rem;
   margin-bottom: 0.55rem;
@@ -1300,6 +1608,10 @@ body.game-active-mobile .table-surface {
 
 body.game-active-mobile:not(.game-started-mobile) .table-surface {
   inset: 4.7rem 0.1rem 0.35rem;
+}
+
+body.game-active-mobile .landing-table-map .table-surface {
+  inset: 0.15rem 0.1rem 1.45rem;
 }
 
 body.game-active-mobile .seat-panel {
@@ -1872,6 +2184,18 @@ body.game-active-mobile .hand-layout-scroll .hand-fan {
 
   .grid-two {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .landing-table-map,
+  .landing-table-content {
+    min-height: 34rem;
+  }
+
+  .landing-form-row {
+    width: min(100%, 23.5rem);
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    min-height: 19rem;
   }
 
   body:not(.game-active-mobile) .table-map {

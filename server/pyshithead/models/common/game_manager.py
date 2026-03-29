@@ -1,5 +1,4 @@
-# from __future__ import print_function, unicode_literals
-
+import logging
 from typing import Optional
 
 from pyshithead.models.common import request_models
@@ -12,13 +11,15 @@ from pyshithead.models.game import (
     TakePlayPileRequest,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class GameManager:
     def __init__(self, player_ids: list[int]):
         players = [Player(id) for id in player_ids]
         # self.game: Game = Game.initialize(players, ranks=list(range(2, 8)))
         self.game = Game.initialize(players)
-        print("game initialized")
+        logger.info("Initialized game for seats %s", player_ids)
 
     def get_private_infos(self, player_id: Optional[int] = None):
         return request_models.PrivateInfo(
@@ -45,7 +46,7 @@ class GameManager:
 
     def process_request(self, req: request_models.BaseRequest):
         player = self.game.get_player(req.player_id)
-        print(player)
+        logger.debug("Processing %s for seat %s", type(req).__name__, player.id_)
         if isinstance(req, request_models.ChoosePublicCardsRequest):
             self.game.process_choose_cards(ChoosePublicCardsRequest.from_dict(player, req.dict()))
         if isinstance(req, request_models.PrivateCardsRequest):

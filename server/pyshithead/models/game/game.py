@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
+
 from pyshithead.models.game import (
     ALL_RANKS,
     MAX_PLAYERS,
+    STANDARD_SUITS,
     ChoosePublicCardsRequest,
     CircularDoublyLinkedList,
     Dealer,
@@ -13,11 +16,12 @@ from pyshithead.models.game import (
     PlayEvents,
     PlayRequest,
     PrivateCardsRequest,
-    STANDARD_SUITS,
     Suit,
     TakePlayPileRequest,
 )
 from pyshithead.models.game.errors import *
+
+logger = logging.getLogger(__name__)
 
 
 class Game:
@@ -77,8 +81,7 @@ class Game:
     def check_for_game_over(self):
         if len(self.active_players) == 1:
             self.ranking.append(self.get_player())
-            print("Game is Over ⭐⭐⭐")
-            print(f"Ranking: {self.ranking}")
+            logger.info("Game over. Ranking: %s", [player.id_ for player in self.ranking])
             self.state = GameState.GAME_OVER
 
     def get_player(self, player_id=None) -> Player:

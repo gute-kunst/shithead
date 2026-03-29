@@ -1,12 +1,15 @@
+import asyncio
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from fastapi.testclient import TestClient
 
 from pyshithead.main import app, session_manager
 from pyshithead.models.game import (
     ALL_RANKS,
+    JOKER_RANK,
     Card,
     GameState,
-    JOKER_RANK,
     PileOfCards,
     RankEvent,
     RankType,
@@ -61,7 +64,9 @@ def private_card_signature(cards):
         (
             card["rank"] if isinstance(card, dict) else card.rank,
             card["suit"] if isinstance(card, dict) else card.suit,
-            card.get("effective_rank") if isinstance(card, dict) else getattr(card, "effective_rank", None),
+            card.get("effective_rank")
+            if isinstance(card, dict)
+            else getattr(card, "effective_rank", None),
         )
         for card in cards
     ]
@@ -72,8 +77,8 @@ def test_create_and_join_alpha_lobby():
     with TestClient(app, base_url="http://localhost") as client:
         root = client.get("/")
         assert root.status_code == 200
-        assert "Create a table" in root.text
-        assert "Alpha notice" in root.text
+        assert 'id="app" class="app-root"' in root.text
+        assert "/static/app.js" in root.text
 
         health = client.get("/healthz")
         assert health.status_code == 200
@@ -109,8 +114,13 @@ def test_start_game_and_reconnect_with_same_token():
             assert host_messages["session_snapshot"]["data"]["status"] == "LOBBY"
 
             with client.websocket_connect(guest_path) as guest_ws:
-                guest_messages = receive_until_types(guest_ws, {"session_snapshot", "private_state"})
-                assert guest_messages["session_snapshot"]["data"]["players"][1]["display_name"] == "Guest"
+                guest_messages = receive_until_types(
+                    guest_ws, {"session_snapshot", "private_state"}
+                )
+                assert (
+                    guest_messages["session_snapshot"]["data"]["players"][1]["display_name"]
+                    == "Guest"
+                )
 
                 join_notice = host_ws.receive_json()
                 assert join_notice["type"] == "session_snapshot"
@@ -121,7 +131,10 @@ def test_start_game_and_reconnect_with_same_token():
 
                 host_started = receive_until_types(host_ws, {"session_snapshot", "private_state"})
                 guest_started = receive_until_types(guest_ws, {"session_snapshot", "private_state"})
-                assert host_started["session_snapshot"]["data"]["game_state"] == "PLAYERS_CHOOSE_PUBLIC_CARDS"
+                assert (
+                    host_started["session_snapshot"]["data"]["game_state"]
+                    == "PLAYERS_CHOOSE_PUBLIC_CARDS"
+                )
                 assert len(host_started["private_state"]["data"]["private_cards"]) == 6
                 assert guest_started["private_state"]["data"]["seat"] == 1
 
@@ -266,6 +279,57 @@ def test_restore_returns_not_found_for_missing_game():
         assert restored.json() == {"detail": "Game not found."}
 
 
+def test_manager_reaps_idle_lobby_session():
+    session_manager.sessions.clear()
+    session = session_manager.create_session("Host")
+    session.last_activity_at = (
+        datetime.now(timezone.utc) - session.LOBBY_REAP_AFTER - timedelta(seconds=1)
+    )
+
+    with pytest.raises(ValueError, match="Game not found."):
+        session_manager.get_session(session.invite_code)
+
+
+def test_manager_reaps_idle_started_session_and_cancels_disconnect_tasks():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+
+        async def scenario():
+            sleeper = asyncio.create_task(asyncio.sleep(60))
+            session.disconnect_timeout_tasks[0] = sleeper
+            session.last_activity_at = (
+                datetime.now(timezone.utc) - session.ACTIVE_REAP_AFTER - timedelta(seconds=1)
+            )
+
+            with pytest.raises(ValueError, match="Game not found."):
+                session_manager.get_session(host["invite_code"])
+
+            await asyncio.sleep(0)
+            assert sleeper.cancelled()
+
+        asyncio.run(scenario())
+
+
+def test_restore_returns_not_found_for_reaped_session():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        session = session_manager.get_session(host["invite_code"])
+        session.last_activity_at = (
+            datetime.now(timezone.utc) - session.LOBBY_REAP_AFTER - timedelta(seconds=1)
+        )
+
+        restored = restore_session(client, host["invite_code"], host["player_token"])
+
+        assert restored.status_code == 404
+        assert restored.json() == {"detail": "Game not found."}
+
+
 def test_choose_public_cards_over_new_websocket_flow():
     session_manager.sessions.clear()
     with TestClient(app, base_url="http://localhost") as client:
@@ -289,22 +353,165 @@ def test_choose_public_cards_over_new_websocket_flow():
                 guest_cards = guest_started["private_state"]["data"]["private_cards"][:3]
 
                 host_ws.send_json({"type": "choose_public_cards", "cards": host_cards})
-                host_after_choose = receive_until_types(host_ws, {"session_snapshot", "private_state"})
+                host_after_choose = receive_until_types(
+                    host_ws, {"session_snapshot", "private_state"}
+                )
                 guest_after_host_choose = receive_until_types(guest_ws, {"session_snapshot"})
                 assert (
                     host_after_choose["session_snapshot"]["data"]["game_state"]
                     == "PLAYERS_CHOOSE_PUBLIC_CARDS"
                 )
                 assert (
-                    guest_after_host_choose["session_snapshot"]["data"]["players"][0]["public_cards"]
+                    guest_after_host_choose["session_snapshot"]["data"]["players"][0][
+                        "public_cards"
+                    ]
                     != []
                 )
 
                 guest_ws.send_json({"type": "choose_public_cards", "cards": guest_cards})
-                guest_after_choose = receive_until_types(guest_ws, {"session_snapshot", "private_state"})
+                guest_after_choose = receive_until_types(
+                    guest_ws, {"session_snapshot", "private_state"}
+                )
                 host_after_guest_choose = receive_until_types(host_ws, {"session_snapshot"})
                 assert guest_after_choose["session_snapshot"]["data"]["game_state"] == "DURING_GAME"
-                assert host_after_guest_choose["session_snapshot"]["data"]["game_state"] == "DURING_GAME"
+                assert (
+                    host_after_guest_choose["session_snapshot"]["data"]["game_state"]
+                    == "DURING_GAME"
+                )
+
+
+def test_disconnect_timeout_skips_current_player_and_clears_pending_joker():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+        join_game(client, host["invite_code"], "Third")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        game = session.game_manager.game
+        game.state = GameState.DURING_GAME
+        game.deck = PileOfCards()
+        game.play_pile = PileOfCards([Card(JOKER_RANK, Suit.JOKER_RED)])
+        session.pending_joker_seat = 0
+        session.pending_joker_card = Card(JOKER_RANK, Suit.JOKER_RED)
+
+        session.get_player_by_seat(0).connected = False
+        session.get_player_by_seat(1).connected = True
+        session.get_player_by_seat(2).connected = True
+
+        asyncio.run(session._apply_disconnect_timeout(0))
+
+        snapshot = session.build_snapshot()
+        assert snapshot.current_turn_seat == 1
+        assert snapshot.status_message == "Host disconnected and missed their turn."
+        assert snapshot.pending_joker_selection is False
+        assert session.pending_joker_seat is None
+        assert session.pending_joker_card is None
+        assert {player.seat for player in session.players} == {0, 1, 2}
+
+
+def test_disconnect_timeout_does_not_skip_non_current_player():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+        join_game(client, host["invite_code"], "Third")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        game = session.game_manager.game
+        game.state = GameState.DURING_GAME
+        game.deck = PileOfCards()
+        game.play_pile = PileOfCards()
+
+        session.get_player_by_seat(0).connected = True
+        session.get_player_by_seat(1).connected = False
+        session.get_player_by_seat(2).connected = True
+
+        asyncio.run(session._apply_disconnect_timeout(1))
+
+        snapshot = session.build_snapshot()
+        assert snapshot.current_turn_seat == 0
+        assert snapshot.status_message is None
+        assert session.get_player_by_seat(1).connected is False
+
+
+def test_disconnect_timeout_noops_if_player_reconnected_before_expiry():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        game = session.game_manager.game
+        game.state = GameState.DURING_GAME
+        game.deck = PileOfCards()
+        game.play_pile = PileOfCards()
+
+        session.get_player_by_seat(0).connected = True
+        session.get_player_by_seat(1).connected = True
+
+        asyncio.run(session._apply_disconnect_timeout(0))
+
+        snapshot = session.build_snapshot()
+        assert snapshot.current_turn_seat == 0
+        assert snapshot.status_message is None
+
+
+def test_disconnect_timeout_removes_setup_player_and_starts_game_with_remaining_players():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+        third = join_game(client, host["invite_code"], "Third")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        game = session.game_manager.game
+        game.get_player(0).public_cards = SetOfCards()
+        game.get_player(2).public_cards = SetOfCards()
+
+        session.get_player_by_seat(0).connected = True
+        session.get_player_by_seat(1).connected = False
+        session.get_player_by_seat(2).connected = True
+
+        asyncio.run(session._apply_disconnect_timeout(1))
+
+        snapshot = session.build_snapshot()
+        assert snapshot.game_state == "DURING_GAME"
+        assert (
+            snapshot.status_message == "Guest disconnected and was removed before the game began."
+        )
+        assert [player.seat for player in snapshot.players] == [0, 2]
+        assert third["player_token"] in {player.token for player in session.players}
+
+
+def test_disconnect_timeout_removes_setup_player_and_returns_to_lobby_if_too_few_players():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        guest = join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        session.get_player_by_seat(0).connected = True
+        session.get_player_by_seat(1).connected = False
+
+        asyncio.run(session._apply_disconnect_timeout(1))
+
+        snapshot = session.build_snapshot()
+        assert session.game_manager is None
+        assert snapshot.status == "LOBBY"
+        assert (
+            snapshot.status_message == "Guest disconnected and was removed before the game began."
+        )
+        assert [player.seat for player in snapshot.players] == [0]
+
+        restored = restore_session(client, host["invite_code"], guest["player_token"])
+        assert restored.status_code == 401
+        assert restored.json() == {"detail": "Unknown player token."}
 
 
 def test_snapshot_exposes_high_low_constraint_after_playing_seven():
@@ -400,7 +607,9 @@ def test_hidden_joker_requires_resolution_and_stays_visible_on_play_pile():
         assert pending_private_state.pending_joker_selection is True
         assert pending_private_state.pending_joker_card.is_joker is True
 
-        session.apply_action(host["player_token"], ActionRequest(type="resolve_joker", joker_rank=8))
+        session.apply_action(
+            host["player_token"], ActionRequest(type="resolve_joker", joker_rank=8)
+        )
 
         resolved_snapshot = session.build_snapshot()
         assert resolved_snapshot.pending_joker_selection is False

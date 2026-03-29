@@ -14,6 +14,9 @@ The server now exposes a playable browser-based private alpha:
 - `GET /api/games/{invite_code}` returns the public snapshot.
 - `WS /api/games/{invite_code}/ws?token=...` streams realtime updates and player actions.
 
+The browser client in `server/pyshithead/static` is the supported alpha surface.
+The older terminal client in `client_py` is legacy tooling and does not describe the current browser-session architecture.
+
 ## Render Deploy
 
 The repo now includes a Render blueprint at `render.yaml` for a single free web service:
