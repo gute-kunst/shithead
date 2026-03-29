@@ -972,6 +972,15 @@ body.game-active-mobile:not(.game-started-mobile) .table-map-controls .button {
   font-size: 0.8rem;
 }
 
+body.game-active-mobile:not(.game-started-mobile) .dock-error {
+  padding: 0.65rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f7efe1;
+  font-size: 0.82rem;
+}
+
 body.game-active-mobile .table-surface {
   inset: 1.5rem 0.1rem 0.35rem;
   border-radius: 50% / 44%;

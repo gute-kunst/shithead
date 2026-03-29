@@ -93,7 +93,7 @@ async def restore_game(invite_code: str, payload: RestoreSessionRequest):
     try:
         player = session.get_player_by_token(payload.player_token)
     except ValueError as err:
-        raise _http_error(err) from err
+        raise HTTPException(status_code=401, detail=str(err)) from err
 
     return session.auth_response(player)
 

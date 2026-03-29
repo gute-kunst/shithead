@@ -24,6 +24,8 @@ const state = {
   suppressCardTapUntil: 0,
   landingInviteCode: "",
   pendingLandingNameFocus: false,
+  restoreRetryTimer: null,
+  restoreRetryCount: 0,
 };
 
 const app = document.getElementById("app");
@@ -60,6 +62,10 @@ function persistSession() {
   );
 }
 
+function hasSavedSession() {
+  return Boolean(state.inviteCode && state.playerToken);
+}
+
 function loadInviteLink() {
   const params = new URLSearchParams(window.location.search);
   const inviteCode = (params.get("invite") || "").trim().toUpperCase();
@@ -81,6 +87,13 @@ function clearTurnNoticeTimer() {
   if (state.turnNoticeTimer !== null) {
     window.clearTimeout(state.turnNoticeTimer);
     state.turnNoticeTimer = null;
+  }
+}
+
+function clearRestoreRetryTimer() {
+  if (state.restoreRetryTimer !== null) {
+    window.clearTimeout(state.restoreRetryTimer);
+    state.restoreRetryTimer = null;
   }
 }
 
@@ -115,6 +128,7 @@ function closeWebSocket({ allowReconnect = false } = {}) {
 function clearSession(errorMessage = "") {
   closeWebSocket();
   hideTurnNotice();
+  clearRestoreRetryTimer();
   state.inviteCode = "";
   state.playerToken = "";
   state.seat = null;
@@ -126,6 +140,27 @@ function clearSession(errorMessage = "") {
   state.selectedCards = [];
   state.highLowChoice = "";
   state.lastTurnNoticeKey = "";
+  state.restoreRetryCount = 0;
+  persistSession();
+  render();
+}
+
+function forgetSavedSession() {
+  closeWebSocket();
+  hideTurnNotice();
+  clearRestoreRetryTimer();
+  state.inviteCode = "";
+  state.playerToken = "";
+  state.seat = null;
+  state.displayName = "";
+  state.snapshot = null;
+  state.privateState = null;
+  state.error = "";
+  state.restoringSession = false;
+  state.selectedCards = [];
+  state.highLowChoice = "";
+  state.lastTurnNoticeKey = "";
+  state.restoreRetryCount = 0;
   persistSession();
   render();
 }
@@ -358,16 +393,40 @@ function toggleCard(card) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
-  const data = await response.json();
+  let response;
+  try {
+    response = await fetch(path, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+      ...options,
+    });
+  } catch (error) {
+    const requestError = new Error("Could not reach the server.");
+    requestError.status = 0;
+    requestError.kind = "network";
+    throw requestError;
+  }
+
+  let data = {};
+  try {
+    data = await response.json();
+  } catch (error) {}
+
   if (!response.ok) {
-    throw new Error(data.detail || "Request failed.");
+    const requestError = new Error(data.detail || "Request failed.");
+    requestError.status = response.status;
+    if (response.status === 401 || response.status === 403) {
+      requestError.kind = "auth";
+    } else if (response.status === 404) {
+      requestError.kind = "not_found";
+    } else if (response.status >= 500) {
+      requestError.kind = "server";
+    } else {
+      requestError.kind = "http";
+    }
+    throw requestError;
   }
   return data;
 }
@@ -383,6 +442,8 @@ function applyAuthPayload(payload) {
   state.error = "";
   state.restoringSession = false;
   resetSelection();
+  clearRestoreRetryTimer();
+  state.restoreRetryCount = 0;
   persistSession();
   syncTurnNotice(payload.snapshot, { suppress: true });
   render();
@@ -414,9 +475,31 @@ async function joinGame(form) {
   applyAuthPayload(response);
 }
 
-async function restoreSession() {
-  if (!state.inviteCode || !state.playerToken) {
+function isPermanentRestoreError(error) {
+  return ["auth", "not_found"].includes(error.kind) || [400, 401, 403, 404].includes(error.status);
+}
+
+function scheduleRestoreRetry() {
+  if (!hasSavedSession() || state.snapshot || state.restoringSession || state.restoreRetryCount >= 3) {
     return;
+  }
+  clearRestoreRetryTimer();
+  const retryDelays = [1500, 4000, 8000];
+  const delay = retryDelays[state.restoreRetryCount] || retryDelays[retryDelays.length - 1];
+  state.restoreRetryCount += 1;
+  state.restoreRetryTimer = window.setTimeout(() => {
+    state.restoreRetryTimer = null;
+    restoreSession();
+  }, delay);
+}
+
+async function restoreSession({ resetRetry = false } = {}) {
+  if (!hasSavedSession() || state.restoringSession) {
+    return;
+  }
+  if (resetRetry) {
+    clearRestoreRetryTimer();
+    state.restoreRetryCount = 0;
   }
   state.restoringSession = true;
   state.error = "";
@@ -428,8 +511,28 @@ async function restoreSession() {
     });
     applyAuthPayload(response);
   } catch (error) {
-    clearSession("Your saved session is no longer available. Join the game again if it is still active.");
+    state.restoringSession = false;
+    if (isPermanentRestoreError(error)) {
+      clearSession("Your saved session is no longer available. Join the game again if it is still active.");
+      return;
+    }
+    state.error = "Could not restore your saved session right now. Try again.";
+    render();
+    scheduleRestoreRetry();
   }
+}
+
+function attemptSessionRecovery({ resetRetry = false } = {}) {
+  if (!hasSavedSession()) {
+    return;
+  }
+  if (state.snapshot) {
+    if (!state.ws || ![WebSocket.OPEN, WebSocket.CONNECTING].includes(state.ws.readyState)) {
+      connectWebSocket();
+    }
+    return;
+  }
+  restoreSession({ resetRetry });
 }
 
 function scheduleReconnect() {
@@ -802,14 +905,30 @@ function currentPrompt(snapshot) {
 }
 
 function renderLanding() {
+  const showSavedSessionCard = hasSavedSession();
   return `
-    ${state.restoringSession ? `
+    ${showSavedSessionCard ? `
       <section class="panel stack">
-        <h2>Restoring your game</h2>
-        <p class="muted">Reclaiming your seat and reconnecting to live updates.</p>
+        <h2>${state.restoringSession ? "Restoring your game" : "Resume saved game"}</h2>
+        <p class="muted">
+          ${state.restoringSession
+    ? "Reclaiming your seat and reconnecting to live updates."
+    : "A saved game was found on this device. You can restore it or forget it."}
+        </p>
+        <div class="status-strip">
+          <span class="status-chip">Invite ${escapeHtml(state.inviteCode)}</span>
+          ${state.displayName ? `<span class="status-chip">${escapeHtml(state.displayName)}</span>` : ""}
+        </div>
+        ${state.error ? `<div class="dock-error">${escapeHtml(state.error)}</div>` : ""}
+        ${!state.restoringSession ? `
+          <div class="secondary-action-row">
+            <button class="button accent" id="restore-session">Restore saved session</button>
+            <button class="button secondary" id="forget-session">Forget saved session</button>
+          </div>
+        ` : ""}
       </section>
     ` : ""}
-    ${state.error ? `<section class="panel error">${escapeHtml(state.error)}</section>` : ""}
+    ${state.error && !showSavedSessionCard ? `<section class="panel error">${escapeHtml(state.error)}</section>` : ""}
     <section class="panel alpha-note stack">
       <h2>Alpha notice</h2>
       <p class="muted">
@@ -1274,6 +1393,18 @@ function wireEvents() {
     });
   }
 
+  const restoreSessionButton = document.getElementById("restore-session");
+  if (restoreSessionButton) {
+    restoreSessionButton.addEventListener("click", () => {
+      restoreSession({ resetRetry: true });
+    });
+  }
+
+  const forgetSessionButton = document.getElementById("forget-session");
+  if (forgetSessionButton) {
+    forgetSessionButton.addEventListener("click", forgetSavedSession);
+  }
+
   const shareInviteButton = document.getElementById("share-invite");
   if (shareInviteButton) {
     shareInviteButton.addEventListener("click", async () => {
@@ -1335,6 +1466,24 @@ loadStoredSession();
 loadInviteLink();
 render();
 restoreSession();
+
+window.addEventListener("pageshow", () => {
+  attemptSessionRecovery({ resetRetry: true });
+});
+
+window.addEventListener("focus", () => {
+  attemptSessionRecovery({ resetRetry: true });
+});
+
+window.addEventListener("online", () => {
+  attemptSessionRecovery({ resetRetry: true });
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    attemptSessionRecovery({ resetRetry: true });
+  }
+});
 
 window.addEventListener("resize", () => {
   if (state.snapshot) {
