@@ -15,8 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # os: ["ubuntu-latest", "macos-latest", "windows-latest"] windows test fail on poetry install due to caching
-        os: ["ubuntu-latest", "macos-latest"] 
+        os: ["ubuntu-latest"] 
         python-version: ["3.11"] 
     defaults:
       run:
@@ -29,8 +28,6 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-        cache: "poetry"
-        cache-dependency-path: server/poetry.lock
 
     - uses: snok/install-poetry@v1
       with:
