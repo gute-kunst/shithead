@@ -56,6 +56,17 @@ def restore_session(client: TestClient, invite_code: str, player_token: str):
     )
 
 
+def private_card_signature(cards):
+    return [
+        (
+            card["rank"] if isinstance(card, dict) else card.rank,
+            card["suit"] if isinstance(card, dict) else card.suit,
+            card.get("effective_rank") if isinstance(card, dict) else getattr(card, "effective_rank", None),
+        )
+        for card in cards
+    ]
+
+
 def test_create_and_join_alpha_lobby():
     session_manager.sessions.clear()
     with TestClient(app, base_url="http://localhost") as client:
@@ -149,6 +160,73 @@ def test_restore_returns_player_scoped_private_state():
         assert payload["snapshot"]["players"][1]["display_name"] == "Guest"
         assert payload["private_state"]["seat"] == 1
         assert len(payload["private_state"]["private_cards"]) == 6
+
+
+def test_private_state_sorts_hand_cards_by_rank_with_jokers_last():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        assert session.settings.sort_hand_cards is True
+        session.start(host["player_token"])
+
+        host_player = session.game_manager.game.get_player(0)
+        host_player.private_cards = SetOfCards(
+            [
+                Card(JOKER_RANK, Suit.JOKER_BLACK),
+                Card(12, Suit.HEART),
+                Card(13, Suit.TILES),
+                Card(3, Suit.CLOVERS),
+                Card(13, Suit.HEART),
+                Card(JOKER_RANK, Suit.JOKER_RED),
+            ]
+        )
+
+        private_state = session.build_private_state(0)
+
+        assert private_card_signature(private_state.private_cards) == [
+            (3, Suit.CLOVERS, None),
+            (13, Suit.TILES, None),
+            (13, Suit.HEART, None),
+            (12, Suit.HEART, None),
+            (JOKER_RANK, Suit.JOKER_RED, None),
+            (JOKER_RANK, Suit.JOKER_BLACK, None),
+        ]
+
+
+def test_restore_returns_sorted_private_cards():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        guest = join_game(client, host["invite_code"], "Guest")
+        start_game(client, host["invite_code"], host["player_token"])
+
+        session = session_manager.get_session(host["invite_code"])
+        guest_player = session.game_manager.game.get_player(1)
+        guest_player.private_cards = SetOfCards(
+            [
+                Card(JOKER_RANK, Suit.JOKER_BLACK),
+                Card(14, Suit.CLOVERS),
+                Card(11, Suit.HEART),
+                Card(13, Suit.CLOVERS),
+                Card(12, Suit.TILES),
+                Card(4, Suit.PIKES),
+            ]
+        )
+
+        restored = restore_session(client, host["invite_code"], guest["player_token"])
+
+        assert restored.status_code == 200
+        assert private_card_signature(restored.json()["private_state"]["private_cards"]) == [
+            (4, Suit.PIKES, None),
+            (11, Suit.HEART, None),
+            (13, Suit.CLOVERS, None),
+            (12, Suit.TILES, None),
+            (14, Suit.CLOVERS, None),
+            (JOKER_RANK, Suit.JOKER_BLACK, None),
+        ]
 
 
 def test_restore_rejects_unknown_player_token():

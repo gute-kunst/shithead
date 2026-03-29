@@ -167,6 +167,27 @@ button {
   border: 1px solid rgba(255, 255, 255, 0.12);
   font-weight: 800;
   letter-spacing: 0.08em;
+  color: #f7efe1;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.invite-code:hover,
+.invite-code:focus-visible {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.invite-code:active {
+  transform: translateY(1px);
+}
+
+.invite-code-icon {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
 }
 
 .status-strip {
@@ -494,19 +515,79 @@ button {
   font-size: 0.82rem;
 }
 
-.table-meta {
+.table-help-trigger {
+  position: absolute;
+  right: 0.7rem;
+  bottom: 0.7rem;
+  z-index: 6;
+  width: 2.35rem;
+  height: 2.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 252, 246, 0.92);
+  color: var(--ink);
+  font-size: 1.15rem;
+  font-weight: 900;
+  box-shadow: 0 14px 24px rgba(11, 39, 31, 0.22);
+}
+
+.rules-menu-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.rules-menu-backdrop {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.rules-menu {
+  position: absolute;
+  right: 0.85rem;
+  bottom: 3.55rem;
+  width: min(22rem, calc(100% - 1.7rem));
+  max-height: min(30rem, calc(100% - 2rem));
+  overflow: auto;
+  pointer-events: auto;
+  border-radius: 22px;
+  border: 1px solid rgba(16, 38, 31, 0.1);
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.98) 0%, rgba(244, 236, 223, 0.98) 100%);
+  box-shadow: 0 24px 50px rgba(11, 39, 31, 0.28);
+  padding: 1rem;
+  color: var(--ink);
+}
+
+.rules-menu-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.rules-menu-copy {
+  margin-top: 0.8rem;
+}
+
+.rules-block {
   display: grid;
-  gap: 0.75rem;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.22rem;
 }
 
-.stack-card {
-  padding: 0.85rem 0.95rem;
+.rules-block strong {
+  color: var(--accent-deep);
 }
 
-.stack-card strong {
-  display: block;
-  margin-bottom: 0.2rem;
+.rules-block p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .hand-dock {
@@ -1210,9 +1291,26 @@ body.game-active-mobile .pile-caption {
   font-size: 0.74rem;
 }
 
-body.game-active-mobile .table-meta,
-body.game-active-mobile .help-drawer {
-  display: none;
+body.game-active-mobile .table-help-trigger {
+  right: 0.55rem;
+  bottom: 0.55rem;
+  width: 2.2rem;
+  height: 2.2rem;
+  font-size: 1.05rem;
+}
+
+body.game-active-mobile .rules-menu-backdrop {
+  background: rgba(11, 39, 31, 0.34);
+}
+
+body.game-active-mobile .rules-menu {
+  left: 0.45rem;
+  right: 0.45rem;
+  bottom: 0.45rem;
+  width: auto;
+  max-height: min(24rem, calc(100% - 1rem));
+  border-radius: 24px 24px 18px 18px;
+  padding: 0.95rem 0.95rem calc(1rem + env(safe-area-inset-bottom));
 }
 
 body.game-active-mobile .hand-dock {

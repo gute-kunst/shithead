@@ -17,6 +17,7 @@ from pyshithead.models.game import (
     PrivateCardsRequest,
     PyshitheadError,
     SpecialRank,
+    rank_precedence,
     sort_ranks_by_precedence,
 )
 from pyshithead.models.session.models import (
@@ -66,11 +67,17 @@ class SessionPlayer:
         self.last_seen = _utc_now()
 
 
+@dataclass
+class SessionSettings:
+    sort_hand_cards: bool = True
+
+
 class GameSession:
     def __init__(self, invite_code: str, host_name: str):
         self.invite_code = invite_code
         self.status = SessionStatus.LOBBY
         self.game_manager: Optional[GameManager] = None
+        self.settings = SessionSettings()
         self.players: list[SessionPlayer] = []
         self.last_status_message: str | None = None
         self.pending_joker_seat: int | None = None
@@ -128,6 +135,18 @@ class GameSession:
             suit=int(card.suit),
             effective_rank=card.effective_rank,
             is_joker=card.is_joker,
+        )
+
+    def _sort_private_cards(self, cards) -> list[Card]:
+        if not self.settings.sort_hand_cards:
+            return list(cards)
+        return sorted(
+            cards,
+            key=lambda card: (
+                card.is_joker,
+                rank_precedence(self._effective_rank(card)),
+                int(card.suit),
+            ),
         )
 
     def _effective_rank(self, card: Card) -> int:
@@ -281,7 +300,10 @@ class GameSession:
                 if self.pending_joker_seat == seat and self.pending_joker_card is not None
                 else None
             ),
-            private_cards=[self._serialize_card(card) for card in game_player.private_cards.cards],
+            private_cards=[
+                self._serialize_card(card)
+                for card in self._sort_private_cards(game_player.private_cards.cards)
+            ],
         )
 
     def auth_response(self, player: SessionPlayer) -> SessionAuthResponse:

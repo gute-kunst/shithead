@@ -31,6 +31,7 @@ const state = {
   jokerRank: null,
   leaveArmed: false,
   leaveConfirmTimer: null,
+  rulesMenuOpen: false,
 };
 
 const app = document.getElementById("app");
@@ -123,6 +124,19 @@ function handleLeaveClick() {
   render();
 }
 
+function openRulesMenu() {
+  state.rulesMenuOpen = true;
+  render();
+}
+
+function closeRulesMenu() {
+  if (!state.rulesMenuOpen) {
+    return;
+  }
+  state.rulesMenuOpen = false;
+  render();
+}
+
 function clearTurnNoticeTimer() {
   if (state.turnNoticeTimer !== null) {
     window.clearTimeout(state.turnNoticeTimer);
@@ -170,6 +184,7 @@ function clearSession(errorMessage = "") {
   hideTurnNotice();
   clearRestoreRetryTimer();
   resetLeaveConfirmation();
+  state.rulesMenuOpen = false;
   state.inviteCode = "";
   state.playerToken = "";
   state.seat = null;
@@ -191,6 +206,7 @@ function forgetSavedSession() {
   hideTurnNotice();
   clearRestoreRetryTimer();
   resetLeaveConfirmation();
+  state.rulesMenuOpen = false;
   state.inviteCode = "";
   state.playerToken = "";
   state.seat = null;
@@ -1025,7 +1041,7 @@ function playPileCaption(playPile) {
     const hiddenCount = playPile.length - playPilePreviewLimit;
     return `+${hiddenCount} card${hiddenCount === 1 ? "" : "s"}`;
   }
-  return `${playPile.length} card${playPile.length === 1 ? "" : "s"}`;
+  return "";
 }
 
 function isMobileActiveGameLayout(snapshot = state.snapshot?.data) {
@@ -1305,20 +1321,13 @@ function renderActions(snapshot) {
         ${showHighLowChoice ? `
           <div class="choice-block">
             <div class="choice-row">
-              <button class="button ${state.highLowChoice === "HIGHER" ? "accent" : "secondary"}" id="choose-higher">7 or higher</button>
               <button class="button ${state.highLowChoice === "LOWER" ? "accent" : "secondary"}" id="choose-lower">7 or lower</button>
+              <button class="button ${state.highLowChoice === "HIGHER" ? "accent" : "secondary"}" id="choose-higher">7 or higher</button>
             </div>
           </div>
         ` : ""}
         ${currentGameState() === "DURING_GAME" && !isMyTurn() && !showMobileTurnPrompt ? `<p class="muted tiny">Waiting for ${escapeHtml(turnName)}.</p>` : ""}
       </div>
-      <details class="help-drawer">
-        <summary>Rules and controls</summary>
-        <div class="help-copy stack">
-          <p class="muted">Pick 3 public cards first. After that, tap matching ranks in your hand and use the main play button.</p>
-          <p class="muted">7 changes the next player's direction, 8 skips, 10 burns, and hidden cards are only available when the hand is empty.</p>
-        </div>
-      </details>
     </section>
   `;
 }
@@ -1382,6 +1391,58 @@ function renderPileAction(snapshot) {
   `;
 }
 
+function renderRulesMenu() {
+  if (!state.rulesMenuOpen) {
+    return "";
+  }
+
+  return `
+    <div class="rules-menu-layer">
+      <button
+        class="rules-menu-backdrop"
+        id="close-rules-menu-backdrop"
+        type="button"
+        aria-label="Close rules menu"
+      ></button>
+      <section class="rules-menu" aria-label="Game rules">
+        <div class="rules-menu-header">
+          <div>
+            <p class="section-title">Rules</p>
+            <strong>How to play</strong>
+          </div>
+          <button class="button secondary button-inline" id="close-rules-menu" type="button">Close</button>
+        </div>
+        <div class="rules-menu-copy stack">
+          <div class="rules-block">
+            <strong>Goal</strong>
+            <p>Get rid of all your cards first.</p>
+          </div>
+          <div class="rules-block">
+            <strong>Setup</strong>
+            <p>Choose 3 public cards first. Your hand is played before public cards, and hidden cards come last.</p>
+          </div>
+          <div class="rules-block">
+            <strong>Turn flow</strong>
+            <p>Play one or more cards of the same rank. If you cannot play, you take the whole play pile. Once your hand is empty, you use public cards, then hidden cards.</p>
+          </div>
+          <div class="rules-block">
+            <strong>Special cards</strong>
+            <p>2 resets the pile. 5 is invisible. 7 forces the next play to be higher or lower. 8 skips. 10 burns. Jokers can be any rank except 2, 5, and 10.</p>
+          </div>
+          <div class="rules-block">
+            <strong>Feminist deck</strong>
+            <p>Queen outranks the King.</p>
+          </div>
+          <div class="rules-block">
+            <strong>Burn rule</strong>
+            <p>Four cards of the same rank burn the pile, and yes, a sneaky invisible 5 can interrupt them and it still totally counts.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
 function renderTable(snapshot) {
   const self = me();
   const isHost = self && self.is_host;
@@ -1402,8 +1463,21 @@ function renderTable(snapshot) {
   }
 
   const lobbyControls = showLobbyControls ? `
-    <span class="invite-code">Invite code ${snapshot.invite_code}</span>
-    <button class="button secondary" id="copy-code">Copy code</button>
+    <button
+      class="invite-code"
+      id="copy-invite-code"
+      type="button"
+      title="Copy invite code"
+      aria-label="Copy invite code"
+    >
+      <span>Invite code ${snapshot.invite_code}</span>
+      <img
+        class="invite-code-icon"
+        src="/static/icons/content_copy_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
+        alt=""
+        aria-hidden="true"
+      />
+    </button>
     <button class="button secondary" id="share-invite">Share invite</button>
   ` : "";
 
@@ -1451,16 +1525,8 @@ function renderTable(snapshot) {
             </div>
           </div>
         </div>
-      </div>
-      <div class="table-meta">
-        <div class="stack-card">
-          <strong>Rules</strong>
-          <span>7 changes direction. 8 skips. 10 burns. Hidden cards go live last.</span>
-        </div>
-        <div class="stack-card">
-          <strong>Table pulse</strong>
-          <span>The glowing seat is the active player. Bright event text marks burns, skips, and pile takes.</span>
-        </div>
+        <button class="table-help-trigger" id="open-rules-menu" type="button" aria-label="Open rules" title="Rules">?</button>
+        ${renderRulesMenu()}
       </div>
       ${snapshot.status === "LOBBY" && isHost ? `
         <div class="primary-action-row">
@@ -1652,9 +1718,9 @@ function wireEvents() {
     startButton.addEventListener("click", startGame);
   }
 
-  const copyCodeButton = document.getElementById("copy-code");
-  if (copyCodeButton) {
-    copyCodeButton.addEventListener("click", async () => {
+  const copyInviteCodeButton = document.getElementById("copy-invite-code");
+  if (copyInviteCodeButton) {
+    copyInviteCodeButton.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(state.inviteCode);
         state.error = "Invite code copied.";
@@ -1703,6 +1769,21 @@ function wireEvents() {
       }
       render();
     });
+  }
+
+  const openRulesMenuButton = document.getElementById("open-rules-menu");
+  if (openRulesMenuButton) {
+    openRulesMenuButton.addEventListener("click", openRulesMenu);
+  }
+
+  const closeRulesMenuButton = document.getElementById("close-rules-menu");
+  if (closeRulesMenuButton) {
+    closeRulesMenuButton.addEventListener("click", closeRulesMenu);
+  }
+
+  const closeRulesMenuBackdrop = document.getElementById("close-rules-menu-backdrop");
+  if (closeRulesMenuBackdrop) {
+    closeRulesMenuBackdrop.addEventListener("click", closeRulesMenu);
   }
 
   const leaveButton = document.getElementById("leave-game");
@@ -1756,6 +1837,12 @@ window.addEventListener("online", () => {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     attemptSessionRecovery({ resetRetry: true });
+  }
+});
+
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.rulesMenuOpen) {
+    closeRulesMenu();
   }
 });
 
