@@ -1052,10 +1052,10 @@ function renderSeat(snapshot, player) {
 
   return `
     <div class="${seatClasses}">
+      ${seatBadges ? `<div class="seat-badge-rail">${seatBadges}</div>` : ""}
       <div class="seat-header">
         <div class="seat-title-row">
           <strong>${escapeHtml(player.display_name)}</strong>
-          <div class="seat-badges">${seatBadges}</div>
         </div>
       </div>
       <div class="seat-hand-row">${renderSeatHandFan(player.private_cards_count)}</div>
@@ -1075,7 +1075,7 @@ function renderMiniCard(card) {
 
 function renderPilePreview(playPile) {
   if (playPile.length === 0) {
-    return '<div class="pile-empty">Empty</div>';
+    return "";
   }
   return playPile
     .slice(0, playPilePreviewLimit)
@@ -1101,13 +1101,20 @@ function renderDeckPreview(cardsInDeck) {
 
 function playPileCaption(playPile) {
   if (playPile.length === 0) {
-    return "No cards";
+    return "";
   }
   if (playPile.length > playPilePreviewLimit) {
     const hiddenCount = playPile.length - playPilePreviewLimit;
     return `+${hiddenCount} card${hiddenCount === 1 ? "" : "s"}`;
   }
   return "";
+}
+
+function displayedDeckCount(snapshot) {
+  if (snapshot.status === "LOBBY") {
+    return 54;
+  }
+  return snapshot.cards_in_deck;
 }
 
 function isMobileActiveGameLayout(snapshot = state.snapshot?.data) {
@@ -1192,7 +1199,7 @@ function currentPrompt(snapshot) {
     if (mustTakePile(snapshot)) {
       return "No legal card to play. Take the pile.";
     }
-    return "Tap matching cards from your hand, then play them.";
+    return "Tap matching cards from your hand.";
   }
   if (currentGameState() === "DURING_GAME") {
     return `Waiting for ${turnTarget} to play.`;
@@ -1320,6 +1327,23 @@ function renderActions(snapshot) {
     && !showTakePileOverlay
     && !pendingJoker
   );
+  const playSelectedDisabled = cards.length === 0
+    || (selectedHasJoker() && !state.jokerRank)
+    || (showHighLowChoice && !hasHighLowChoice);
+  let handPrimaryAction = null;
+  if (canChoosePublicCards()) {
+    handPrimaryAction = { action: "choose-public", label: "Lock cards", disabled: false };
+  } else if (pendingJoker) {
+    handPrimaryAction = {
+      action: "resolve-joker",
+      label: "Play joker",
+      disabled: state.jokerRank === null || (showHighLowChoice && !hasHighLowChoice),
+    };
+  } else if (showHiddenAction) {
+    handPrimaryAction = { action: "play-hidden", label: "Take hidden card", disabled: false };
+  } else if (showPlaySelectedAction) {
+    handPrimaryAction = { action: "play-cards", label: "Play cards", disabled: playSelectedDisabled };
+  }
   const dockClasses = [
     "panel",
     "hand-dock",
@@ -1332,9 +1356,17 @@ function renderActions(snapshot) {
   return `
     <section class="${dockClasses}" style="${layout.style}">
       <div class="dock-header">
-        <div>
+        <div class="dock-header-main">
           <p class="section-title">Your hand</p>
         </div>
+        ${handPrimaryAction ? `
+          <button
+            class="button accent button-inline dock-header-action"
+            id="hand-primary-action"
+            data-hand-action="${handPrimaryAction.action}"
+            ${handPrimaryAction.disabled ? "disabled" : ""}
+          >${handPrimaryAction.label}</button>
+        ` : ""}
       </div>
       <div class="dock-prompt">${escapeHtml(currentPrompt(snapshot))}</div>
       ${state.error ? `<div class="dock-error">${escapeHtml(state.error)}</div>` : ""}
@@ -1362,26 +1394,6 @@ function renderActions(snapshot) {
                 >${rankLabel(rank)}</button>
               `).join("")}
             </div>
-          </div>
-        ` : ""}
-        ${canChoosePublicCards() ? `
-          <div class="primary-action-row">
-            <button class="button accent full-width" id="choose-public">Lock selected public cards</button>
-          </div>
-        ` : ""}
-        ${showPlaySelectedAction ? `
-          <div class="primary-action-row">
-            <button class="button accent full-width" id="play-cards" ${cards.length === 0 || (selectedHasJoker() && !state.jokerRank) || (showHighLowChoice && !hasHighLowChoice) ? "disabled" : ""}>${selectedHasJoker() && !state.jokerRank ? "Choose joker rank first" : showHighLowChoice && !hasHighLowChoice ? "Choose higher or lower first" : "Play selected cards"}</button>
-          </div>
-        ` : ""}
-        ${pendingJoker ? `
-          <div class="primary-action-row">
-            <button class="button accent full-width" id="resolve-joker" ${(state.jokerRank === null || (showHighLowChoice && !hasHighLowChoice)) ? "disabled" : ""}>${showHighLowChoice && !hasHighLowChoice ? "Choose higher or lower first" : "Play revealed joker"}</button>
-          </div>
-        ` : ""}
-        ${showHiddenAction ? `
-          <div class="primary-action-row">
-            <button class="button accent full-width" id="play-hidden-primary">Take hidden card</button>
           </div>
         ` : ""}
         ${showHighLowChoice ? `
@@ -1585,7 +1597,7 @@ function renderTable(snapshot) {
           <div class="table-resources">
             <div class="deck-orb">
               <span class="resource-label">Deck</span>
-              ${renderDeckPreview(snapshot.cards_in_deck)}
+              ${renderDeckPreview(displayedDeckCount(snapshot))}
             </div>
             <div class="pile-zone">
               <span class="resource-label">Play pile</span>
@@ -1719,14 +1731,20 @@ function wireEvents() {
     });
   });
 
-  const choosePublic = document.getElementById("choose-public");
-  if (choosePublic) {
-    choosePublic.addEventListener("click", submitChoosePublicCards);
-  }
-
-  const playCards = document.getElementById("play-cards");
-  if (playCards) {
-    playCards.addEventListener("click", submitPlayCards);
+  const handPrimaryAction = document.getElementById("hand-primary-action");
+  if (handPrimaryAction) {
+    handPrimaryAction.addEventListener("click", () => {
+      const { handAction } = handPrimaryAction.dataset;
+      if (handAction === "choose-public") {
+        submitChoosePublicCards();
+      } else if (handAction === "play-cards") {
+        submitPlayCards();
+      } else if (handAction === "play-hidden") {
+        submitHiddenCard();
+      } else if (handAction === "resolve-joker") {
+        submitResolveJoker();
+      }
+    });
   }
 
   const takePile = document.getElementById("take-pile");
@@ -1742,11 +1760,6 @@ function wireEvents() {
   const playHidden = document.getElementById("play-hidden");
   if (playHidden) {
     playHidden.addEventListener("click", submitHiddenCard);
-  }
-
-  const playHiddenPrimary = document.getElementById("play-hidden-primary");
-  if (playHiddenPrimary) {
-    playHiddenPrimary.addEventListener("click", submitHiddenCard);
   }
 
   app.querySelectorAll("[data-joker-rank]").forEach((button) => {
@@ -1776,11 +1789,6 @@ function wireEvents() {
       state.error = "";
       render();
     });
-  }
-
-  const resolveJoker = document.getElementById("resolve-joker");
-  if (resolveJoker) {
-    resolveJoker.addEventListener("click", submitResolveJoker);
   }
 
   const startButton = document.getElementById("start-game");
