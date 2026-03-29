@@ -322,11 +322,14 @@ button {
 .seat-header {
   display: grid;
   gap: 0.28rem;
+  justify-items: center;
+  text-align: center;
 }
 
 .seat-title-row {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
   flex-wrap: wrap;
 }
@@ -336,8 +339,6 @@ button {
 }
 
 .seat-badges,
-.seat-counts,
-.public-card-chip,
 .secondary-action-row,
 .choice-row {
   display: flex;
@@ -354,17 +355,11 @@ button {
   color: rgba(247, 239, 225, 0.94);
 }
 
-.seat-counts {
-  margin-top: 0.55rem;
-  font-size: 0.74rem;
-  color: rgba(247, 239, 225, 0.78);
-}
-
-.seat-public-cards {
+.seat-hand-row {
+  margin-top: 0.48rem;
+  min-height: 2.15rem;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.55rem;
+  justify-content: center;
 }
 
 .seat-muted {
@@ -372,17 +367,143 @@ button {
   font-size: 0.74rem;
 }
 
-.public-card-chip {
+.seat-hand-fan-wrap {
+  --seat-fan-card-width: 1.48rem;
+  --seat-fan-step: 0.25rem;
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  padding: 0.16rem 0.48rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  font-size: 0.78rem;
-  font-weight: 700;
+  justify-content: center;
+  width: calc(var(--seat-fan-card-width) + (var(--seat-fan-count, 1) - 1) * var(--seat-fan-step));
 }
 
-.public-card-chip.red {
-  color: #ffccbf;
+.seat-hand-fan {
+  position: relative;
+  width: 100%;
+  height: 2.2rem;
+}
+
+.seat-back-card {
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 0.1rem;
+  width: 1.48rem;
+  height: 2.02rem;
+  border-radius: 0.28rem;
+  border: 1px solid rgba(207, 214, 221, 0.95);
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.18) 0 0.11rem, transparent 0.13rem),
+    radial-gradient(circle, rgba(34, 99, 191, 0.92) 0.06rem, transparent 0.08rem),
+    linear-gradient(180deg, #fffdf8 0%, #edf2fb 100%);
+  background-size: auto, 0.34rem 0.34rem, auto;
+  box-shadow: 0 5px 12px rgba(8, 23, 19, 0.18);
+  transform-origin: bottom center;
+}
+
+.seat-back-card.stacked {
+  top: 0;
+  left: 0;
+}
+
+.seat-back-card.hidden-row {
+  position: relative;
+  top: auto;
+  left: auto;
+  flex: 0 0 auto;
+}
+
+.seat-count-badge {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  min-width: 1.5rem;
+  padding: 0.15rem 0.38rem;
+  border-radius: 999px;
+  background: rgba(12, 31, 25, 0.72);
+  color: rgba(247, 239, 225, 0.94);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-align: center;
+  box-shadow: 0 4px 10px rgba(8, 23, 19, 0.18);
+}
+
+.seat-public-cards {
+  margin-top: 0.14rem;
+  min-height: 2.52rem;
+  display: flex;
+  justify-content: center;
+}
+
+.seat-public-stack {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.3rem;
+}
+
+.seat-public-stack-card {
+  position: relative;
+  width: 1.55rem;
+  height: 2.22rem;
+}
+
+.seat-hidden-underlay {
+  position: absolute;
+  left: 0.18rem;
+  top: 0.16rem;
+  width: 1.55rem;
+  height: 2.22rem;
+  border-radius: 0.3rem;
+  border: 1px solid rgba(207, 214, 221, 0.9);
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.16) 0 0.1rem, transparent 0.12rem),
+    radial-gradient(circle, rgba(34, 99, 191, 0.92) 0.05rem, transparent 0.075rem),
+    linear-gradient(180deg, #fffdf8 0%, #edf2fb 100%);
+  background-size: auto, 0.3rem 0.3rem, auto;
+  box-shadow: 0 4px 9px rgba(8, 23, 19, 0.12);
+}
+
+.seat-mini-card {
+  position: absolute;
+  inset: 0;
+  border-radius: 0.3rem;
+  border: 1px solid rgba(16, 38, 31, 0.08);
+  background: linear-gradient(180deg, #fffdf8 0%, #f2e7d9 100%);
+  color: var(--ink);
+  box-shadow: 0 5px 11px rgba(8, 23, 19, 0.16);
+  padding: 0.16rem 0.16rem 0.14rem;
+  display: grid;
+  align-content: space-between;
+  font-weight: 800;
+}
+
+.seat-mini-card.red {
+  color: #b23018;
+}
+
+.seat-mini-card.joker {
+  background: linear-gradient(180deg, #fff6e4 0%, #f0d8af 100%);
+}
+
+.seat-mini-rank {
+  font-size: 0.54rem;
+  line-height: 1;
+}
+
+.seat-mini-suit {
+  justify-self: end;
+  font-size: 0.66rem;
+  line-height: 1;
+}
+
+.seat-hidden-stack {
+  display: flex;
+  justify-content: center;
+  gap: 0.24rem;
+  min-height: 2.18rem;
 }
 
 .table-center {
@@ -455,9 +576,44 @@ button {
   text-align: center;
 }
 
-.deck-orb strong {
-  font-size: clamp(1.7rem, 6vw, 2.5rem);
-  line-height: 0.92;
+.deck-stack {
+  position: relative;
+  width: 2.55rem;
+  height: 3.45rem;
+  margin-top: 0.45rem;
+}
+
+.deck-back-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2.2rem;
+  height: 3rem;
+  border-radius: 0.42rem;
+  border: 1px solid rgba(207, 214, 221, 0.95);
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.18) 0 0.11rem, transparent 0.13rem),
+    radial-gradient(circle, rgba(34, 99, 191, 0.92) 0.06rem, transparent 0.08rem),
+    linear-gradient(180deg, #fffdf8 0%, #edf2fb 100%);
+  background-size: auto, 0.34rem 0.34rem, auto;
+  box-shadow: 0 8px 16px rgba(8, 23, 19, 0.18);
+}
+
+.deck-count-badge {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  min-width: 1.55rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(12, 31, 25, 0.72);
+  color: rgba(247, 239, 225, 0.94);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: center;
+  box-shadow: 0 4px 10px rgba(8, 23, 19, 0.18);
 }
 
 .resource-label {
@@ -645,7 +801,7 @@ button {
   --hand-card-height: 6.35rem;
   --hand-card-overlap: 1.25rem;
   --hand-card-lift: 0.85rem;
-  --hand-card-selection-bleed: 0.55rem;
+  --hand-card-selection-bleed: 0.1rem;
   position: relative;
   display: flex;
   overflow-x: auto;
@@ -1144,20 +1300,61 @@ body.game-active-mobile .seat-title-row {
 }
 
 body.game-active-mobile .seat-badges,
-body.game-active-mobile .seat-counts,
-body.game-active-mobile .public-card-chip {
+body.game-active-mobile .secondary-action-row,
+body.game-active-mobile .choice-row {
   gap: 0.28rem;
 }
 
 body.game-active-mobile .seat-badge,
-body.game-active-mobile .seat-counts,
-body.game-active-mobile .public-card-chip {
+body.game-active-mobile .seat-count-badge {
   font-size: 0.64rem;
 }
 
-body.game-active-mobile .seat-counts,
+body.game-active-mobile .seat-hand-row {
+  margin-top: 0.32rem;
+  min-height: 2rem;
+}
+
+body.game-active-mobile .seat-hand-fan {
+  height: 1.9rem;
+}
+
+body.game-active-mobile .seat-back-card {
+  width: 1.28rem;
+  height: 1.76rem;
+}
+
 body.game-active-mobile .seat-public-cards {
-  margin-top: 0.35rem;
+  margin-top: 0.1rem;
+  min-height: 2rem;
+}
+
+body.game-active-mobile .seat-public-stack {
+  gap: 0.22rem;
+}
+
+body.game-active-mobile .seat-public-stack-card,
+body.game-active-mobile .seat-hidden-underlay {
+  width: 1.34rem;
+  height: 1.92rem;
+}
+
+body.game-active-mobile .seat-hidden-underlay {
+  left: 0.14rem;
+  top: 0.12rem;
+}
+
+body.game-active-mobile .seat-mini-rank {
+  font-size: 0.48rem;
+}
+
+body.game-active-mobile .seat-mini-suit {
+  font-size: 0.58rem;
+}
+
+body.game-active-mobile .seat-hidden-stack {
+  width: 2rem;
+  height: 2.2rem;
 }
 
 body.game-active-mobile .players-2 .seat-top {
@@ -1264,8 +1461,20 @@ body.game-active-mobile .pile-zone {
   min-width: 0;
 }
 
-body.game-active-mobile .deck-orb strong {
-  font-size: 1.55rem;
+body.game-active-mobile .deck-stack {
+  width: 2.2rem;
+  height: 3rem;
+  margin-top: 0.3rem;
+}
+
+body.game-active-mobile .deck-back-card {
+  width: 1.9rem;
+  height: 2.58rem;
+}
+
+body.game-active-mobile .deck-count-badge {
+  min-width: 1.38rem;
+  font-size: 0.74rem;
 }
 
 body.game-active-mobile .resource-label {

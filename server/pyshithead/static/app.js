@@ -954,21 +954,75 @@ function seatPositionClass(snapshot, player) {
   return layouts[snapshot.players.length]?.[relativeIndex] || "seat-top";
 }
 
-function renderPublicCardChips(publicCards) {
-  if (publicCards.length === 0) {
-    return '<span class="seat-muted">No public cards</span>';
+function renderSeatBackCard(rotation = 0, offset = 0) {
+  return `
+    <span
+      class="seat-back-card"
+      style="transform: translateX(${offset}px) rotate(${rotation}deg);"
+      aria-hidden="true"
+    ></span>
+  `;
+}
+
+function renderSeatHandFan(privateCardsCount) {
+  if (privateCardsCount <= 0) {
+    return '<span class="seat-muted">No hand cards</span>';
   }
-  return publicCards
+
+  const visibleCards = Math.min(privateCardsCount, 8);
+  const rotations = [-18, -13, -9, -4, 1, 6, 11, 16];
+
+  return `
+    <div class="seat-hand-fan-wrap" style="--seat-fan-count: ${visibleCards};">
+      <div class="seat-hand-fan" aria-hidden="true">
+        ${Array.from({ length: visibleCards }, (_, index) => renderSeatBackCard(rotations[index] || 0, index * 4)).join("")}
+      </div>
+      <span class="seat-count-badge">${privateCardsCount}</span>
+    </div>
+  `;
+}
+
+function renderSeatMiniCard(card) {
+  const isJoker = isJokerCard(card);
+  return `
+    <span class="seat-mini-card ${isRedSuit(card.suit) ? "red" : ""} ${isJoker ? "joker" : ""}">
+      <span class="seat-mini-rank">${isJoker ? "J" : rankLabel(card.rank)}</span>
+      <span class="seat-mini-suit">${isJoker ? (card.effective_rank ? rankLabel(card.effective_rank) : "?" ) : suitLabel(card.suit)}</span>
+    </span>
+  `;
+}
+
+function renderSeatPublicStack(publicCards, hiddenCardsCount) {
+  if (publicCards.length === 0) {
+    return hiddenCardsCount > 0 ? renderSeatHiddenStack(hiddenCardsCount) : '<span class="seat-muted">No table cards</span>';
+  }
+
+  return `
+    <div class="seat-public-stack">
+      ${publicCards
     .map(
       (card) => `
-        <span class="public-card-chip ${isRedSuit(card.suit) ? "red" : ""}">
-          ${isJokerCard(card)
-    ? `Joker${card.effective_rank ? ` as ${rankLabel(card.effective_rank)}` : ""}`
-    : `${rankLabel(card.rank)}${suitLabel(card.suit)}`}
-        </span>
-      `,
+          <span class="seat-public-stack-card">
+            <span class="seat-hidden-underlay" aria-hidden="true"></span>
+            ${renderSeatMiniCard(card)}
+          </span>
+        `,
     )
-    .join("");
+    .join("")}
+    </div>
+  `;
+}
+
+function renderSeatHiddenStack(hiddenCardsCount) {
+  if (hiddenCardsCount <= 0) {
+    return "";
+  }
+
+  return `
+    <div class="seat-hidden-stack" aria-hidden="true">
+      ${Array.from({ length: hiddenCardsCount }, () => '<span class="seat-back-card hidden-row"></span>').join("")}
+    </div>
+  `;
 }
 
 function renderSeat(snapshot, player) {
@@ -1004,11 +1058,8 @@ function renderSeat(snapshot, player) {
           <div class="seat-badges">${seatBadges}</div>
         </div>
       </div>
-      <div class="seat-counts">
-        <span>Hand ${player.private_cards_count}</span>
-        <span>Hidden ${player.hidden_cards_count}</span>
-      </div>
-      <div class="seat-public-cards">${renderPublicCardChips(player.public_cards)}</div>
+      <div class="seat-hand-row">${renderSeatHandFan(player.private_cards_count)}</div>
+      <div class="seat-public-cards">${renderSeatPublicStack(player.public_cards, player.hidden_cards_count)}</div>
     </div>
   `;
 }
@@ -1031,6 +1082,21 @@ function renderPilePreview(playPile) {
     .reverse()
     .map((card) => renderMiniCard(card))
     .join("");
+}
+
+function renderDeckPreview(cardsInDeck) {
+  const visibleCards = Math.min(Math.max(cardsInDeck, 1), 3);
+  return `
+    <div class="deck-stack" aria-hidden="true">
+      ${Array.from({ length: visibleCards }, (_, index) => `
+        <span
+          class="deck-back-card"
+          style="transform: translate(${index * 4}px, ${index * 3}px) rotate(${index * 3 - 3}deg);"
+        ></span>
+      `).join("")}
+      <span class="deck-count-badge">${cardsInDeck}</span>
+    </div>
+  `;
 }
 
 function playPileCaption(playPile) {
@@ -1506,16 +1572,20 @@ function renderTable(snapshot) {
               <span class="muted">${escapeHtml(turnCopy)}</span>
             </div>
           ` : ""}
+          ${snapshot.status === "LOBBY" && !isHost ? `
+            <div class="event-box">
+              <span>Waiting for host to start the game.</span>
+            </div>
+          ` : ""}
           ${snapshot.status_message ? `
             <div class="event-box">
-              <strong>Play Update</strong>
               <span>${escapeHtml(snapshot.status_message)}</span>
             </div>
           ` : ""}
           <div class="table-resources">
             <div class="deck-orb">
               <span class="resource-label">Deck</span>
-              <strong>${snapshot.cards_in_deck}</strong>
+              ${renderDeckPreview(snapshot.cards_in_deck)}
             </div>
             <div class="pile-zone">
               <span class="resource-label">Play pile</span>
