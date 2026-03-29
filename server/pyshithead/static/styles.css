@@ -564,10 +564,13 @@ button {
   --hand-card-height: 6.35rem;
   --hand-card-overlap: 1.25rem;
   --hand-card-lift: 0.85rem;
+  --hand-card-selection-bleed: 0.55rem;
+  position: relative;
   display: flex;
   overflow-x: auto;
   gap: 0;
-  padding: 0.8rem 0.35rem 1rem;
+  padding: calc(0.8rem + var(--hand-card-lift) + var(--hand-card-selection-bleed)) 0.35rem 1rem;
+  min-height: calc(var(--hand-card-height) + var(--hand-card-lift) + var(--hand-card-selection-bleed) + 0.4rem);
   scrollbar-width: thin;
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
@@ -600,6 +603,8 @@ button {
 }
 
 .card.selected {
+  position: relative;
+  z-index: 2;
   transform: translateY(calc(-1 * var(--hand-card-lift)));
   border-color: rgba(216, 91, 50, 0.56);
   box-shadow: 0 18px 28px rgba(216, 91, 50, 0.24);
@@ -704,6 +709,12 @@ button {
 .button.button-inline {
   padding: 0.46rem 0.72rem;
   font-size: 0.76rem;
+}
+
+.button.button-inline.armed-leave {
+  background: #f5c9a8;
+  border-color: rgba(216, 91, 50, 0.34);
+  color: var(--accent-deep);
 }
 
 .button:disabled {
@@ -935,6 +946,10 @@ body.game-active-mobile .game-topbar-name {
 body.game-active-mobile .button.button-inline {
   padding: 0.42rem 0.68rem;
   font-size: 0.74rem;
+}
+
+body.game-active-mobile .button.button-inline.armed-leave {
+  background: #f5c9a8;
 }
 
 body.game-active-mobile .game-screen.mobile-one-screen {
@@ -1230,8 +1245,8 @@ body.game-active-mobile .hand-fan {
   min-width: 0;
   width: 100%;
   max-width: 100%;
-  padding: 0.34rem 0.38rem 0.48rem;
-  min-height: calc(var(--hand-card-height) + var(--hand-card-lift) + 0.4rem);
+  padding: calc(0.34rem + var(--hand-card-lift) + var(--hand-card-selection-bleed)) 0.38rem 0.48rem;
+  min-height: calc(var(--hand-card-height) + var(--hand-card-lift) + var(--hand-card-selection-bleed) + 0.4rem);
 }
 
 body.game-active-mobile .card {

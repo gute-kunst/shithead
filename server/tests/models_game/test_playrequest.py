@@ -2,6 +2,7 @@ import pytest
 from pytest_lazyfixture import lazy_fixture
 
 from pyshithead.models.game import (
+    ALL_RANKS,
     BurnEvent,
     Card,
     Choice,
@@ -229,3 +230,24 @@ def test_privatecardsrequest_joker_counts_for_four_of_a_kind_burn(player: Player
 
     assert request.get_rank() == 6
     assert events.burn == BurnEvent.YES
+
+
+def test_privatecardsrequest_joker_as_queen_is_eligible_after_king(player: Player):
+    joker = Card(JOKER_RANK, Suit.JOKER_RED)
+    player.private_cards = SetOfCards([joker])
+    request = PrivateCardsRequest(player, [joker], joker_rank=12)
+
+    valid_ranks = RankEvent(RankType.TOPRANK, 13).get_valid_ranks(set(ALL_RANKS))
+
+    request.validate_cards_eligible(valid_ranks)
+
+
+def test_privatecardsrequest_joker_as_king_is_not_eligible_after_queen(player: Player):
+    joker = Card(JOKER_RANK, Suit.JOKER_RED)
+    player.private_cards = SetOfCards([joker])
+    request = PrivateCardsRequest(player, [joker], joker_rank=13)
+
+    valid_ranks = RankEvent(RankType.TOPRANK, 12).get_valid_ranks(set(ALL_RANKS))
+
+    with pytest.raises(CardsNotEligibleOnPlayPileError):
+        request.validate_cards_eligible(valid_ranks)

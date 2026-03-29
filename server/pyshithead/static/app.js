@@ -1,7 +1,7 @@
 const storageKey = "shithead.alpha.session";
 const playPilePreviewLimit = 6;
 const jokerRank = 15;
-const jokerAllowedRanks = [3, 4, 6, 7, 8, 9, 11, 12, 13, 14];
+const jokerAllowedRanks = [3, 4, 6, 7, 8, 9, 11, 13, 12, 14];
 
 const state = {
   inviteCode: "",
@@ -29,6 +29,8 @@ const state = {
   restoreRetryTimer: null,
   restoreRetryCount: 0,
   jokerRank: null,
+  leaveArmed: false,
+  leaveConfirmTimer: null,
 };
 
 const app = document.getElementById("app");
@@ -86,6 +88,41 @@ function clearReconnectTimer() {
   }
 }
 
+function clearLeaveConfirmTimer() {
+  if (state.leaveConfirmTimer !== null) {
+    window.clearTimeout(state.leaveConfirmTimer);
+    state.leaveConfirmTimer = null;
+  }
+}
+
+function resetLeaveConfirmation({ rerender = false } = {}) {
+  clearLeaveConfirmTimer();
+  state.leaveArmed = false;
+  if (rerender) {
+    render();
+  }
+}
+
+function armLeaveConfirmation() {
+  clearLeaveConfirmTimer();
+  state.leaveArmed = true;
+  state.leaveConfirmTimer = window.setTimeout(() => {
+    state.leaveConfirmTimer = null;
+    state.leaveArmed = false;
+    render();
+  }, 3000);
+}
+
+function handleLeaveClick() {
+  if (state.leaveArmed) {
+    resetLeaveConfirmation();
+    clearSession();
+    return;
+  }
+  armLeaveConfirmation();
+  render();
+}
+
 function clearTurnNoticeTimer() {
   if (state.turnNoticeTimer !== null) {
     window.clearTimeout(state.turnNoticeTimer);
@@ -132,6 +169,7 @@ function clearSession(errorMessage = "") {
   closeWebSocket();
   hideTurnNotice();
   clearRestoreRetryTimer();
+  resetLeaveConfirmation();
   state.inviteCode = "";
   state.playerToken = "";
   state.seat = null;
@@ -152,6 +190,7 @@ function forgetSavedSession() {
   closeWebSocket();
   hideTurnNotice();
   clearRestoreRetryTimer();
+  resetLeaveConfirmation();
   state.inviteCode = "";
   state.playerToken = "";
   state.seat = null;
@@ -1286,9 +1325,12 @@ function renderActions(snapshot) {
 
 function renderGameTopbar(snapshot) {
   if (!snapshot) {
+    resetLeaveConfirmation();
     return "";
   }
   const showCompactBrand = isMobileActiveGameLayout(snapshot);
+  const leaveButtonLabel = "Leave";
+  const leaveButtonTitle = state.leaveArmed ? "Click again to leave" : "Leave";
 
   return `
     <div class="game-topbar ${showCompactBrand ? "" : "actions-only"}">
@@ -1304,7 +1346,12 @@ function renderGameTopbar(snapshot) {
           title="${state.wsReady ? "Live sync connected" : "Reconnecting"}"
           aria-label="${state.wsReady ? "Live sync connected" : "Reconnecting"}"
         ></span>
-        <button class="button secondary button-inline" id="leave-game-header">Leave</button>
+        <button
+          class="button secondary button-inline ${state.leaveArmed ? "armed-leave" : ""}"
+          id="leave-game-header"
+          title="${leaveButtonTitle}"
+          aria-label="${leaveButtonTitle}"
+        >${leaveButtonLabel}</button>
       </div>
     </div>
   `;
@@ -1665,7 +1712,9 @@ function wireEvents() {
 
   const headerLeaveButton = document.getElementById("leave-game-header");
   if (headerLeaveButton) {
-    headerLeaveButton.addEventListener("click", clearSession);
+    headerLeaveButton.addEventListener("click", handleLeaveClick);
+  } else {
+    resetLeaveConfirmation();
   }
 }
 

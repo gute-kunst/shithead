@@ -28,6 +28,29 @@ def test_rankevent_get_valid_ranks_14(valid_14):
     assert rank_event.get_valid_ranks(set(ALL_RANKS)) == valid_14
 
 
+def test_rankevent_get_valid_ranks_king_includes_queen():
+    rank_event = RankEvent(RankType.TOPRANK, top_rank=13)
+    assert rank_event.get_valid_ranks(set(ALL_RANKS)) == {
+        int(SpecialRank.RESET),
+        int(SpecialRank.INVISIBLE),
+        int(SpecialRank.BURN),
+        13,
+        12,
+        14,
+    }
+
+
+def test_rankevent_get_valid_ranks_queen_excludes_king():
+    rank_event = RankEvent(RankType.TOPRANK, top_rank=12)
+    assert rank_event.get_valid_ranks(set(ALL_RANKS)) == {
+        int(SpecialRank.RESET),
+        int(SpecialRank.INVISIBLE),
+        int(SpecialRank.BURN),
+        12,
+        14,
+    }
+
+
 def test_rankevent_get_valid_ranks_invisible_on_14(valid_14):
     rank_event = RankEvent(RankType.TOPRANK, top_rank=14)
     valid = rank_event.get_valid_ranks(set(ALL_RANKS))

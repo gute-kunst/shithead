@@ -10,7 +10,15 @@ from fastapi import WebSocket
 from starlette.websockets import WebSocketState
 
 from pyshithead.models.common import GameManager, request_models
-from pyshithead.models.game import Card, HiddenCardRequest, MAX_PLAYERS, PrivateCardsRequest, PyshitheadError, SpecialRank
+from pyshithead.models.game import (
+    Card,
+    HiddenCardRequest,
+    MAX_PLAYERS,
+    PrivateCardsRequest,
+    PyshitheadError,
+    SpecialRank,
+    sort_ranks_by_precedence,
+)
 from pyshithead.models.session.models import (
     ActionErrorEvent,
     ActionRequest,
@@ -253,7 +261,7 @@ class GameSession:
                 current_turn_display_name=self.get_player_by_seat(
                     self.game_manager.game.get_player().id_
                 ).display_name,
-                current_valid_ranks=sorted(int(rank) for rank in self.game_manager.game.valid_ranks),
+                current_valid_ranks=sort_ranks_by_precedence(self.game_manager.game.valid_ranks),
                 status_message=self.last_status_message,
                 pending_joker_selection=self.pending_joker_card is not None,
                 cards_in_deck=len(self.game_manager.game.deck),

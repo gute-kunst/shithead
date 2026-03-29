@@ -1,7 +1,20 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from pyshithead.main import app, session_manager
-from pyshithead.models.game import Card, GameState, JOKER_RANK, PileOfCards, SetOfCards, SpecialRank, Suit
+from pyshithead.models.game import (
+    ALL_RANKS,
+    Card,
+    GameState,
+    JOKER_RANK,
+    PileOfCards,
+    RankEvent,
+    RankType,
+    SetOfCards,
+    SpecialRank,
+    Suit,
+)
+from pyshithead.models.game.errors import CardsNotEligibleOnPlayPileError
 from pyshithead.models.session.models import ActionRequest, CardModel
 
 
@@ -297,3 +310,68 @@ def test_hidden_joker_requires_resolution_and_stays_visible_on_play_pile():
         assert resolved_snapshot.status_message == "Skip!"
         assert resolved_snapshot.play_pile[0].is_joker is True
         assert resolved_snapshot.play_pile[0].effective_rank == 8
+
+
+def test_alpha_session_allows_queen_after_king_and_orders_valid_ranks():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        game = session.game_manager.game
+        game.state = GameState.DURING_GAME
+        game.deck = PileOfCards()
+        game.play_pile = PileOfCards([Card(13, Suit.HEART)])
+        game.valid_ranks = RankEvent(RankType.TOPRANK, 13).get_valid_ranks(set(ALL_RANKS))
+
+        host_player = game.get_player(0)
+        guest_player = game.get_player(1)
+        host_player.private_cards = SetOfCards([Card(12, Suit.CLOVERS)])
+        host_player.public_cards = SetOfCards()
+        guest_player.private_cards = SetOfCards([Card(3, Suit.HEART)])
+        guest_player.public_cards = SetOfCards()
+
+        session.apply_action(
+            host["player_token"],
+            ActionRequest(
+                type="play_private_cards",
+                cards=[CardModel(rank=12, suit=Suit.CLOVERS)],
+            ),
+        )
+
+        snapshot = session.build_snapshot()
+        assert snapshot.play_pile[0].rank == 12
+        assert snapshot.current_valid_ranks == [2, 5, 10, 12, 14]
+
+
+def test_alpha_session_rejects_king_after_queen():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        game = session.game_manager.game
+        game.state = GameState.DURING_GAME
+        game.deck = PileOfCards()
+        game.play_pile = PileOfCards([Card(12, Suit.HEART)])
+        game.valid_ranks = RankEvent(RankType.TOPRANK, 12).get_valid_ranks(set(ALL_RANKS))
+
+        host_player = game.get_player(0)
+        guest_player = game.get_player(1)
+        host_player.private_cards = SetOfCards([Card(13, Suit.CLOVERS)])
+        host_player.public_cards = SetOfCards()
+        guest_player.private_cards = SetOfCards([Card(3, Suit.HEART)])
+        guest_player.public_cards = SetOfCards()
+
+        with pytest.raises(CardsNotEligibleOnPlayPileError):
+            session.apply_action(
+                host["player_token"],
+                ActionRequest(
+                    type="play_private_cards",
+                    cards=[CardModel(rank=13, suit=Suit.CLOVERS)],
+                ),
+            )

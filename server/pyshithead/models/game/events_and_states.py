@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum, IntEnum, StrEnum
 from typing import Optional
 
-from pyshithead.models.game import BIGGEST_RANK, Player, SpecialRank
+from pyshithead.models.game import Player, SpecialRank, ranks_at_or_above, ranks_at_or_below
 
 
 class GameState(StrEnum):
@@ -72,11 +72,11 @@ class RankEvent:
             valid_ranks.update(
                 [int(SpecialRank.RESET), int(SpecialRank.INVISIBLE), int(SpecialRank.BURN)]
             )
-            valid_ranks.update([i for i in range(self.top_rank, BIGGEST_RANK + 1)])
+            valid_ranks.update(ranks_at_or_above(self.top_rank))
         elif self.rank_type == RankType.HIGHER:
-            valid_ranks.update([i for i in range(int(SpecialRank.HIGHLOW), BIGGEST_RANK + 1)])
+            valid_ranks.update(ranks_at_or_above(int(SpecialRank.HIGHLOW)))
         elif self.rank_type == RankType.LOWER:
-            valid_ranks.update([i for i in range(2, int(SpecialRank.HIGHLOW) + 1)])
+            valid_ranks.update(ranks_at_or_below(int(SpecialRank.HIGHLOW)))
         elif self.rank_type == RankType.KEEPCURRENT:
             valid_ranks.update(current_valid_ranks)
         return valid_ranks

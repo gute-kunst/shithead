@@ -68,7 +68,7 @@ class JokerRankRequiredError(PyshitheadError):
 class JokerRankNotAllowedError(PyshitheadError):
     def __init__(self):
         super().__init__(
-            message="Joker can only be 3, 4, 6, 7, 8, 9, J, Q, K, or A.",
+            message="Joker can only be 3, 4, 6, 7, 8, 9, J, K, Q, or A.",
         )
 
 
