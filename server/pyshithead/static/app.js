@@ -949,7 +949,7 @@ function seatPositionClass(snapshot, player) {
     1: ["seat-bottom"],
     2: ["seat-bottom", "seat-top"],
     3: ["seat-bottom", "seat-top-left", "seat-top-right"],
-    4: ["seat-bottom", "seat-left", "seat-top", "seat-right"],
+    4: ["seat-bottom", "seat-top-left", "seat-top", "seat-top-right"],
   };
   return layouts[snapshot.players.length]?.[relativeIndex] || "seat-top";
 }
@@ -1085,7 +1085,7 @@ function renderPilePreview(playPile) {
 }
 
 function renderDeckPreview(cardsInDeck) {
-  const visibleCards = Math.min(Math.max(cardsInDeck, 1), 3);
+  const visibleCards = Math.min(cardsInDeck, 3);
   return `
     <div class="deck-stack" aria-hidden="true">
       ${Array.from({ length: visibleCards }, (_, index) => `
@@ -1118,11 +1118,27 @@ function displayedDeckCount(snapshot) {
 }
 
 function isMobileActiveGameLayout(snapshot = state.snapshot?.data) {
-  return Boolean(snapshot) && snapshot.status !== "GAME_OVER" && window.innerWidth < 720;
+  return Boolean(snapshot) && snapshot.status !== "GAME_OVER";
 }
 
 function isMobileLobbyLayout(snapshot = state.snapshot?.data) {
-  return isMobileActiveGameLayout(snapshot) && snapshot.status === "LOBBY";
+  return Boolean(snapshot) && snapshot.status === "LOBBY";
+}
+
+function tableLayoutVariant(snapshot = state.snapshot?.data) {
+  if (!isMobileActiveGameLayout(snapshot)) {
+    return "balanced";
+  }
+  const viewportWidth = window.innerWidth || 390;
+  const viewportHeight = Math.max(window.innerHeight || 844, 1);
+  const aspectRatio = viewportWidth / viewportHeight;
+  if (aspectRatio < 0.52) {
+    return "tall";
+  }
+  if (aspectRatio > 0.68) {
+    return "wide";
+  }
+  return "balanced";
 }
 
 function handLayout(snapshot) {
@@ -1234,12 +1250,8 @@ function renderLanding() {
     ${state.error && !showSavedSessionCard ? `<section class="panel error">${escapeHtml(state.error)}</section>` : ""}
     <section class="panel alpha-note stack">
       <h2>Alpha notice</h2>
-      <p class="muted">
-        This release is running as a small public alpha. Keep the tab open while you play.
-      </p>
-      <p class="muted">
-        Live games can reset after a deploy, restart, or idle spin-down on the hosting service.
-      </p>
+      <p class="muted">Keep the tab open while you play.</p>
+      <p class="muted">Live games can reset after a deploy, restart, or a long period of inactivity.</p>
     </section>
     <section class="grid-two">
       <article class="panel stack">
@@ -1524,21 +1536,11 @@ function renderRulesMenu() {
 function renderTable(snapshot) {
   const self = me();
   const isHost = self && self.is_host;
-  const activeTurnName = snapshot.current_turn_display_name || turnPlayer()?.display_name || null;
-  const winningPlayer = winner();
   const showLobbyControls = snapshot.status === "LOBBY";
   const showMobileLobbyLayout = isMobileLobbyLayout(snapshot);
   const sortedPlayers = [...snapshot.players].sort(
     (left, right) => relativeSeatIndex(snapshot, left) - relativeSeatIndex(snapshot, right),
   );
-
-  let turnHeadline = "Waiting in lobby";
-  let turnCopy = currentPrompt(snapshot);
-  if (snapshot.status === "GAME_OVER") {
-    turnHeadline = `${winningPlayer?.display_name || "A player"} won`;
-  } else if (snapshot.game_state) {
-    turnHeadline = isMyTurn() ? "Your turn" : `${activeTurnName} is up`;
-  }
 
   const lobbyControls = showLobbyControls ? `
     <button
@@ -1561,11 +1563,6 @@ function renderTable(snapshot) {
 
   return `
     <section class="panel table-stage stack">
-      ${showLobbyControls && !showMobileLobbyLayout ? `
-        <div class="controls">
-          ${lobbyControls}
-        </div>
-      ` : ""}
       ${showMobileLobbyLayout && state.error ? `<div class="dock-error">${escapeHtml(state.error)}</div>` : ""}
       <div class="table-map">
         ${showMobileLobbyLayout ? `
@@ -1577,13 +1574,6 @@ function renderTable(snapshot) {
         ${sortedPlayers.map((player) => renderSeat(snapshot, player)).join("")}
         ${renderTurnToast(snapshot)}
         <div class="table-center">
-          ${!isMobileActiveGameLayout(snapshot) ? `
-            <div class="turn-banner">
-              <span class="section-title">Turn</span>
-              <strong>${escapeHtml(turnHeadline)}</strong>
-              <span class="muted">${escapeHtml(turnCopy)}</span>
-            </div>
-          ` : ""}
           ${snapshot.status === "LOBBY" && !isHost ? `
             <div class="event-box">
               <span>Waiting for host to start the game.</span>
@@ -1630,6 +1620,7 @@ function renderApp() {
     "game-screen",
     `players-${snapshot.players.length}`,
     isMobileActiveGameLayout(snapshot) ? "mobile-one-screen" : "",
+    isMobileActiveGameLayout(snapshot) ? `layout-${tableLayoutVariant(snapshot)}` : "",
   ]
     .filter(Boolean)
     .join(" ");

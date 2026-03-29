@@ -25,7 +25,7 @@ class Game:
         self,
         players: list[Player],
         deck: PileOfCards,
-        play_pile: PileOfCards = PileOfCards(),
+        play_pile: PileOfCards | None = None,
         game_id: int = 1,
         state: GameState = GameState.PLAYERS_CHOOSE_PUBLIC_CARDS,
     ):
@@ -35,7 +35,7 @@ class Game:
         self.ranking: list[Player] = []
         self.valid_ranks: set[int] = self.__all_cards_valid()
         self.game_id: int = game_id
-        self.play_pile: PileOfCards = play_pile
+        self.play_pile: PileOfCards = play_pile if play_pile is not None else PileOfCards()
         self.deck: PileOfCards = deck
         self.state: GameState = state
 

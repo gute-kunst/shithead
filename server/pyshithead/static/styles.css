@@ -80,18 +80,6 @@ button {
   font-size: 1rem;
 }
 
-.hero-note {
-  margin: 0.85rem 0 0;
-  max-width: 40rem;
-  padding: 0.9rem 1rem;
-  border-radius: 18px;
-  background: rgba(216, 91, 50, 0.12);
-  border: 1px solid rgba(125, 40, 19, 0.15);
-  color: var(--accent-deep);
-  font-size: 0.94rem;
-  font-weight: 600;
-}
-
 .app-root {
   display: grid;
   gap: 1rem;
@@ -328,6 +316,11 @@ button {
   right: 0.35rem;
   top: 50%;
   transform: translateY(-50%);
+}
+
+.seat-bottom-left {
+  left: 0.35rem;
+  bottom: 1.35rem;
 }
 
 .seat-header {
@@ -1425,28 +1418,146 @@ body.game-active-mobile .players-4 .seat-panel {
 }
 
 body.game-active-mobile .players-4 .seat-top {
-  top: 0.35rem;
+  top: 0.55rem;
+}
+
+body.game-active-mobile .players-4 .seat-top-left,
+body.game-active-mobile .players-4 .seat-top-right {
+  top: 1.15rem;
 }
 
 body.game-active-mobile:not(.game-started-mobile) .players-4 .seat-top {
   top: 4.1rem;
 }
 
-body.game-active-mobile .players-4 .seat-left,
-body.game-active-mobile .players-4 .seat-right {
-  top: 57%;
+body.game-active-mobile:not(.game-started-mobile) .players-4 .seat-top-left,
+body.game-active-mobile:not(.game-started-mobile) .players-4 .seat-top-right {
+  top: 4.7rem;
 }
 
-body.game-active-mobile .players-4 .seat-left {
-  left: 0.12rem;
+body.game-active-mobile .players-4 .seat-top-left {
+  left: 0.1rem;
 }
 
-body.game-active-mobile .players-4 .seat-right {
-  right: 0.12rem;
+body.game-active-mobile .players-4 .seat-top {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+body.game-active-mobile .players-4 .seat-top-right {
+  right: 0.1rem;
 }
 
 body.game-active-mobile .players-4 .seat-bottom {
   bottom: 0.18rem;
+}
+
+body.game-active-mobile .game-screen.layout-tall.players-3 .seat-top-left,
+body.game-active-mobile .game-screen.layout-tall.players-3 .seat-top-right {
+  top: 0.8rem;
+}
+
+body.game-active-mobile:not(.game-started-mobile) .game-screen.layout-tall.players-3 .seat-top-left,
+body.game-active-mobile:not(.game-started-mobile) .game-screen.layout-tall.players-3 .seat-top-right {
+  top: 4.35rem;
+}
+
+body.game-active-mobile .game-screen.layout-tall.players-3 .seat-top-left {
+  left: 0.18rem;
+}
+
+body.game-active-mobile .game-screen.layout-tall.players-3 .seat-top-right {
+  right: 0.18rem;
+}
+
+body.game-active-mobile .game-screen.layout-wide.players-3 .seat-panel {
+  width: min(8.9rem, 29vw);
+}
+
+body.game-active-mobile .game-screen.layout-wide.players-3 .seat-top-left,
+body.game-active-mobile .game-screen.layout-wide.players-3 .seat-top-right {
+  top: 0.3rem;
+}
+
+body.game-active-mobile:not(.game-started-mobile) .game-screen.layout-wide.players-3 .seat-top-left,
+body.game-active-mobile:not(.game-started-mobile) .game-screen.layout-wide.players-3 .seat-top-right {
+  top: 3.95rem;
+}
+
+body.game-active-mobile .game-screen.layout-wide.players-3 .seat-top-left {
+  left: 0.42rem;
+}
+
+body.game-active-mobile .game-screen.layout-wide.players-3 .seat-top-right {
+  right: 0.42rem;
+}
+
+body.game-active-mobile .game-screen.layout-wide.players-3 .seat-bottom {
+  bottom: 0.28rem;
+}
+
+body.game-active-mobile .game-screen.layout-tall.players-4 .seat-panel {
+  width: min(7.85rem, 33vw);
+}
+
+body.game-active-mobile .game-screen.layout-tall.players-4 .seat-top {
+  top: 0.7rem;
+}
+
+body.game-active-mobile:not(.game-started-mobile) .game-screen.layout-tall.players-4 .seat-top {
+  top: 4.25rem;
+}
+
+body.game-active-mobile .game-screen.layout-tall.players-4 .seat-top-left,
+body.game-active-mobile .game-screen.layout-tall.players-4 .seat-top-right {
+  top: 6rem;
+}
+
+body.game-active-mobile:not(.game-started-mobile) .game-screen.layout-tall.players-4 .seat-top-left,
+body.game-active-mobile:not(.game-started-mobile) .game-screen.layout-tall.players-4 .seat-top-right {
+  top: 4.9rem;
+}
+
+body.game-active-mobile .game-screen.layout-tall.players-4 .seat-top-left {
+  left: 0.18rem;
+}
+
+body.game-active-mobile .game-screen.layout-tall.players-4 .seat-top-right {
+  right: 0.18rem;
+}
+
+body.game-active-mobile .game-screen.layout-wide.players-4 .seat-panel {
+  width: min(8.85rem, 29vw);
+}
+
+body.game-active-mobile .game-screen.layout-wide.players-4 .seat-top {
+  top: 0.25rem;
+}
+
+body.game-active-mobile:not(.game-started-mobile) .game-screen.layout-wide.players-4 .seat-top {
+  top: 3.85rem;
+}
+
+body.game-active-mobile .game-screen.layout-wide.players-4 .seat-top-left,
+body.game-active-mobile .game-screen.layout-wide.players-4 .seat-top-right {
+  top: 0.95rem;
+}
+
+body.game-active-mobile:not(.game-started-mobile) .game-screen.layout-wide.players-4 .seat-top-left,
+body.game-active-mobile:not(.game-started-mobile) .game-screen.layout-wide.players-4 .seat-top-right {
+  top: 4.55rem;
+}
+
+body.game-active-mobile .game-screen.layout-wide.players-4 .seat-top-left {
+  left: 0.45rem;
+}
+
+body.game-active-mobile .game-screen.layout-wide.players-4 .seat-top-right {
+  right: 0.45rem;
+}
+
+body.game-active-mobile .game-screen.layout-wide.players-4 .seat-bottom {
+  bottom: 0.26rem;
 }
 
 body.game-active-mobile .table-center {
@@ -1749,45 +1860,55 @@ body.game-active-mobile .hand-layout-scroll .hand-fan {
     padding: 1.3rem 1.4rem calc(5rem + env(safe-area-inset-bottom));
   }
 
+  body.game-active-mobile .page-shell {
+    width: min(100%, 35rem);
+    height: 100dvh;
+    padding: calc(0.8rem + env(safe-area-inset-top)) 0.85rem calc(0.9rem + env(safe-area-inset-bottom));
+  }
+
+  body.game-active-mobile .app-root {
+    max-width: 100%;
+  }
+
   .grid-two {
     grid-template-columns: 1fr 1fr;
   }
 
-  .table-map {
+  body:not(.game-active-mobile) .table-map {
     min-height: 31rem;
   }
 
-  .seat-panel {
+  body:not(.game-active-mobile) .seat-panel {
     width: 11.5rem;
   }
 
-  .seat-top-left {
+  body:not(.game-active-mobile) .seat-top-left {
     left: 1rem;
     top: 1.25rem;
   }
 
-  .seat-top-right {
+  body:not(.game-active-mobile) .seat-top-right {
     right: 1rem;
     top: 1.25rem;
   }
 
-  .seat-left {
+  body:not(.game-active-mobile) .seat-left {
     left: 1rem;
   }
 
-  .seat-right {
+  body:not(.game-active-mobile) .seat-right {
     right: 1rem;
   }
 
-  .table-center {
+  body:not(.game-active-mobile) .table-center {
     width: 19rem;
   }
 
-  .hand-fan {
+  body:not(.game-active-mobile) .hand-fan {
     justify-content: center;
   }
 
-  .hand-fan .card {
+  body:not(.game-active-mobile) .hand-fan .card {
     margin-left: -0.95rem;
   }
 }

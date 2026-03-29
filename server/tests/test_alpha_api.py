@@ -143,6 +143,25 @@ def test_start_game_and_reconnect_with_same_token():
                 assert guest_after_reconnect["is_connected"] is True
 
 
+def test_fresh_started_game_has_empty_play_pile_during_public_card_selection():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+
+        started = start_game(client, host["invite_code"], host["player_token"])
+
+        assert started["data"]["status"] == "IN_GAME"
+        assert started["data"]["game_state"] == "PLAYERS_CHOOSE_PUBLIC_CARDS"
+        assert started["data"]["play_pile"] == []
+
+        state = client.get(f"/api/games/{host['invite_code']}")
+        assert state.status_code == 200
+        snapshot = state.json()["data"]
+        assert snapshot["game_state"] == "PLAYERS_CHOOSE_PUBLIC_CARDS"
+        assert snapshot["play_pile"] == []
+
+
 def test_restore_returns_player_scoped_private_state():
     session_manager.sessions.clear()
     with TestClient(app, base_url="http://localhost") as client:

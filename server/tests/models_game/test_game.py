@@ -109,6 +109,19 @@ def test_game_last_player_chose_cards(game_with_two_players_start: Game):
     assert game.state == GameState.DURING_GAME
 
 
+def test_games_do_not_share_play_pile(two_players, three_players):
+    first_game = Game.initialize(two_players)
+    second_game = Game.initialize(three_players)
+
+    assert first_game.play_pile is not second_game.play_pile
+
+    leaked_card = Card(9, Suit.HEART)
+    first_game.play_pile.put([leaked_card])
+
+    assert first_game.play_pile.cards == [leaked_card]
+    assert second_game.play_pile.cards == []
+
+
 def test_game_hidden_move(game_hidden_move: Game):
     players: list[Player] = game_hidden_move.active_players.get_ordered_list()
     req = HiddenCardRequest(players[0])

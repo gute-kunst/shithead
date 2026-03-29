@@ -4,9 +4,9 @@ from pyshithead.models.game import Card, SpecialRank
 
 
 class PileOfCards:
-    def __init__(self, cards: list[Card] = []):  # pylint: disable=dangerous-default-value
+    def __init__(self, cards: list[Card] | None = None):
         self.cards: list[Card] = []
-        for card in cards:
+        for card in cards or []:
             self.cards.append(card)
 
     def shuffle(self):
