@@ -380,6 +380,12 @@ function syncJokerSelection() {
     return;
   }
 
+  if (canChoosePublicCards()) {
+    state.jokerRank = null;
+    state.highLowChoice = "";
+    return;
+  }
+
   if (selectedHasJoker()) {
     const nonJokerRank = selectedNonJokerRank();
     if (nonJokerRank !== null) {
@@ -1171,6 +1177,11 @@ function renderActions(snapshot) {
   const selectedIds = new Set(state.selectedCards.map((card) => cardId(card)));
   const pendingCard = pendingJokerCard();
   const pendingJoker = hasPendingJokerSelection();
+  const allowJokerDefinition = pendingJoker || (
+    currentGameState() === "DURING_GAME"
+    && isMyTurn()
+    && selectedHasJoker()
+  );
   const jokerChoices = pendingJoker ? jokerOptions(snapshot, [pendingCard]) : jokerOptions(snapshot);
   const currentPlayRank = pendingJoker ? state.jokerRank : playRank();
   const showHighLowChoice = currentPlayRank === snapshot.rules.high_low_rank;
@@ -1219,7 +1230,7 @@ function renderActions(snapshot) {
         </div>
       `}
       <div class="actions">
-        ${(pendingJoker || selectedHasJoker()) ? `
+        ${allowJokerDefinition ? `
           <div class="choice-block">
             <strong class="choice-title">${pendingJoker ? "Choose the revealed joker" : "Choose the joker rank"}</strong>
             <div class="joker-choice-row">
