@@ -3,6 +3,10 @@ import re
 import pytest
 from playwright.sync_api import expect
 
+from pyshithead.main import session_manager
+from pyshithead.models.game import Card, PileOfCards, SetOfCards, Suit
+from pyshithead.models.session.models import ActionRequest
+
 pytestmark = pytest.mark.browser
 
 
@@ -121,6 +125,44 @@ def test_multiplayer_lobby_start_public_selection_and_refresh_reconnect(
     )
 
 
+def test_lobby_optional_take_setting_syncs_and_shows_take_pile_action(live_server, browser_factory):
+    host_page = open_page(browser_factory(), live_server)
+    create_table(host_page, "Host")
+    invite_code = extract_invite_code(host_page)
+
+    guest_page = open_page(browser_factory(), live_server)
+    join_table(guest_page, invite_code, "Guest")
+
+    host_toggle = host_page.locator("#toggle-optional-take-pile")
+    guest_indicator = guest_page.locator(".lobby-setting-indicator")
+
+    expect(host_toggle).to_have_attribute("aria-checked", "false")
+    expect(guest_indicator).to_contain_text("Off")
+
+    host_toggle.click()
+
+    expect(host_toggle).to_have_attribute("aria-checked", "true")
+    expect(guest_page.locator(".lobby-setting-indicator")).to_contain_text("On")
+
+    host_page.locator("#start-game").click()
+    choose_public_cards(host_page)
+    choose_public_cards(guest_page)
+    wait_until_public_selection_finished(host_page)
+    wait_until_public_selection_finished(guest_page)
+
+    session = session_manager.get_session(invite_code)
+    game = session.game_manager.game
+    game.play_pile = PileOfCards([Card(9, Suit.HEART)])
+    game.valid_ranks = {9}
+    host_player = game.get_player(0)
+    host_player.private_cards = SetOfCards([Card(9, Suit.CLOVERS)])
+
+    host_page.reload(wait_until="networkidle")
+
+    expect(host_page.locator("#take-pile-overlay")).to_be_visible()
+    expect(host_page.locator(".dock-prompt")).to_contain_text("take the pile")
+
+
 def test_service_worker_registers_and_reload_keeps_app_usable(live_server, browser_factory):
     page = open_page(browser_factory(), live_server)
 
@@ -136,3 +178,41 @@ def test_service_worker_registers_and_reload_keeps_app_usable(live_server, brows
     )
     expect(page.locator("[data-landing-bucket='join']")).to_have_attribute("aria-expanded", "false")
     expect(page.locator("#open-rules-menu")).to_be_visible()
+
+
+def test_hidden_card_reveal_is_public_and_forces_take_pile(live_server, browser_factory):
+    host_page = open_page(browser_factory(), live_server)
+    create_table(host_page, "Host")
+    invite_code = extract_invite_code(host_page)
+
+    guest_page = open_page(browser_factory(), live_server)
+    join_table(guest_page, invite_code, "Guest")
+
+    host_page.locator("#start-game").click()
+    choose_public_cards(host_page)
+    choose_public_cards(guest_page)
+    wait_until_public_selection_finished(host_page)
+    wait_until_public_selection_finished(guest_page)
+
+    session = session_manager.get_session(invite_code)
+    game = session.game_manager.game
+    game.deck = PileOfCards()
+    game.play_pile = PileOfCards([Card(9, Suit.HEART)])
+    game.valid_ranks = {10, 11, 12}
+    host_player = game.get_player(0)
+    guest_player = game.get_player(1)
+    host_player.private_cards = SetOfCards()
+    host_player.public_cards = SetOfCards()
+    host_player.hidden_cards = SetOfCards([Card(4, Suit.CLOVERS)])
+    guest_player.private_cards = SetOfCards([Card(12, Suit.HEART)])
+    guest_player.public_cards = SetOfCards()
+    session.apply_action(
+        session.get_player_by_seat(0).token, ActionRequest(type="play_hidden_card")
+    )
+
+    host_page.reload(wait_until="networkidle")
+    guest_page.reload(wait_until="networkidle")
+
+    expect(host_page.locator(".dock-prompt")).to_contain_text("Take the pile")
+    expect(host_page.locator(".pile-preview")).to_contain_text("4")
+    expect(guest_page.locator(".pile-preview")).to_contain_text("4")

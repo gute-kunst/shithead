@@ -16,6 +16,7 @@ from pyshithead.models.game import (
     PlayEvents,
     PlayRequest,
     PrivateCardsRequest,
+    RevealedCardsRequest,
     Suit,
     TakePlayPileRequest,
 )
@@ -57,16 +58,36 @@ class Game:
 
     def process_hidden_card(self, req: HiddenCardRequest):
         req.validate_player_and_state(self.get_player(), self.state)
-        req.process()
+        return req.process()
 
-    def process_playrequest(self, req: PlayRequest):
+    def process_revealed_request(self, req: RevealedCardsRequest, already_on_pile: bool = False):
+        req.validate_player_and_state(self.get_player(), self.state)
+        req.validate_cards_eligible(self.valid_ranks)
+        events = req.process(self.play_pile, already_on_pile=already_on_pile)
+        events.process(self.play_pile, self.active_players, self.valid_ranks, self.ranking)
+        self.check_for_game_over()
+
+    def process_playrequest(
+        self,
+        req: PlayRequest,
+        allow_when_hidden_available: bool = False,
+        allow_optional_take: bool = False,
+    ):
         req.validate_player_and_state(self.get_player(), self.state)
         if isinstance(req, PrivateCardsRequest):
             req.validate_cards_eligible(self.valid_ranks)
             events: PlayEvents = req.process(self.play_pile, self.deck)
+        elif isinstance(req, RevealedCardsRequest):
+            req.validate_cards_eligible(self.valid_ranks)
+            events = req.process(self.play_pile)
 
-        if isinstance(req, TakePlayPileRequest):
-            req.validate(valid_ranks=self.valid_ranks)
+        elif isinstance(req, TakePlayPileRequest):
+            req.validate(
+                valid_ranks=self.valid_ranks,
+                allow_when_hidden_available=allow_when_hidden_available,
+                allow_optional_take=allow_optional_take,
+                pile_is_empty=self.play_pile.is_empty(),
+            )
             events = req.process(self.play_pile)
 
         events.process(self.play_pile, self.active_players, self.valid_ranks, self.ranking)

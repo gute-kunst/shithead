@@ -3,6 +3,7 @@ start server with
 uvicorn pyshithead.main:app --reload
 """
 
+import json
 import logging
 from pathlib import Path
 
@@ -21,110 +22,174 @@ from pyshithead.models.session import (
     SessionAuthResponse,
     SessionSnapshotEvent,
     StartGameRequest,
+    UpdateSettingsRequest,
 )
 
 app = FastAPI()
 
 logger = logging.getLogger(__name__)
 
-session_manager = GameSessionManager()
 STATIC_DIR = Path(__file__).resolve().parent / "static"
-
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+SESSION_STORAGE_KEY = "shithead.alpha.session"
+STATIC_ASSET_VERSION = "20260330c"
 
 
 def _http_error(err: ValueError) -> HTTPException:
     return HTTPException(status_code=400, detail=str(err))
 
 
-@app.get("/", response_class=HTMLResponse)
-async def read_main():
-    return FileResponse(STATIC_DIR / "index.html")
+def create_app(
+    *,
+    session_manager: GameSessionManager | None = None,
+    enable_debug_bootstrap: bool = False,
+) -> FastAPI:
+    managed_sessions = session_manager or GameSessionManager()
+    app = FastAPI()
+    app.state.session_manager = managed_sessions
+    app.state.debug_bootstrap_enabled = enable_debug_bootstrap
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+    @app.get("/", response_class=HTMLResponse)
+    async def read_main():
+        return FileResponse(STATIC_DIR / "index.html")
 
-@app.get("/healthz")
-async def healthcheck():
-    return {"ok": True}
+    @app.get("/healthz")
+    async def healthcheck():
+        return {"ok": True}
 
+    if enable_debug_bootstrap:
 
-@app.post("/api/games", response_model=SessionAuthResponse)
-async def create_game(payload: CreateGameRequest):
-    try:
-        session = session_manager.create_session(payload.display_name)
-    except ValueError as err:
-        raise _http_error(err) from err
-    return session.auth_response(session.get_player_by_token(session.host_token))
-
-
-@app.post("/api/games/{invite_code}/join", response_model=SessionAuthResponse)
-async def join_game(invite_code: str, payload: JoinGameRequest):
-    try:
-        session = session_manager.get_session(invite_code)
-        player = session.join(payload.display_name)
-    except ValueError as err:
-        raise _http_error(err) from err
-    await session.broadcast_snapshot()
-    return session.auth_response(player)
-
-
-@app.post("/api/games/{invite_code}/start", response_model=SessionSnapshotEvent)
-async def start_game(invite_code: str, payload: StartGameRequest):
-    try:
-        session = session_manager.get_session(invite_code)
-        session.start(payload.player_token)
-    except ValueError as err:
-        raise _http_error(err) from err
-    await session.broadcast_full_state()
-    return SessionSnapshotEvent(data=session.build_snapshot())
-
-
-@app.post("/api/games/{invite_code}/restore", response_model=SessionAuthResponse)
-async def restore_game(invite_code: str, payload: RestoreSessionRequest):
-    try:
-        session = session_manager.get_session(invite_code)
-    except ValueError as err:
-        raise HTTPException(status_code=404, detail=str(err)) from err
-
-    try:
-        player = session.get_player_by_token(payload.player_token)
-    except ValueError as err:
-        raise HTTPException(status_code=401, detail=str(err)) from err
-
-    return session.auth_response(player)
-
-
-@app.get("/api/games/{invite_code}", response_model=SessionSnapshotEvent)
-async def get_game(invite_code: str):
-    try:
-        session = session_manager.get_session(invite_code)
-    except ValueError as err:
-        raise HTTPException(status_code=404, detail=str(err)) from err
-    return SessionSnapshotEvent(data=session.build_snapshot())
-
-
-@app.websocket("/api/games/{invite_code}/ws")
-async def session_websocket(websocket: WebSocket, invite_code: str, token: str):
-    try:
-        session = session_manager.get_session(invite_code)
-        await session.connect(token, websocket)
-    except ValueError as err:
-        logger.info("Rejected websocket connection for invite %s: %s", invite_code, err)
-        await websocket.close(code=1008)
-        return
-
-    try:
-        while True:
-            data = await websocket.receive_json()
-            action = ActionRequest(**data)
+        @app.get("/debug/session", response_class=HTMLResponse)
+        async def debug_session_bootstrap(invite: str, token: str):
             try:
-                session.apply_action(token, action)
-                await session.broadcast_full_state()
-            except (PyshitheadError, ValueError) as err:
-                message = getattr(err, "message", str(err))
-                await session.send_error(token, message)
-                await session.send_full_state(session.get_player_by_token(token))
-    except WebSocketDisconnect:
-        await session.disconnect(token)
+                session = managed_sessions.get_session(invite)
+                player = session.get_player_by_token(token)
+            except ValueError as err:
+                raise HTTPException(status_code=404, detail=str(err)) from err
+            payload = {
+                "inviteCode": session.invite_code,
+                "playerToken": player.token,
+                "seat": player.seat,
+                "displayName": player.display_name,
+            }
+            payload_json = json.dumps(payload)
+            return HTMLResponse(
+                f"""<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#11231f" />
+    <title>Shithead Debug</title>
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/static/icons/icon-180.png" />
+    <link rel="manifest" href="/static/manifest.webmanifest?v={STATIC_ASSET_VERSION}" />
+    <link rel="stylesheet" href="/static/styles.css?v={STATIC_ASSET_VERSION}" />
+  </head>
+  <body>
+    <script>
+      localStorage.setItem({json.dumps(SESSION_STORAGE_KEY)}, JSON.stringify({payload_json}));
+    </script>
+    <div class="page-shell">
+      <main id="app" class="app-root"></main>
+    </div>
+    <script src="/static/app.js?v={STATIC_ASSET_VERSION}" defer></script>
+  </body>
+</html>"""
+            )
+
+    @app.post("/api/games", response_model=SessionAuthResponse)
+    async def create_game(payload: CreateGameRequest):
+        try:
+            session = managed_sessions.create_session(payload.display_name)
+        except ValueError as err:
+            raise _http_error(err) from err
+        return session.auth_response(session.get_player_by_token(session.host_token))
+
+    @app.post("/api/games/{invite_code}/join", response_model=SessionAuthResponse)
+    async def join_game(invite_code: str, payload: JoinGameRequest):
+        try:
+            session = managed_sessions.get_session(invite_code)
+            player = session.join(payload.display_name)
+        except ValueError as err:
+            raise _http_error(err) from err
+        await session.broadcast_snapshot()
+        return session.auth_response(player)
+
+    @app.post("/api/games/{invite_code}/start", response_model=SessionSnapshotEvent)
+    async def start_game(invite_code: str, payload: StartGameRequest):
+        try:
+            session = managed_sessions.get_session(invite_code)
+            session.start(payload.player_token)
+        except ValueError as err:
+            raise _http_error(err) from err
+        await session.broadcast_full_state()
+        return SessionSnapshotEvent(data=session.build_snapshot())
+
+    @app.post("/api/games/{invite_code}/settings", response_model=SessionSnapshotEvent)
+    async def update_game_settings(invite_code: str, payload: UpdateSettingsRequest):
+        try:
+            session = managed_sessions.get_session(invite_code)
+            session.update_settings(
+                payload.player_token,
+                allow_optional_take_pile=payload.allow_optional_take_pile,
+            )
+        except ValueError as err:
+            raise _http_error(err) from err
+        await session.broadcast_snapshot()
+        return SessionSnapshotEvent(data=session.build_snapshot())
+
+    @app.post("/api/games/{invite_code}/restore", response_model=SessionAuthResponse)
+    async def restore_game(invite_code: str, payload: RestoreSessionRequest):
+        try:
+            session = managed_sessions.get_session(invite_code)
+        except ValueError as err:
+            raise HTTPException(status_code=404, detail=str(err)) from err
+
+        try:
+            player = session.get_player_by_token(payload.player_token)
+        except ValueError as err:
+            raise HTTPException(status_code=401, detail=str(err)) from err
+
+        return session.auth_response(player)
+
+    @app.get("/api/games/{invite_code}", response_model=SessionSnapshotEvent)
+    async def get_game(invite_code: str):
+        try:
+            session = managed_sessions.get_session(invite_code)
+        except ValueError as err:
+            raise HTTPException(status_code=404, detail=str(err)) from err
+        return SessionSnapshotEvent(data=session.build_snapshot())
+
+    @app.websocket("/api/games/{invite_code}/ws")
+    async def session_websocket(websocket: WebSocket, invite_code: str, token: str):
+        try:
+            session = managed_sessions.get_session(invite_code)
+            await session.connect(token, websocket)
+        except ValueError as err:
+            logger.info("Rejected websocket connection for invite %s: %s", invite_code, err)
+            await websocket.close(code=1008)
+            return
+
+        try:
+            while True:
+                data = await websocket.receive_json()
+                action = ActionRequest(**data)
+                try:
+                    session.apply_action(token, action)
+                    await session.broadcast_full_state()
+                except (PyshitheadError, ValueError) as err:
+                    message = getattr(err, "message", str(err))
+                    await session.send_error(token, message)
+                    await session.send_full_state(session.get_player_by_token(token))
+        except WebSocketDisconnect:
+            await session.disconnect(token)
+
+    return app
+
+
+session_manager = GameSessionManager()
+app = create_app(session_manager=session_manager)
 
 
 if __name__ == "__main__":

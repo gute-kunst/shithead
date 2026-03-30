@@ -3,23 +3,24 @@ from pytest_lazyfixture import lazy_fixture
 
 from pyshithead.models.game import (
     ALL_RANKS,
+    JOKER_RANK,
     BurnEvent,
     Card,
     Choice,
     ChoosePublicCardsRequest,
     GameState,
     HiddenCardRequest,
-    JOKER_RANK,
     NextPlayerEvent,
     PileOfCards,
     Player,
     PrivateCardsRequest,
     RankEvent,
     RankType,
+    RevealedCardsRequest,
     SetOfCards,
     SpecialRank,
-    TakePlayPileRequest,
     Suit,
+    TakePlayPileRequest,
 )
 from pyshithead.models.game.errors import *
 
@@ -75,6 +76,83 @@ def test_hiddencardrequest_validate(three_more_other_cards):
         HiddenCardRequest(player)
     except NotEligibleForHiddenCardPlayError as error:
         assert False, error.message
+
+
+def test_hiddencardrequest_process_reveals_card_without_putting_it_in_hand(three_more_other_cards):
+    player = Player(1)
+    player.hidden_cards = SetOfCards(three_more_other_cards)
+
+    request = HiddenCardRequest(player)
+    revealed_card = request.process()
+
+    assert SetOfCards([revealed_card]) not in player.hidden_cards
+    assert SetOfCards([revealed_card]) not in player.private_cards
+
+
+def test_takeplaypilerequest_validate_allows_forced_take_with_hidden_cards(
+    player: Player, card_4p: Card, valid_all, three_more_other_cards
+):
+    player.hidden_cards = SetOfCards(three_more_other_cards)
+    play_pile = PileOfCards([card_4p])
+    valid_ranks = RankEvent(RankType.TOPRANK, card_4p.rank).get_valid_ranks(valid_all)
+    request = TakePlayPileRequest(player)
+
+    request.validate(valid_ranks, allow_when_hidden_available=True)
+    request.process(play_pile)
+
+    assert len(player.private_cards) == 1
+    assert play_pile.is_empty()
+
+
+def test_takeplaypilerequest_validate_allows_optional_take_with_playable_card(
+    player: Player, card_4p: Card, valid_all
+):
+    player.private_cards.put([Card(card_4p.rank, Suit.HEART)])
+    play_pile = PileOfCards([card_4p])
+    valid_ranks = RankEvent(RankType.TOPRANK, card_4p.rank).get_valid_ranks(valid_all)
+    request = TakePlayPileRequest(player)
+
+    request.validate(valid_ranks, allow_optional_take=True)
+    request.process(play_pile)
+
+    assert len(player.private_cards) == 2
+    assert play_pile.is_empty()
+
+
+def test_takeplaypilerequest_validate_allows_optional_take_before_hidden_reveal(
+    player: Player, card_4p: Card, valid_all, three_more_other_cards
+):
+    player.hidden_cards = SetOfCards(three_more_other_cards)
+    play_pile = PileOfCards([card_4p])
+    valid_ranks = RankEvent(RankType.TOPRANK, card_4p.rank).get_valid_ranks(valid_all)
+    request = TakePlayPileRequest(player)
+
+    request.validate(valid_ranks, allow_optional_take=True)
+    request.process(play_pile)
+
+    assert len(player.private_cards) == 1
+    assert play_pile.is_empty()
+
+
+def test_takeplaypilerequest_validate_rejects_optional_take_when_pile_empty(
+    player: Player, valid_all
+):
+    request = TakePlayPileRequest(player)
+
+    with pytest.raises(TakePlayPileNotAllowedError):
+        request.validate(valid_all, allow_optional_take=True, pile_is_empty=True)
+
+
+def test_revealedcardsrequest_process_places_card_on_pile_without_touching_hand(player: Player):
+    revealed_card = Card(6, Suit.HEART)
+    request = RevealedCardsRequest(player, [revealed_card])
+    play_pile = PileOfCards()
+
+    events = request.process(play_pile)
+
+    assert play_pile.cards == [revealed_card]
+    assert SetOfCards([revealed_card]) not in player.private_cards
+    assert events.rank == RankEvent(RankType.TOPRANK, 6)
 
 
 def test_privatecardsrequest_cards_on_players_hands_false(player: Player, two_cards_equal_rank):

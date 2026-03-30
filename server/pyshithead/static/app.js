@@ -354,6 +354,7 @@ function canPlayHiddenCard() {
   return (
     currentGameState() === "DURING_GAME" &&
     isMyTurn() &&
+    !hasPendingHiddenTake() &&
     self &&
     self.public_cards.length === 0 &&
     self.hidden_cards_count > 0 &&
@@ -375,11 +376,33 @@ function hasPlayablePrivateCard(snapshot = state.snapshot?.data) {
   });
 }
 
+function hasPendingHiddenTake() {
+  return Boolean(state.privateState?.data?.pending_hidden_take);
+}
+
+function optionalTakeRuleEnabled(snapshot = state.snapshot?.data) {
+  return Boolean(snapshot?.rules?.allow_optional_take_pile);
+}
+
+function canOptionallyTakePile(snapshot = state.snapshot?.data) {
+  if (currentGameState() !== "DURING_GAME" || !isMyTurn()) {
+    return false;
+  }
+  if (!optionalTakeRuleEnabled(snapshot) || (snapshot?.play_pile?.length || 0) === 0) {
+    return false;
+  }
+  return !hasPendingJokerSelection() && !hasPendingHiddenTake();
+}
+
 function mustTakePile(snapshot = state.snapshot?.data) {
+  if (currentGameState() !== "DURING_GAME" || !isMyTurn()) {
+    return false;
+  }
+  if (hasPendingHiddenTake()) {
+    return true;
+  }
   return (
-    currentGameState() === "DURING_GAME"
-    && isMyTurn()
-    && privateCards().length > 0
+    privateCards().length > 0
     && !canPlayHiddenCard()
     && !hasPlayablePrivateCard(snapshot)
   );
@@ -780,7 +803,7 @@ function connectWebSocket() {
       render();
     } else if (payload.type === "private_state") {
       state.privateState = payload;
-      if (payload.data.pending_joker_selection) {
+      if (payload.data.pending_joker_selection || payload.data.pending_hidden_take) {
         state.selectedCards = [];
         state.jokerRank = payload.data.pending_joker_card?.effective_rank || null;
         state.highLowChoice = "";
@@ -816,6 +839,24 @@ async function startGame() {
     state.snapshot = response;
     state.error = "";
     syncTurnNotice(response.data);
+    render();
+  } catch (error) {
+    state.error = error.message;
+    render();
+  }
+}
+
+async function updateGameSettings(allowOptionalTakePile) {
+  try {
+    const response = await api(`/api/games/${state.inviteCode}/settings`, {
+      method: "POST",
+      body: JSON.stringify({
+        player_token: state.playerToken,
+        allow_optional_take_pile: allowOptionalTakePile,
+      }),
+    });
+    state.snapshot = response;
+    state.error = "";
     render();
   } catch (error) {
     state.error = error.message;
@@ -1215,7 +1256,10 @@ function currentPrompt(snapshot) {
   }
   if (currentGameState() === "DURING_GAME" && isMyTurn()) {
     if (hasPendingJokerSelection()) {
-      return "Choose which rank the revealed joker should be.";
+      if (isJokerCard(pendingJokerCard())) {
+        return "Choose which rank the revealed joker should be.";
+      }
+      return "Choose how the revealed 7 changes the next player's turn.";
     }
     if (selectedHasJoker() && !state.jokerRank) {
       return "Choose which rank the joker should be before playing.";
@@ -1223,11 +1267,20 @@ function currentPrompt(snapshot) {
     if (playRank() === snapshot.rules.high_low_rank) {
       return "Choose how the 7 changes the next player's turn.";
     }
+    if (hasPendingHiddenTake()) {
+      return "Your revealed hidden card cannot be played. Take the pile.";
+    }
     if (canPlayHiddenCard()) {
-      return "Your hidden cards are live. Take a hidden card.";
+      if (canOptionallyTakePile(snapshot)) {
+        return "Reveal a hidden card or take the pile.";
+      }
+      return "Your hidden cards are live. Reveal a hidden card.";
     }
     if (mustTakePile(snapshot)) {
       return "No legal card to play. Take the pile.";
+    }
+    if (canOptionallyTakePile(snapshot)) {
+      return "Tap matching cards from your hand or take the pile.";
     }
     return "Tap matching cards from your hand.";
   }
@@ -1397,13 +1450,17 @@ function renderActions(snapshot) {
   const selectedIds = new Set(state.selectedCards.map((card) => cardId(card)));
   const pendingCard = pendingJokerCard();
   const pendingJoker = hasPendingJokerSelection();
-  const allowJokerDefinition = pendingJoker || (
+  const pendingRevealedJoker = pendingJoker && isJokerCard(pendingCard);
+  const currentPendingRank = pendingJoker ? cardEffectiveRank(pendingCard) : null;
+  const allowJokerDefinition = pendingRevealedJoker || (
     currentGameState() === "DURING_GAME"
     && isMyTurn()
     && selectedHasJoker()
   );
   const jokerChoices = pendingJoker ? jokerOptions(snapshot, [pendingCard]) : jokerOptions(snapshot);
-  const currentPlayRank = pendingJoker ? state.jokerRank : playRank();
+  const currentPlayRank = pendingJoker
+    ? (pendingRevealedJoker ? state.jokerRank : currentPendingRank)
+    : playRank();
   const showHighLowChoice = currentPlayRank === snapshot.rules.high_low_rank;
   const hasHighLowChoice = ["HIGHER", "LOWER"].includes(state.highLowChoice);
   const turnName = snapshot.current_turn_display_name
@@ -1428,11 +1485,11 @@ function renderActions(snapshot) {
   } else if (pendingJoker) {
     handPrimaryAction = {
       action: "resolve-joker",
-      label: "Play joker",
-      disabled: state.jokerRank === null || (showHighLowChoice && !hasHighLowChoice),
+      label: pendingRevealedJoker ? "Play joker" : "Play revealed card",
+      disabled: (pendingRevealedJoker && state.jokerRank === null) || (showHighLowChoice && !hasHighLowChoice),
     };
   } else if (showHiddenAction) {
-    handPrimaryAction = { action: "play-hidden", label: "Take hidden card", disabled: false };
+    handPrimaryAction = { action: "play-hidden", label: "Reveal hidden card", disabled: false };
   } else if (showPlaySelectedAction) {
     handPrimaryAction = { action: "play-cards", label: "Play cards", disabled: playSelectedDisabled };
   }
@@ -1477,7 +1534,7 @@ function renderActions(snapshot) {
       <div class="actions">
         ${allowJokerDefinition ? `
           <div class="choice-block">
-            <strong class="choice-title">${pendingJoker ? "Choose the revealed joker" : "Choose the joker rank"}</strong>
+            <strong class="choice-title">${pendingRevealedJoker ? "Choose the revealed joker" : "Choose the joker rank"}</strong>
             <div class="joker-choice-row">
               ${jokerChoices.map((rank) => `
                 <button
@@ -1550,7 +1607,7 @@ function renderTurnToast(snapshot) {
 }
 
 function renderPileAction(snapshot) {
-  if (!mustTakePile(snapshot)) {
+  if (!mustTakePile(snapshot) && !canOptionallyTakePile(snapshot)) {
     return "";
   }
 
@@ -1565,6 +1622,10 @@ function renderRulesMenu() {
   if (!state.rulesMenuOpen) {
     return "";
   }
+
+  const optionalTakeRuleCopy = state.snapshot?.data?.rules?.allow_optional_take_pile
+    ? " This table also allows taking the pile voluntarily at the start of your turn."
+    : " Some lobbies may enable taking the pile voluntarily at the start of your turn.";
 
   return `
     <div class="rules-menu-layer">
@@ -1593,7 +1654,7 @@ function renderRulesMenu() {
           </div>
           <div class="rules-block">
             <strong>Turn flow</strong>
-            <p>Play one or more cards of the same rank. If you cannot play, you take the whole play pile. Once your hand is empty, you use public cards, then hidden cards.</p>
+            <p>Play one or more cards of the same rank. If you cannot play, you take the whole play pile. Once your hand is empty, you use public cards, then reveal hidden cards one by one onto the pile.${optionalTakeRuleCopy}</p>
           </div>
           <div class="rules-block">
             <strong>Special cards</strong>
@@ -1609,6 +1670,36 @@ function renderRulesMenu() {
           </div>
         </div>
       </section>
+    </div>
+  `;
+}
+
+function renderLobbySettings(snapshot, isHost) {
+  const enabled = snapshot.rules.allow_optional_take_pile;
+  return `
+    <div class="lobby-setting-card" data-lobby-setting="optional-take-pile">
+      <div class="lobby-setting-copy">
+        <strong>Optional take pile</strong>
+        <span>${isHost ? "Allow taking the pile at the start of a turn." : "Host controls whether players may take the pile voluntarily."}</span>
+      </div>
+      ${isHost ? `
+        <button
+          class="toggle-switch-button ${enabled ? "active" : ""}"
+          id="toggle-optional-take-pile"
+          type="button"
+          role="switch"
+          aria-checked="${enabled ? "true" : "false"}"
+          aria-label="Toggle optional take pile"
+        >
+          <span class="toggle-switch-track" aria-hidden="true">
+            <span class="toggle-switch-knob"></span>
+          </span>
+        </button>
+      ` : `
+        <div class="lobby-setting-indicator ${enabled ? "active" : ""}" aria-label="Optional take pile is ${enabled ? "on" : "off"}">
+          ${enabled ? "On" : "Off"}
+        </div>
+      `}
     </div>
   `;
 }
@@ -1654,6 +1745,7 @@ function renderTable(snapshot) {
         ${sortedPlayers.map((player) => renderSeat(snapshot, player)).join("")}
         ${renderTurnToast(snapshot)}
         <div class="table-center">
+          ${snapshot.status === "LOBBY" ? renderLobbySettings(snapshot, isHost) : ""}
           ${snapshot.status === "LOBBY" && !isHost ? `
             <div class="event-box">
               <span>Waiting for host to start the game.</span>
@@ -1928,6 +2020,13 @@ function wireEvents() {
     });
   }
 
+  const optionalTakeToggle = document.getElementById("toggle-optional-take-pile");
+  if (optionalTakeToggle) {
+    optionalTakeToggle.addEventListener("click", () => {
+      updateGameSettings(optionalTakeToggle.getAttribute("aria-checked") !== "true");
+    });
+  }
+
   const openRulesMenuButton = document.getElementById("open-rules-menu");
   if (openRulesMenuButton) {
     openRulesMenuButton.addEventListener("click", openRulesMenu);
@@ -2016,7 +2115,7 @@ window.addEventListener("orientationchange", () => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/static/sw.js?v=20260329m").then(() => {
+  navigator.serviceWorker.register("/static/sw.js?v=20260330c").then(() => {
     if (navigator.serviceWorker.controller) {
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         window.location.reload();

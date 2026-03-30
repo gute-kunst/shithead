@@ -7,4 +7,5 @@ from .models import (
     SessionAuthResponse,
     SessionSnapshotEvent,
     StartGameRequest,
+    UpdateSettingsRequest,
 )

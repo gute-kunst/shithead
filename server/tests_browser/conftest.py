@@ -16,19 +16,11 @@ def _find_free_port() -> int:
         return sock.getsockname()[1]
 
 
-@pytest.fixture(autouse=True)
-def clear_sessions():
-    session_manager.sessions.clear()
-    yield
-    session_manager.sessions.clear()
-
-
-@pytest.fixture(scope="session")
-def live_server():
+def _start_server(target_app):
     host = "127.0.0.1"
     port = _find_free_port()
     config = uvicorn.Config(
-        app,
+        target_app,
         host=host,
         port=port,
         log_level="warning",
@@ -47,19 +39,47 @@ def live_server():
         try:
             response = httpx.get(f"{base_url}/healthz", timeout=1.0)
             if response.status_code == 200:
-                break
+                return server, thread, base_url
         except httpx.HTTPError as err:
             last_error = err
         time.sleep(0.1)
-    else:
-        server.should_exit = True
-        thread.join(timeout=5)
-        raise RuntimeError(f"Timed out waiting for test server to start: {last_error}")
+
+    server.should_exit = True
+    thread.join(timeout=5)
+    raise RuntimeError(f"Timed out waiting for test server to start: {last_error}")
+
+
+@pytest.fixture(autouse=True)
+def clear_sessions():
+    session_manager.sessions.clear()
+    yield
+    session_manager.sessions.clear()
+
+
+@pytest.fixture(scope="session")
+def live_server():
+    server, thread, base_url = _start_server(app)
 
     yield base_url
 
     server.should_exit = True
     thread.join(timeout=10)
+
+
+@pytest.fixture
+def live_app_server_factory():
+    servers = []
+
+    def factory(target_app):
+        server, thread, base_url = _start_server(target_app)
+        servers.append((server, thread))
+        return base_url
+
+    yield factory
+
+    for server, thread in servers:
+        server.should_exit = True
+        thread.join(timeout=10)
 
 
 @pytest.fixture(scope="session")

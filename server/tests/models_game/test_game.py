@@ -1,4 +1,6 @@
 import pytest
+from pytest_lazyfixture import lazy_fixture
+
 from pyshithead.models.game import (
     NBR_HIDDEN_CARDS,
     NBR_TOTAL_CARDS,
@@ -14,7 +16,6 @@ from pyshithead.models.game import (
     TakePlayPileRequest,
 )
 from pyshithead.models.game.errors import *
-from pytest_lazyfixture import lazy_fixture
 
 
 def test_game_players(game_with_two_players_start: Game, valid_all):
@@ -126,10 +127,12 @@ def test_game_hidden_move(game_hidden_move: Game):
     players: list[Player] = game_hidden_move.active_players.get_ordered_list()
     req = HiddenCardRequest(players[0])
     assert req.cards in game_hidden_move.get_player().hidden_cards
-    game_hidden_move.process_hidden_card(req)
+    revealed_card = game_hidden_move.process_hidden_card(req)
     assert game_hidden_move.state == GameState.DURING_GAME
     assert game_hidden_move.active_players.get_ordered_list() == players
-    assert req.cards in game_hidden_move.get_player().private_cards
+    assert req.cards not in game_hidden_move.get_player().hidden_cards
+    assert req.cards not in game_hidden_move.get_player().private_cards
+    assert revealed_card == next(iter(req.cards.cards))
     assert game_hidden_move.state is GameState.DURING_GAME
 
 

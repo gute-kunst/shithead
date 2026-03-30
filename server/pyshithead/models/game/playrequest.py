@@ -48,13 +48,30 @@ class TakePlayPileRequest(PlayRequest):
     def __init__(self, player: Player):
         self.player: Player = player
 
-    def validate(self, valid_ranks):
-        if not set(self.player.private_cards.get_ranks()).isdisjoint(valid_ranks):
+    def validate(
+        self,
+        valid_ranks,
+        allow_when_hidden_available: bool = False,
+        allow_optional_take: bool = False,
+        pile_is_empty: bool = False,
+    ):
+        if pile_is_empty:
+            raise TakePlayPileNotAllowedError(
+                "TakePlayPile request not allowed, play pile is empty",
+                self.player.id_,
+            )
+        if not allow_optional_take and not set(self.player.private_cards.get_ranks()).isdisjoint(
+            valid_ranks
+        ):
             raise TakePlayPileNotAllowedError(
                 "TakePlayPile request not allowed, check private cards",
                 self.player.id_,
             )
-        if self.player.eligible_to_play_hidden_card():
+        if (
+            self.player.eligible_to_play_hidden_card()
+            and not allow_when_hidden_available
+            and not allow_optional_take
+        ):
             raise TakePlayPileNotAllowedError(
                 "TakePlayPile request not allowed, play hidden card",
                 self.player.id_,
@@ -90,7 +107,10 @@ class HiddenCardRequest(PlayRequest):
             raise NotEligibleForHiddenCardPlayError
 
     def process(self):
-        self.player.private_cards.put(self.player.hidden_cards.take(self.cards.cards))
+        revealed_cards = self.player.hidden_cards.take(self.cards.cards)
+        revealed_card = next(iter(revealed_cards))
+        self.cards = SetOfCards([revealed_card])
+        return revealed_card
 
 
 class CardsRequest(PlayRequest, ABC):
@@ -237,6 +257,54 @@ class PrivateCardsRequest(CardsRequest):
         if self.player.has_no_cards_anymore():
             events.player_is_finished = PlayerIsFinishedEvent(self.player)
         Dealer.fillup_cards(deck, self.player)
+        four_of_a_kind = play_pile.has_four_times_same_rank_from_top()
+        if four_of_a_kind:
+            events.rank = RankEvent(RankType.TOPRANK, 2)
+            events.next_player = NextPlayerEvent.SAME
+            events.burn = BurnEvent.YES
+        return events
+
+
+class RevealedCardsRequest(CardsRequest):
+    def __init__(
+        self,
+        player: Player,
+        cards: list[Card],
+        choice: Optional[Choice] = None,
+        joker_rank: Optional[int] = None,
+        consistency_check: bool = True,
+    ):
+        self.player = player
+        self.cards = SetOfCards(cards)
+        self.choice = choice
+        self.joker_rank = joker_rank
+        if consistency_check:
+            self.validate()
+
+    def validate(self):
+        self.validate_ranks_are_equal()
+        self.validate_high_low_consistency()
+
+    def _resolved_cards(self) -> set[Card]:
+        effective_rank = self.get_effective_rank()
+        if effective_rank is None:
+            return set(self.cards.cards)
+        return {
+            card.with_effective_rank(effective_rank) if card.is_joker else card
+            for card in self.cards.cards
+        }
+
+    def process(self, play_pile: PileOfCards, already_on_pile: bool = False):
+        events = self.get_play_events()
+        played_cards = self._resolved_cards()
+        if already_on_pile:
+            if len(played_cards) != 1 or play_pile.is_empty():
+                raise ValueError("Expected a single revealed card on the play pile.")
+            play_pile.cards[0] = next(iter(played_cards))
+        else:
+            play_pile.put(played_cards)
+        if self.player.has_no_cards_anymore():
+            events.player_is_finished = PlayerIsFinishedEvent(self.player)
         four_of_a_kind = play_pile.has_four_times_same_rank_from_top()
         if four_of_a_kind:
             events.rank = RankEvent(RankType.TOPRANK, 2)

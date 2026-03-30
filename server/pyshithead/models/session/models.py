@@ -33,6 +33,7 @@ class PlayerSnapshot(BaseModel):
 
 class RulesSnapshot(BaseModel):
     high_low_rank: int = int(SpecialRank.HIGHLOW)
+    allow_optional_take_pile: bool = False
 
 
 class SessionSnapshot(BaseModel):
@@ -55,6 +56,7 @@ class PrivateState(BaseModel):
     seat: int
     pending_joker_selection: bool = False
     pending_joker_card: CardModel | None = None
+    pending_hidden_take: bool = False
     private_cards: list[CardModel] = Field(default_factory=list)
 
 
@@ -83,6 +85,11 @@ class JoinGameRequest(BaseModel):
 
 class StartGameRequest(BaseModel):
     player_token: str
+
+
+class UpdateSettingsRequest(BaseModel):
+    player_token: str
+    allow_optional_take_pile: bool
 
 
 class RestoreSessionRequest(BaseModel):

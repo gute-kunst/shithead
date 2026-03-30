@@ -59,6 +59,11 @@ def restore_session(client: TestClient, invite_code: str, player_token: str):
     )
 
 
+def update_game_settings(client: TestClient, invite_code: str, player_token: str, **settings):
+    payload = {"player_token": player_token, **settings}
+    return client.post(f"/api/games/{invite_code}/settings", json=payload)
+
+
 def private_card_signature(cards):
     return [
         (
@@ -89,15 +94,18 @@ def test_create_and_join_alpha_lobby():
         assert host["seat"] == 0
         assert host["snapshot"]["status"] == "LOBBY"
         assert host["snapshot"]["players"][0]["display_name"] == "Host"
+        assert host["snapshot"]["rules"]["allow_optional_take_pile"] is False
 
         guest = join_game(client, invite_code, "Guest")
         assert guest["seat"] == 1
+        assert guest["snapshot"]["rules"]["allow_optional_take_pile"] is False
 
         state = client.get(f"/api/games/{invite_code}")
         assert state.status_code == 200
         snapshot = state.json()["data"]
         assert snapshot["status"] == "LOBBY"
         assert [player["display_name"] for player in snapshot["players"]] == ["Host", "Guest"]
+        assert snapshot["rules"]["allow_optional_take_pile"] is False
 
 
 def test_start_game_and_reconnect_with_same_token():
@@ -156,6 +164,65 @@ def test_start_game_and_reconnect_with_same_token():
                 assert guest_after_reconnect["is_connected"] is True
 
 
+def test_host_can_update_optional_take_pile_setting_in_lobby():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        guest = join_game(client, host["invite_code"], "Guest")
+
+        response = update_game_settings(
+            client,
+            host["invite_code"],
+            host["player_token"],
+            allow_optional_take_pile=True,
+        )
+
+        assert response.status_code == 200
+        assert response.json()["data"]["rules"]["allow_optional_take_pile"] is True
+
+        snapshot = client.get(f"/api/games/{host['invite_code']}").json()["data"]
+        assert snapshot["rules"]["allow_optional_take_pile"] is True
+        assert guest["snapshot"]["rules"]["allow_optional_take_pile"] is False
+
+
+def test_non_host_cannot_update_optional_take_pile_setting():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        guest = join_game(client, host["invite_code"], "Guest")
+
+        response = update_game_settings(
+            client,
+            host["invite_code"],
+            guest["player_token"],
+            allow_optional_take_pile=True,
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Only the host can change lobby settings."
+
+
+def test_optional_take_pile_setting_cannot_change_after_start():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+        start_game(client, host["invite_code"], host["player_token"])
+
+        response = update_game_settings(
+            client,
+            host["invite_code"],
+            host["player_token"],
+            allow_optional_take_pile=True,
+        )
+
+        assert response.status_code == 400
+        assert (
+            response.json()["detail"]
+            == "Lobby settings can only be changed before the game starts."
+        )
+
+
 def test_fresh_started_game_has_empty_play_pile_during_public_card_selection():
     session_manager.sessions.clear()
     with TestClient(app, base_url="http://localhost") as client:
@@ -173,6 +240,30 @@ def test_fresh_started_game_has_empty_play_pile_during_public_card_selection():
         snapshot = state.json()["data"]
         assert snapshot["game_state"] == "PLAYERS_CHOOSE_PUBLIC_CARDS"
         assert snapshot["play_pile"] == []
+
+
+def test_optional_take_pile_rule_allows_taking_with_playable_card():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.update_settings(host["player_token"], allow_optional_take_pile=True)
+        session.start(host["player_token"])
+
+        game = session.game_manager.game
+        game.state = GameState.DURING_GAME
+        game.play_pile = PileOfCards([Card(9, Suit.HEART)])
+        game.valid_ranks = {9}
+        host_player = game.get_player(0)
+        host_player.private_cards = SetOfCards([Card(9, Suit.CLOVERS)])
+
+        session.apply_action(host["player_token"], ActionRequest(type="take_play_pile"))
+
+        assert game.play_pile.is_empty()
+        assert len(host_player.private_cards) == 2
+        assert session.last_status_message == "Host took the play pile."
 
 
 def test_restore_returns_player_scoped_private_state():
@@ -393,6 +484,9 @@ def test_disconnect_timeout_skips_current_player_and_clears_pending_joker():
         game.state = GameState.DURING_GAME
         game.deck = PileOfCards()
         game.play_pile = PileOfCards([Card(JOKER_RANK, Suit.JOKER_RED)])
+        game.get_player(0).private_cards = SetOfCards()
+        game.get_player(0).public_cards = SetOfCards()
+        game.get_player(0).hidden_cards = SetOfCards([Card(6, Suit.HEART)])
         session.pending_joker_seat = 0
         session.pending_joker_card = Card(JOKER_RANK, Suit.JOKER_RED)
 
@@ -404,10 +498,15 @@ def test_disconnect_timeout_skips_current_player_and_clears_pending_joker():
 
         snapshot = session.build_snapshot()
         assert snapshot.current_turn_seat == 1
-        assert snapshot.status_message == "Host disconnected and missed their turn."
+        assert (
+            snapshot.status_message
+            == "Host disconnected after revealing joker and took the play pile."
+        )
         assert snapshot.pending_joker_selection is False
         assert session.pending_joker_seat is None
         assert session.pending_joker_card is None
+        assert snapshot.play_pile == []
+        assert len(game.get_player(0).private_cards) == 1
         assert {player.seat for player in session.players} == {0, 1, 2}
 
 
@@ -604,6 +703,7 @@ def test_hidden_joker_requires_resolution_and_stays_visible_on_play_pile():
         pending_private_state = session.build_private_state(0)
         assert pending_snapshot.pending_joker_selection is True
         assert pending_snapshot.current_turn_seat == 0
+        assert pending_snapshot.play_pile[0].is_joker is True
         assert pending_private_state.pending_joker_selection is True
         assert pending_private_state.pending_joker_card.is_joker is True
 
@@ -616,6 +716,127 @@ def test_hidden_joker_requires_resolution_and_stays_visible_on_play_pile():
         assert resolved_snapshot.status_message == "Skip!"
         assert resolved_snapshot.play_pile[0].is_joker is True
         assert resolved_snapshot.play_pile[0].effective_rank == 8
+
+
+def test_hidden_seven_requires_high_low_choice_after_being_revealed():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        game = session.game_manager.game
+        game.state = GameState.DURING_GAME
+        game.deck = PileOfCards()
+        game.play_pile = PileOfCards()
+        game.valid_ranks = set(range(2, 15))
+
+        host_player = game.get_player(0)
+        guest_player = game.get_player(1)
+        host_player.private_cards = SetOfCards()
+        host_player.public_cards = SetOfCards()
+        host_player.hidden_cards = SetOfCards([Card(SpecialRank.HIGHLOW, Suit.HEART)])
+        guest_player.private_cards = SetOfCards([Card(9, Suit.HEART)])
+        guest_player.public_cards = SetOfCards()
+
+        session.apply_action(host["player_token"], ActionRequest(type="play_hidden_card"))
+
+        pending_snapshot = session.build_snapshot()
+        pending_private_state = session.build_private_state(0)
+        assert pending_snapshot.current_turn_seat == 0
+        assert pending_snapshot.play_pile[0].rank == SpecialRank.HIGHLOW
+        assert pending_private_state.pending_joker_selection is True
+
+        session.apply_action(
+            host["player_token"],
+            ActionRequest(type="resolve_joker", choice="LOWER"),
+        )
+
+        resolved_snapshot = session.build_snapshot()
+        assert resolved_snapshot.current_turn_seat == 1
+        assert resolved_snapshot.status_message == "7 or lower!"
+
+
+def test_unplayable_hidden_card_stays_visible_and_requires_taking_the_pile():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        game = session.game_manager.game
+        game.state = GameState.DURING_GAME
+        game.deck = PileOfCards()
+        game.play_pile = PileOfCards([Card(9, Suit.HEART)])
+        game.valid_ranks = {10, 11, 12}
+
+        host_player = game.get_player(0)
+        guest_player = game.get_player(1)
+        host_player.private_cards = SetOfCards()
+        host_player.public_cards = SetOfCards()
+        host_player.hidden_cards = SetOfCards([Card(4, Suit.CLOVERS)])
+        guest_player.private_cards = SetOfCards([Card(12, Suit.HEART)])
+        guest_player.public_cards = SetOfCards()
+
+        session.apply_action(host["player_token"], ActionRequest(type="play_hidden_card"))
+
+        pending_snapshot = session.build_snapshot()
+        pending_private_state = session.build_private_state(0)
+        assert pending_snapshot.current_turn_seat == 0
+        assert pending_snapshot.play_pile[0].rank == 4
+        assert pending_private_state.pending_hidden_take is True
+        assert pending_snapshot.status_message == "Host revealed 4 and must take the pile."
+
+        session.apply_action(host["player_token"], ActionRequest(type="take_play_pile"))
+
+        resolved_snapshot = session.build_snapshot()
+        resolved_private_state = session.build_private_state(0)
+        assert resolved_snapshot.current_turn_seat == 1
+        assert resolved_snapshot.play_pile == []
+        assert resolved_snapshot.status_message == "Host took the play pile."
+        assert resolved_private_state.pending_hidden_take is False
+        assert any(card.rank == 4 for card in resolved_private_state.private_cards)
+
+
+def test_disconnect_timeout_clears_pending_hidden_take_by_taking_the_pile():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        game = session.game_manager.game
+        game.state = GameState.DURING_GAME
+        game.deck = PileOfCards()
+        game.play_pile = PileOfCards([Card(9, Suit.HEART), Card(4, Suit.CLOVERS)])
+        game.valid_ranks = {10, 11, 12}
+        session.pending_hidden_take_seat = 0
+
+        host_player = game.get_player(0)
+        guest_player = game.get_player(1)
+        host_player.private_cards = SetOfCards()
+        host_player.public_cards = SetOfCards()
+        host_player.hidden_cards = SetOfCards([Card(6, Suit.HEART)])
+        guest_player.private_cards = SetOfCards([Card(12, Suit.HEART)])
+        guest_player.public_cards = SetOfCards()
+
+        session.get_player_by_seat(0).connected = False
+        session.get_player_by_seat(1).connected = True
+
+        asyncio.run(session._apply_disconnect_timeout(0))
+
+        snapshot = session.build_snapshot()
+        private_state = session.build_private_state(0)
+        assert snapshot.current_turn_seat == 1
+        assert snapshot.play_pile == []
+        assert (
+            snapshot.status_message
+            == "Host disconnected after revealing a hidden card and took the play pile."
+        )
+        assert private_state.pending_hidden_take is False
 
 
 def test_alpha_session_allows_queen_after_king_and_orders_valid_ranks():

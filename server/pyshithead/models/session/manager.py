@@ -18,7 +18,9 @@ from pyshithead.models.game import (
     HiddenCardRequest,
     PrivateCardsRequest,
     PyshitheadError,
+    RevealedCardsRequest,
     SpecialRank,
+    TakePlayPileRequest,
     rank_precedence,
     sort_ranks_by_precedence,
 )
@@ -29,6 +31,7 @@ from pyshithead.models.session.models import (
     PlayerSnapshot,
     PrivateState,
     PrivateStateEvent,
+    RulesSnapshot,
     SessionAuthResponse,
     SessionSnapshot,
     SessionSnapshotEvent,
@@ -72,6 +75,7 @@ class SessionPlayer:
 @dataclass
 class SessionSettings:
     sort_hand_cards: bool = True
+    allow_optional_take_pile: bool = False
 
 
 class GameSession:
@@ -93,6 +97,7 @@ class GameSession:
         self.last_status_message: str | None = None
         self.pending_joker_seat: int | None = None
         self.pending_joker_card: Card | None = None
+        self.pending_hidden_take_seat: int | None = None
         self.disconnect_timeout_seconds = self.DISCONNECT_TIMEOUT_SECONDS
         self.disconnect_timeout_tasks: dict[int, asyncio.Task] = {}
         self.last_activity_at = _utc_now()
@@ -167,9 +172,20 @@ class GameSession:
         self.last_status_message = None
         self.pending_joker_seat = None
         self.pending_joker_card = None
+        self.pending_hidden_take_seat = None
         self._touch()
         self._sync_status()
         self._schedule_setup_timeouts_for_disconnected_players()
+        self._sync_reap_schedule()
+
+    def update_settings(self, player_token: str, *, allow_optional_take_pile: bool):
+        player = self.get_player_by_token(player_token)
+        if player.seat != self.host_seat:
+            raise ValueError("Only the host can change lobby settings.")
+        if self.status != SessionStatus.LOBBY:
+            raise ValueError("Lobby settings can only be changed before the game starts.")
+        self.settings.allow_optional_take_pile = allow_optional_take_pile
+        self._touch()
         self._sync_reap_schedule()
 
     def _serialize_card(self, card: Card) -> CardModel:
@@ -192,12 +208,20 @@ class GameSession:
             ),
         )
 
+    def _rules_snapshot(self) -> RulesSnapshot:
+        return RulesSnapshot(
+            allow_optional_take_pile=self.settings.allow_optional_take_pile,
+        )
+
     def _effective_rank(self, card: Card) -> int:
         return card.effective_rank if card.effective_rank is not None else int(card.rank)
 
     def _clear_pending_joker(self):
         self.pending_joker_seat = None
         self.pending_joker_card = None
+
+    def _clear_pending_hidden_take(self):
+        self.pending_hidden_take_seat = None
 
     def _cancel_all_disconnect_timeouts(self):
         for seat in list(self.disconnect_timeout_tasks):
@@ -247,6 +271,8 @@ class GameSession:
     def shutdown(self):
         self._cancel_all_disconnect_timeouts()
         self._cancel_reap_task()
+        self._clear_pending_joker()
+        self._clear_pending_hidden_take()
 
     def _promote_host_if_needed(self):
         if any(player.seat == self.host_seat for player in self.players):
@@ -320,6 +346,8 @@ class GameSession:
                 return
             if self.pending_joker_seat == seat:
                 self._clear_pending_joker()
+            if self.pending_hidden_take_seat == seat:
+                self._clear_pending_hidden_take()
             if len(game.active_players) > 1:
                 game.active_players.remove_node(game_player)
             self.players = [entry for entry in self.players if entry.seat != seat]
@@ -332,6 +360,7 @@ class GameSession:
                 self._cancel_all_disconnect_timeouts()
                 self.game_manager = None
                 self._clear_pending_joker()
+                self._clear_pending_hidden_take()
                 self.status = SessionStatus.LOBBY
                 self._touch()
                 self._sync_reap_schedule()
@@ -349,10 +378,36 @@ class GameSession:
         if game.state != GameState.DURING_GAME:
             return
 
-        if self.pending_joker_seat == seat:
-            self._clear_pending_joker()
-
         if game.get_player().id_ != seat:
+            if self.pending_joker_seat == seat:
+                self._clear_pending_joker()
+            return
+
+        if self.pending_joker_seat == seat:
+            timed_out_player = game.get_player(seat)
+            take_request = TakePlayPileRequest(timed_out_player)
+            game.process_playrequest(take_request, allow_when_hidden_available=True)
+            revealed_name = self._card_status_name(self.pending_joker_card)
+            self._clear_pending_joker()
+            self.last_status_message = f"{player.display_name} disconnected after revealing {revealed_name} and took the play pile."
+            self._touch()
+            self._sync_status()
+            self._schedule_current_player_timeout_if_needed()
+            self._sync_reap_schedule()
+            await self.broadcast_full_state()
+            return
+
+        if self.pending_hidden_take_seat == seat:
+            timed_out_player = game.get_player(seat)
+            take_request = TakePlayPileRequest(timed_out_player)
+            game.process_playrequest(take_request, allow_when_hidden_available=True)
+            self._clear_pending_hidden_take()
+            self.last_status_message = f"{player.display_name} disconnected after revealing a hidden card and took the play pile."
+            self._touch()
+            self._sync_status()
+            self._schedule_current_player_timeout_if_needed()
+            self._sync_reap_schedule()
+            await self.broadcast_full_state()
             return
 
         game.active_players.next()
@@ -378,6 +433,17 @@ class GameSession:
             break
         return rank_counter
 
+    def _card_status_name(self, card: Card) -> str:
+        if card.is_joker:
+            return "joker"
+        names = {
+            11: "Jack",
+            12: "Queen",
+            13: "King",
+            14: "Ace",
+        }
+        return names.get(int(card.rank), str(int(card.rank)))
+
     def _build_status_message(
         self,
         player: SessionPlayer,
@@ -391,7 +457,10 @@ class GameSession:
         if action_type == "take_play_pile":
             return f"{player.display_name} took the play pile."
 
-        if action_type not in {"play_private_cards", "resolve_joker"} or played_rank is None:
+        if (
+            action_type not in {"play_private_cards", "resolve_joker", "play_hidden_card"}
+            or played_rank is None
+        ):
             return None
 
         if played_rank == SpecialRank.HIGHLOW:
@@ -479,6 +548,7 @@ class GameSession:
                 host_seat=self.host_seat,
                 status_message=self.last_status_message,
                 players=players,
+                rules=self._rules_snapshot(),
             )
 
         return SessionSnapshot(
@@ -498,6 +568,7 @@ class GameSession:
                 self._serialize_card(card) for card in self.game_manager.game.play_pile.cards
             ],
             players=players,
+            rules=self._rules_snapshot(),
         )
 
     def build_private_state(self, seat: int) -> PrivateState:
@@ -513,6 +584,7 @@ class GameSession:
                 if self.pending_joker_seat == seat and self.pending_joker_card is not None
                 else None
             ),
+            pending_hidden_take=self.pending_hidden_take_seat == seat,
             private_cards=[
                 self._serialize_card(card)
                 for card in self._sort_private_cards(game_player.private_cards.cards)
@@ -556,44 +628,102 @@ class GameSession:
             raise ValueError("Game has not started yet.")
 
         player = self.get_player_by_token(player_token)
+        game = self.game_manager.game
         self._cancel_disconnect_timeout(player.seat)
-        previous_play_pile = list(self.game_manager.game.play_pile.cards)
+        previous_play_pile = list(game.play_pile.cards)
         played_rank = None
         played_card_count = 0
 
+        if self.pending_hidden_take_seat is not None:
+            if player.seat != self.pending_hidden_take_seat:
+                raise ValueError("Waiting for the active player to take the pile.")
+            if action.type != "take_play_pile":
+                raise ValueError("Take the pile before taking another action.")
+
         if self.pending_joker_card is not None:
             if player.seat != self.pending_joker_seat:
-                raise ValueError("Waiting for the active player to choose the joker rank.")
+                raise ValueError(
+                    "Waiting for the active player to finish resolving the revealed card."
+                )
             if action.type != "resolve_joker":
-                raise ValueError("Choose the revealed joker rank before taking another action.")
+                raise ValueError("Finish resolving the revealed card before taking another action.")
 
-            request = PrivateCardsRequest(
-                player=self.game_manager.game.get_player(player.seat),
+            request = RevealedCardsRequest(
+                player=game.get_player(player.seat),
                 cards=[self.pending_joker_card],
                 choice=action.choice,
-                joker_rank=action.joker_rank,
+                joker_rank=action.joker_rank if self.pending_joker_card.is_joker else None,
             )
-            self.game_manager.game.process_playrequest(request)
-            played_rank = action.joker_rank
+            game.process_revealed_request(request, already_on_pile=True)
+            played_rank = (
+                action.joker_rank
+                if self.pending_joker_card.is_joker
+                else int(self.pending_joker_card.rank)
+            )
             played_card_count = 1
             self._clear_pending_joker()
         elif action.type == "play_hidden_card":
-            hidden_request = HiddenCardRequest(self.game_manager.game.get_player(player.seat))
-            self.game_manager.game.process_hidden_card(hidden_request)
-            revealed_card = next(iter(hidden_request.cards.cards))
-            if revealed_card.is_joker:
+            hidden_request = HiddenCardRequest(game.get_player(player.seat))
+            revealed_card = game.process_hidden_card(hidden_request)
+            if revealed_card.is_joker or int(revealed_card.rank) == int(SpecialRank.HIGHLOW):
+                game.play_pile.put([revealed_card])
                 self.pending_joker_seat = player.seat
                 self.pending_joker_card = revealed_card
-                self.last_status_message = f"{player.display_name} revealed a joker."
+                if revealed_card.is_joker:
+                    self.last_status_message = f"{player.display_name} revealed a joker."
+                else:
+                    self.last_status_message = (
+                        f"{player.display_name} revealed {self._card_status_name(revealed_card)}."
+                    )
             else:
-                self.last_status_message = None
+                game.play_pile.put([revealed_card])
+                if int(revealed_card.rank) in game.valid_ranks:
+                    request = RevealedCardsRequest(
+                        player=game.get_player(player.seat), cards=[revealed_card]
+                    )
+                    game.process_revealed_request(request, already_on_pile=True)
+                    played_rank = int(revealed_card.rank)
+                    played_card_count = 1
+                    current_play_pile = list(game.play_pile.cards)
+                    self.last_status_message = self._build_status_message(
+                        player=player,
+                        action_type="play_hidden_card",
+                        played_rank=played_rank,
+                        choice=action.choice,
+                        previous_play_pile=previous_play_pile,
+                        current_play_pile=current_play_pile,
+                        played_card_count=played_card_count,
+                    )
+                    self._touch()
+                    self._sync_status()
+                    self._schedule_current_player_timeout_if_needed()
+                    self._sync_reap_schedule()
+                    return
+                self.pending_hidden_take_seat = player.seat
+                self.last_status_message = f"{player.display_name} revealed {self._card_status_name(revealed_card)} and must take the pile."
             self._touch()
             self._sync_status()
+            self._schedule_current_player_timeout_if_needed()
             self._sync_reap_schedule()
             return
         else:
-            request = self._request_from_action(player, action)
-            self.game_manager.process_request(request)
+            if action.type == "take_play_pile":
+                request = TakePlayPileRequest(game.get_player(player.seat))
+                allow_optional_take = (
+                    self.settings.allow_optional_take_pile
+                    and self.pending_hidden_take_seat != player.seat
+                )
+                game.process_playrequest(
+                    request,
+                    allow_when_hidden_available=(
+                        self.pending_hidden_take_seat == player.seat or allow_optional_take
+                    ),
+                    allow_optional_take=allow_optional_take,
+                )
+                self._clear_pending_hidden_take()
+            else:
+                request = self._request_from_action(player, action)
+                self.game_manager.process_request(request)
             played_rank = (
                 action.joker_rank
                 if action.joker_rank is not None
@@ -603,7 +733,7 @@ class GameSession:
             )
             played_card_count = len(action.cards)
 
-        current_play_pile = list(self.game_manager.game.play_pile.cards)
+        current_play_pile = list(game.play_pile.cards)
         self.last_status_message = self._build_status_message(
             player=player,
             action_type=action.type,
