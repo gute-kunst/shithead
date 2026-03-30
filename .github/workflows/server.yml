@@ -36,9 +36,13 @@ jobs:
 
     - run: poetry install --no-interaction
 
-    - run: poetry run python -m black --check pyshithead/main.py pyshithead/models/common/game_manager.py pyshithead/models/game/game.py pyshithead/models/session/manager.py tests/test_alpha_api.py
+    - run: poetry run python -m black --check pyshithead/main.py pyshithead/models/common/game_manager.py pyshithead/models/game/game.py pyshithead/models/session/manager.py tests/test_alpha_api.py tests_browser
 
-    - run: poetry run python -m isort --check-only pyshithead/main.py pyshithead/models/common/game_manager.py pyshithead/models/game/game.py pyshithead/models/session/manager.py tests/test_alpha_api.py
+    - run: poetry run python -m isort --check-only pyshithead/main.py pyshithead/models/common/game_manager.py pyshithead/models/game/game.py pyshithead/models/session/manager.py tests/test_alpha_api.py tests_browser
+
+    - run: poetry run python -m playwright install --with-deps chromium
+
+    - run: poetry run python -m pytest tests_browser -q -o addopts=''
 
     - run: poetry run python -m pytest --junitxml=junit/test-results-${{ matrix.python-version }}-${{ matrix.os }}.xml --cov
 
