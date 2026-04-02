@@ -2,6 +2,14 @@
 # pyshithead
 ## Start Server
 ```uvicorn pyshithead.main:app```
+
+Persistent session state is now stored in SQLite by default so active tables can survive a short restart.
+
+Optional configuration:
+- `DATABASE_URL`
+  - default: `sqlite:///./shithead.db`
+  - currently only `sqlite:///...` URLs are supported
+
 ## Development
 ### Getting Started
 #### Start Development Server

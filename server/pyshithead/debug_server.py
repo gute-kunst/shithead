@@ -7,11 +7,13 @@ import uvicorn
 
 from pyshithead.debug_presets import DEBUG_PRESET_NAMES, DebugPresetSeed, seed_debug_preset
 from pyshithead.main import create_app
-from pyshithead.models.session import GameSessionManager
+from pyshithead.models.session import GameSessionManager, SQLiteSessionStore
+
+DEBUG_DATABASE_URL = "sqlite:///./shithead.debug.db"
 
 
 def create_debug_app(preset_name: str):
-    session_manager = GameSessionManager()
+    session_manager = GameSessionManager(store=SQLiteSessionStore(DEBUG_DATABASE_URL))
     seed = seed_debug_preset(session_manager, preset_name)
     app = create_app(session_manager=session_manager, enable_debug_bootstrap=True)
     app.state.debug_preset_seed = seed

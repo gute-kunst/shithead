@@ -14,11 +14,16 @@ from pyshithead.models.common import GameManager, request_models
 from pyshithead.models.game import (
     MAX_PLAYERS,
     Card,
+    CircularDoublyLinkedList,
+    Game,
     GameState,
     HiddenCardRequest,
+    PileOfCards,
+    Player,
     PrivateCardsRequest,
     PyshitheadError,
     RevealedCardsRequest,
+    SetOfCards,
     SpecialRank,
     TakePlayPileRequest,
     rank_precedence,
@@ -37,6 +42,7 @@ from pyshithead.models.session.models import (
     SessionSnapshotEvent,
     SessionStatus,
 )
+from pyshithead.models.session.store import SQLiteSessionStore
 
 
 def _utc_now() -> datetime:
@@ -78,6 +84,16 @@ class SessionSettings:
     allow_optional_take_pile: bool = False
 
 
+class SessionCache(dict):
+    def __init__(self, clear_callback: Callable[[], None]):
+        super().__init__()
+        self._clear_callback = clear_callback
+
+    def clear(self):
+        self._clear_callback()
+        super().clear()
+
+
 class GameSession:
     DISCONNECT_TIMEOUT_SECONDS = 60
     LOBBY_REAP_AFTER = timedelta(hours=2)
@@ -88,6 +104,7 @@ class GameSession:
         invite_code: str,
         host_name: str,
         on_reap: Callable[[str], None] | None = None,
+        on_change: Callable[["GameSession"], None] | None = None,
     ):
         self.invite_code = invite_code
         self.status = SessionStatus.LOBBY
@@ -102,10 +119,15 @@ class GameSession:
         self.disconnect_timeout_tasks: dict[int, asyncio.Task] = {}
         self.last_activity_at = _utc_now()
         self._on_reap = on_reap
+        self._on_change = on_change
         self._reap_task: asyncio.Task | None = None
         host = self._add_player(host_name)
         self.host_seat = host.seat
         self.host_token = host.token
+
+    def _persist(self):
+        if self._on_change is not None:
+            self._on_change(self)
 
     def _touch(self):
         self.last_activity_at = _utc_now()
@@ -156,6 +178,7 @@ class GameSession:
             raise ValueError(f"Game is full. Maximum is {MAX_PLAYERS} players.")
         player = self._add_player(display_name)
         self._sync_reap_schedule()
+        self._persist()
         return player
 
     def start(self, player_token: str):
@@ -177,6 +200,7 @@ class GameSession:
         self._sync_status()
         self._schedule_setup_timeouts_for_disconnected_players()
         self._sync_reap_schedule()
+        self._persist()
 
     def update_settings(self, player_token: str, *, allow_optional_take_pile: bool):
         player = self.get_player_by_token(player_token)
@@ -187,6 +211,7 @@ class GameSession:
         self.settings.allow_optional_take_pile = allow_optional_take_pile
         self._touch()
         self._sync_reap_schedule()
+        self._persist()
 
     def _serialize_card(self, card: Card) -> CardModel:
         return CardModel(
@@ -319,9 +344,11 @@ class GameSession:
         self._touch()
         if self.game_manager is None or self.game_manager.game.state == GameState.GAME_OVER:
             self._sync_reap_schedule()
+            self._persist()
             return
         self._schedule_disconnect_timeout(player.seat)
         self._sync_reap_schedule()
+        self._persist()
 
     async def _disconnect_timeout_runner(self, seat: int):
         try:
@@ -364,6 +391,7 @@ class GameSession:
                 self.status = SessionStatus.LOBBY
                 self._touch()
                 self._sync_reap_schedule()
+                self._persist()
                 await self.broadcast_full_state()
                 return
             if game.all_players_chosen_public_card():
@@ -372,6 +400,7 @@ class GameSession:
             self._sync_status()
             self._schedule_current_player_timeout_if_needed()
             self._sync_reap_schedule()
+            self._persist()
             await self.broadcast_full_state()
             return
 
@@ -394,6 +423,7 @@ class GameSession:
             self._sync_status()
             self._schedule_current_player_timeout_if_needed()
             self._sync_reap_schedule()
+            self._persist()
             await self.broadcast_full_state()
             return
 
@@ -407,6 +437,7 @@ class GameSession:
             self._sync_status()
             self._schedule_current_player_timeout_if_needed()
             self._sync_reap_schedule()
+            self._persist()
             await self.broadcast_full_state()
             return
 
@@ -416,6 +447,7 @@ class GameSession:
         self._sync_status()
         self._schedule_current_player_timeout_if_needed()
         self._sync_reap_schedule()
+        self._persist()
         await self.broadcast_full_state()
 
     def _top_rank_chain_count(self, cards: list) -> int:
@@ -698,6 +730,7 @@ class GameSession:
                     self._sync_status()
                     self._schedule_current_player_timeout_if_needed()
                     self._sync_reap_schedule()
+                    self._persist()
                     return
                 self.pending_hidden_take_seat = player.seat
                 self.last_status_message = f"{player.display_name} revealed {self._card_status_name(revealed_card)} and must take the pile."
@@ -705,6 +738,7 @@ class GameSession:
             self._sync_status()
             self._schedule_current_player_timeout_if_needed()
             self._sync_reap_schedule()
+            self._persist()
             return
         else:
             if action.type == "take_play_pile":
@@ -747,6 +781,7 @@ class GameSession:
         self._sync_status()
         self._schedule_current_player_timeout_if_needed()
         self._sync_reap_schedule()
+        self._persist()
 
     async def connect(self, player_token: str, websocket: WebSocket):
         player = self.get_player_by_token(player_token)
@@ -755,6 +790,7 @@ class GameSession:
         player.mark_connected(websocket)
         self._touch()
         self._sync_reap_schedule()
+        self._persist()
         await self.send_full_state(player)
         await self.broadcast_snapshot(exclude_seat=player.seat)
 
@@ -807,18 +843,192 @@ class GameSession:
 
 
 class GameSessionManager:
-    def __init__(self):
-        self.sessions: dict[str, GameSession] = {}
+    def __init__(self, store: SQLiteSessionStore | None = None):
+        self.store = store or SQLiteSessionStore()
+        self.sessions = SessionCache(self._clear_all_sessions)
+        self.store.mark_all_players_disconnected()
+
+    def _clear_all_sessions(self):
+        for session in list(self.sessions.values()):
+            session.shutdown()
+        self.store.clear_all()
+
+    def _serialize_card(self, card: Card) -> dict:
+        return {
+            "rank": int(card.rank),
+            "suit": int(card.suit),
+            "effective_rank": card.effective_rank,
+        }
+
+    def _deserialize_card(self, data: dict) -> Card:
+        return Card(
+            rank=data["rank"],
+            suit=data["suit"],
+            effective_rank=data.get("effective_rank"),
+        )
+
+    def _serialize_game_state(self, session: GameSession) -> dict | None:
+        if session.game_manager is None:
+            return None
+        game = session.game_manager.game
+        game_players = {player.id_: player for player in game.active_players}
+        game_players.update({player.id_: player for player in game.ranking})
+        return {
+            "schema_version": 1,
+            "game_id": game.game_id,
+            "state": str(game.state),
+            "valid_ranks": sorted(int(rank) for rank in game.valid_ranks),
+            "deck": [self._serialize_card(card) for card in game.deck.cards],
+            "play_pile": [self._serialize_card(card) for card in game.play_pile.cards],
+            "active_player_order": [
+                player.id_ for player in game.active_players.get_ordered_list()
+            ],
+            "ranking": [player.id_ for player in game.ranking],
+            "players": {
+                str(seat): {
+                    "public_cards_were_selected": player.public_cards_were_selected,
+                    "private_cards": [self._serialize_card(card) for card in player.private_cards],
+                    "public_cards": [self._serialize_card(card) for card in player.public_cards],
+                    "hidden_cards": [self._serialize_card(card) for card in player.hidden_cards],
+                }
+                for seat, player in game_players.items()
+            },
+        }
+
+    def _deserialize_game_state(self, game_state: dict | None) -> GameManager | None:
+        if game_state is None:
+            return None
+        players_by_seat: dict[int, Player] = {}
+        for seat_text, player_state in game_state["players"].items():
+            seat = int(seat_text)
+            player = Player(seat)
+            player.public_cards_were_selected = player_state["public_cards_were_selected"]
+            player.private_cards = SetOfCards(
+                [self._deserialize_card(card) for card in player_state["private_cards"]]
+            )
+            player.hidden_cards = SetOfCards(
+                [self._deserialize_card(card) for card in player_state["hidden_cards"]]
+            )
+            player._public_cards = SetOfCards(
+                [self._deserialize_card(card) for card in player_state["public_cards"]]
+            )
+            players_by_seat[seat] = player
+
+        active_players = [players_by_seat[seat] for seat in game_state["active_player_order"]]
+        game = Game(
+            players=active_players,
+            deck=PileOfCards([self._deserialize_card(card) for card in game_state["deck"]]),
+            play_pile=PileOfCards(
+                [self._deserialize_card(card) for card in game_state["play_pile"]]
+            ),
+            game_id=game_state["game_id"],
+            state=GameState(game_state["state"]),
+        )
+        game.active_players = CircularDoublyLinkedList(active_players)
+        game.ranking = [players_by_seat[seat] for seat in game_state["ranking"]]
+        game.valid_ranks = {int(rank) for rank in game_state["valid_ranks"]}
+        manager = GameManager.__new__(GameManager)
+        manager.game = game
+        return manager
+
+    def _serialize_session_record(self, session: GameSession) -> dict:
+        return {
+            "invite_code": session.invite_code,
+            "status": session.status,
+            "host_seat": session.host_seat,
+            "host_token": session.host_token,
+            "last_status_message": session.last_status_message,
+            "pending_joker_seat": session.pending_joker_seat,
+            "pending_joker_card": (
+                self._serialize_card(session.pending_joker_card)
+                if session.pending_joker_card is not None
+                else None
+            ),
+            "pending_hidden_take_seat": session.pending_hidden_take_seat,
+            "disconnect_timeout_seconds": session.disconnect_timeout_seconds,
+            "last_activity_at": session.last_activity_at.isoformat(),
+            "settings": {
+                "sort_hand_cards": session.settings.sort_hand_cards,
+                "allow_optional_take_pile": session.settings.allow_optional_take_pile,
+            },
+            "players": [
+                {
+                    "seat": player.seat,
+                    "display_name": player.display_name,
+                    "token": player.token,
+                    "connected": player.connected,
+                    "last_seen": player.last_seen.isoformat(),
+                }
+                for player in session.players
+            ],
+            "game_state": self._serialize_game_state(session),
+        }
+
+    def _deserialize_session_record(self, record: dict) -> GameSession:
+        host_player = next(
+            (player for player in record["players"] if player["seat"] == record["host_seat"]),
+            None,
+        )
+        if host_player is None:
+            raise ValueError(f"Corrupt session record for invite {record['invite_code']}.")
+        session = GameSession(
+            invite_code=record["invite_code"],
+            host_name=host_player["display_name"],
+            on_reap=self._reap_session,
+            on_change=self._save_session,
+        )
+        session.players = [
+            SessionPlayer(
+                seat=player["seat"],
+                display_name=player["display_name"],
+                token=player["token"],
+                connected=player["connected"],
+                last_seen=datetime.fromisoformat(player["last_seen"]),
+            )
+            for player in record["players"]
+        ]
+        session.host_seat = record["host_seat"]
+        session.host_token = record["host_token"]
+        session.status = SessionStatus(record["status"])
+        session.last_status_message = record["last_status_message"]
+        session.pending_joker_seat = record["pending_joker_seat"]
+        session.pending_joker_card = (
+            self._deserialize_card(record["pending_joker_card"])
+            if record["pending_joker_card"] is not None
+            else None
+        )
+        session.pending_hidden_take_seat = record["pending_hidden_take_seat"]
+        session.disconnect_timeout_seconds = record["disconnect_timeout_seconds"]
+        session.last_activity_at = datetime.fromisoformat(record["last_activity_at"])
+        session.settings = SessionSettings(**record["settings"])
+        session.game_manager = self._deserialize_game_state(record["game_state"])
+        return session
+
+    def _save_session(self, session: GameSession):
+        self.store.save_session_record(self._serialize_session_record(session))
 
     def _reap_session(self, invite_code: str):
         session = self.sessions.pop(invite_code, None)
         if session is not None:
             session.shutdown()
+        self.store.delete_session(invite_code)
 
     def reap_expired_sessions(self):
-        expired_codes = [
-            invite_code for invite_code, session in self.sessions.items() if session.is_expired()
-        ]
+        expired_codes = []
+        for invite_code, session in self.sessions.items():
+            if session.is_expired():
+                expired_codes.append(invite_code)
+        for record in self.store.list_session_records():
+            invite_code = record["invite_code"]
+            if invite_code in self.sessions:
+                continue
+            try:
+                session = self._deserialize_session_record(record)
+            except ValueError:
+                expired_codes.append(invite_code)
+                continue
+            if session.is_expired():
+                expired_codes.append(invite_code)
         for invite_code in expired_codes:
             self._reap_session(invite_code)
 
@@ -826,7 +1036,7 @@ class GameSessionManager:
         alphabet = string.ascii_uppercase + string.digits
         while True:
             code = "".join(secrets.choice(alphabet) for _ in range(6))
-            if code not in self.sessions:
+            if code not in self.sessions and not self.store.invite_code_exists(code):
                 return code
 
     def create_session(self, display_name: str) -> GameSession:
@@ -835,14 +1045,25 @@ class GameSessionManager:
             invite_code=self._generate_invite_code(),
             host_name=display_name,
             on_reap=self._reap_session,
+            on_change=self._save_session,
         )
         self.sessions[session.invite_code] = session
         session._sync_reap_schedule()
+        self._save_session(session)
         return session
 
     def get_session(self, invite_code: str) -> GameSession:
         self.reap_expired_sessions()
-        session = self.sessions.get(invite_code.upper())
+        normalized_invite_code = invite_code.upper()
+        session = self.sessions.get(normalized_invite_code)
         if session is None:
-            raise ValueError("Game not found.")
+            record = self.store.load_session_record(normalized_invite_code)
+            if record is None:
+                raise ValueError("Game not found.")
+            session = self._deserialize_session_record(record)
+            if session.is_expired():
+                self._reap_session(normalized_invite_code)
+                raise ValueError("Game not found.")
+            self.sessions[normalized_invite_code] = session
+            session._sync_reap_schedule()
         return session

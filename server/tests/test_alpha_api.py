@@ -1,10 +1,13 @@
 import asyncio
+import os
+import tempfile
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from pyshithead.main import app, session_manager
+from pyshithead.main import app, create_app, session_manager
 from pyshithead.models.game import (
     ALL_RANKS,
     JOKER_RANK,
@@ -18,6 +21,7 @@ from pyshithead.models.game import (
     Suit,
 )
 from pyshithead.models.game.errors import CardsNotEligibleOnPlayPileError
+from pyshithead.models.session import GameSessionManager, SQLiteSessionStore
 from pyshithead.models.session.models import ActionRequest, CardModel
 
 
@@ -419,6 +423,60 @@ def test_restore_returns_not_found_for_reaped_session():
 
         assert restored.status_code == 404
         assert restored.json() == {"detail": "Game not found."}
+
+
+def test_persisted_session_survives_manager_restart():
+    file_descriptor, raw_path = tempfile.mkstemp(suffix="-restart-state.db")
+    try:
+        os.close(file_descriptor)
+    except OSError:
+        pass
+    Path(raw_path).unlink(missing_ok=True)
+    database_url = f"sqlite:///{Path(raw_path).as_posix()}"
+    first_manager = None
+    second_manager = None
+    try:
+        first_manager = GameSessionManager(store=SQLiteSessionStore(database_url))
+        first_app = create_app(session_manager=first_manager)
+
+        with TestClient(first_app, base_url="http://localhost") as client:
+            host = create_game(client, "Host")
+            guest = join_game(client, host["invite_code"], "Guest")
+
+            update_response = update_game_settings(
+                client,
+                host["invite_code"],
+                host["player_token"],
+                allow_optional_take_pile=True,
+            )
+            assert update_response.status_code == 200
+
+            started = start_game(client, host["invite_code"], host["player_token"])
+            assert started["data"]["status"] == "IN_GAME"
+
+        second_manager = GameSessionManager(store=SQLiteSessionStore(database_url))
+        second_app = create_app(session_manager=second_manager)
+
+        with TestClient(second_app, base_url="http://localhost") as client:
+            restored = restore_session(client, host["invite_code"], guest["player_token"])
+
+            assert restored.status_code == 200
+            payload = restored.json()
+            assert payload["snapshot"]["status"] == "IN_GAME"
+            assert payload["snapshot"]["game_state"] == "PLAYERS_CHOOSE_PUBLIC_CARDS"
+            assert payload["snapshot"]["rules"]["allow_optional_take_pile"] is True
+            assert payload["snapshot"]["players"][0]["is_connected"] is False
+            assert payload["snapshot"]["players"][1]["is_connected"] is False
+            assert len(payload["private_state"]["private_cards"]) == 6
+    finally:
+        if first_manager is not None:
+            first_manager.sessions.clear()
+        if second_manager is not None:
+            second_manager.sessions.clear()
+        try:
+            Path(raw_path).unlink(missing_ok=True)
+        except PermissionError:
+            pass
 
 
 def test_choose_public_cards_over_new_websocket_flow():

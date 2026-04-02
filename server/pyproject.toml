@@ -11,6 +11,9 @@ python = "^3.11"
 websockets = "^10.4"
 fastapi = "^0.88.0"
 uvicorn = { extras = ["standard"], version = "^0.20.0" }
+sqlalchemy = "^2.0.48"
+alembic = "^1.18.4"
+psycopg = {extras = ["binary"], version = "^3.3.3"}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.2.0"
