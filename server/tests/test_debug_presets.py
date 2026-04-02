@@ -37,6 +37,47 @@ def test_hidden_take_preset_exposes_forced_take_state():
     assert snapshot.status_message == "Host revealed 4 and must take the pile."
 
 
+def test_host_specials_preset_gives_host_all_special_ranks():
+    manager = GameSessionManager()
+    seed = seed_debug_preset(manager, "host-specials")
+
+    snapshot = seed.session.build_snapshot()
+    private_state = seed.session.build_private_state(0)
+    private_ranks = {card.rank for card in private_state.private_cards}
+
+    assert snapshot.game_state == "DURING_GAME"
+    assert snapshot.current_turn_seat == 0
+    assert {
+        int(SpecialRank.RESET),
+        int(SpecialRank.INVISIBLE),
+        int(SpecialRank.HIGHLOW),
+        int(SpecialRank.SKIP),
+        int(SpecialRank.BURN),
+        JOKER_RANK,
+    }.issubset(private_ranks)
+
+
+def test_host_specials_lock_preset_stays_in_public_card_selection():
+    manager = GameSessionManager()
+    seed = seed_debug_preset(manager, "host-specials-lock")
+
+    snapshot = seed.session.build_snapshot()
+    private_state = seed.session.build_private_state(0)
+    private_ranks = {card.rank for card in private_state.private_cards}
+    host_snapshot = next(player for player in snapshot.players if player.seat == 0)
+
+    assert snapshot.game_state == "PLAYERS_CHOOSE_PUBLIC_CARDS"
+    assert host_snapshot.public_cards == []
+    assert {
+        int(SpecialRank.RESET),
+        int(SpecialRank.INVISIBLE),
+        int(SpecialRank.HIGHLOW),
+        int(SpecialRank.SKIP),
+        int(SpecialRank.BURN),
+        JOKER_RANK,
+    }.issubset(private_ranks)
+
+
 def test_revealed_card_presets_keep_resolution_state_visible():
     manager = GameSessionManager()
 

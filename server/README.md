@@ -24,6 +24,8 @@ Available presets:
 - `lobby-2p`
 - `choose-public`
 - `normal-turn`
+- `host-specials`
+- `host-specials-lock`
 - `hidden-reveal`
 - `hidden-take`
 - `revealed-joker`

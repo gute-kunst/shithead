@@ -1452,16 +1452,16 @@ function renderActions(snapshot) {
   const pendingJoker = hasPendingJokerSelection();
   const pendingRevealedJoker = pendingJoker && isJokerCard(pendingCard);
   const currentPendingRank = pendingJoker ? cardEffectiveRank(pendingCard) : null;
-  const allowJokerDefinition = pendingRevealedJoker || (
-    currentGameState() === "DURING_GAME"
-    && isMyTurn()
-    && selectedHasJoker()
-  );
+  const choosingPublicCards = canChoosePublicCards();
+  const isPlayDecisionPhase = currentGameState() === "DURING_GAME" && isMyTurn();
+  const allowJokerDefinition = isPlayDecisionPhase && (pendingRevealedJoker || selectedHasJoker());
   const jokerChoices = pendingJoker ? jokerOptions(snapshot, [pendingCard]) : jokerOptions(snapshot);
   const currentPlayRank = pendingJoker
     ? (pendingRevealedJoker ? state.jokerRank : currentPendingRank)
     : playRank();
-  const showHighLowChoice = currentPlayRank === snapshot.rules.high_low_rank;
+  const showHighLowChoice = isPlayDecisionPhase
+    && !choosingPublicCards
+    && currentPlayRank === snapshot.rules.high_low_rank;
   const hasHighLowChoice = ["HIGHER", "LOWER"].includes(state.highLowChoice);
   const turnName = snapshot.current_turn_display_name
     || (Number.isInteger(snapshot.current_turn_seat) ? `Seat ${snapshot.current_turn_seat}` : "the next player");
@@ -1480,7 +1480,7 @@ function renderActions(snapshot) {
     || (selectedHasJoker() && !state.jokerRank)
     || (showHighLowChoice && !hasHighLowChoice);
   let handPrimaryAction = null;
-  if (canChoosePublicCards()) {
+  if (choosingPublicCards) {
     handPrimaryAction = { action: "choose-public", label: "Lock cards", disabled: false };
   } else if (pendingJoker) {
     handPrimaryAction = {

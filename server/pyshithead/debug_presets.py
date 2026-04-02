@@ -21,6 +21,8 @@ DEBUG_PRESET_NAMES = (
     "lobby-2p",
     "choose-public",
     "normal-turn",
+    "host-specials",
+    "host-specials-lock",
     "hidden-reveal",
     "hidden-take",
     "revealed-joker",
@@ -133,6 +135,63 @@ def _build_normal_turn(manager: GameSessionManager) -> GameSession:
     return session
 
 
+def _build_host_specials(manager: GameSessionManager) -> GameSession:
+    session = _base_started_session(manager, ("Host", "Guest"))
+    game = _prepare_during_game(session)
+    game.play_pile = PileOfCards()
+    game.valid_ranks = set(range(2, 15))
+    _set_player_cards(
+        session,
+        0,
+        private=[
+            Card(SpecialRank.RESET, Suit.HEART),
+            Card(SpecialRank.INVISIBLE, Suit.CLOVERS),
+            Card(SpecialRank.HIGHLOW, Suit.PIKES),
+            Card(SpecialRank.SKIP, Suit.TILES),
+            Card(SpecialRank.BURN, Suit.HEART),
+            Card(JOKER_RANK, Suit.JOKER_RED),
+        ],
+        public=[],
+        hidden=[Card(4, Suit.TILES), Card(11, Suit.HEART), Card(13, Suit.CLOVERS)],
+    )
+    _set_player_cards(
+        session,
+        1,
+        private=[Card(9, Suit.HEART), Card(12, Suit.CLOVERS)],
+        public=[],
+        hidden=[Card(6, Suit.TILES), Card(8, Suit.HEART), Card(14, Suit.PIKES)],
+    )
+    session.last_status_message = "Host has a debug hand with all special ranks."
+    return session
+
+
+def _build_host_specials_lock(manager: GameSessionManager) -> GameSession:
+    session = _base_started_session(manager, ("Host", "Guest"))
+    _set_player_cards(
+        session,
+        0,
+        private=[
+            Card(SpecialRank.RESET, Suit.HEART),
+            Card(SpecialRank.INVISIBLE, Suit.CLOVERS),
+            Card(SpecialRank.HIGHLOW, Suit.PIKES),
+            Card(SpecialRank.SKIP, Suit.TILES),
+            Card(SpecialRank.BURN, Suit.HEART),
+            Card(JOKER_RANK, Suit.JOKER_RED),
+        ],
+        public=[],
+        hidden=[Card(4, Suit.TILES), Card(11, Suit.HEART), Card(13, Suit.CLOVERS)],
+    )
+    _set_player_cards(
+        session,
+        1,
+        private=[Card(9, Suit.HEART), Card(12, Suit.CLOVERS), Card(14, Suit.PIKES)],
+        public=[],
+        hidden=[Card(6, Suit.TILES), Card(8, Suit.HEART), Card(13, Suit.PIKES)],
+    )
+    session.last_status_message = "Host must lock public cards from a debug hand with all special ranks."
+    return session
+
+
 def _build_hidden_reveal(manager: GameSessionManager) -> GameSession:
     session = _base_started_session(manager, ("Host", "Guest"))
     game = _prepare_during_game(session)
@@ -236,6 +295,8 @@ PRESET_BUILDERS = {
     "lobby-2p": _build_lobby_2p,
     "choose-public": _build_choose_public,
     "normal-turn": _build_normal_turn,
+    "host-specials": _build_host_specials,
+    "host-specials-lock": _build_host_specials_lock,
     "hidden-reveal": _build_hidden_reveal,
     "hidden-take": _build_hidden_take,
     "revealed-joker": _build_revealed_joker,

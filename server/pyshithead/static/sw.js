@@ -1,9 +1,9 @@
-const CACHE_NAME = "shithead-alpha-v20";
+const CACHE_NAME = "shithead-alpha-v21";
 const APP_SHELL = [
   "/",
-  "/static/styles.css?v=20260330c",
-  "/static/app.js?v=20260330c",
-  "/static/manifest.webmanifest?v=20260330c",
+  "/static/styles.css?v=20260402a",
+  "/static/app.js?v=20260402a",
+  "/static/manifest.webmanifest?v=20260402a",
   "/static/icons/icon-180.png",
   "/static/icons/icon-192.png",
   "/static/icons/icon-512.png",
