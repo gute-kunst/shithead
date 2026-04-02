@@ -88,6 +88,7 @@ button {
 .game-screen {
   display: grid;
   gap: 1rem;
+  position: relative;
 }
 
 .panel {
@@ -579,11 +580,22 @@ button {
 }
 
 .seat-panel.current-turn {
-  border: 1.5px solid rgba(244, 216, 120, 0.88);
+  border: 1.5px solid rgba(244, 216, 120, 0.72);
   box-shadow:
-    0 0 0 4px rgba(244, 216, 120, 0.34),
+    0 0 0 3px rgba(244, 216, 120, 0.2),
     0 12px 28px rgba(8, 23, 19, 0.16);
-  animation: turnPulse 1.6s ease-in-out infinite;
+  animation: seatCurrentPulse 2100ms ease-in-out infinite;
+}
+
+.seat-panel.turn-arrival {
+  animation: seatTurnArrival 720ms cubic-bezier(0.2, 0.85, 0.32, 1);
+}
+
+.seat-panel.motion-deal-target,
+.seat-panel.motion-lock-target,
+.seat-panel.motion-take-target,
+.seat-panel.motion-reveal-target {
+  animation: seatReceiveGlow 520ms ease;
 }
 
 .seat-panel.you {
@@ -901,6 +913,10 @@ button {
   margin-top: 0.5rem;
 }
 
+.deck-stack.dealing {
+  animation: deckDealPulse 700ms ease;
+}
+
 .deck-back-card {
   position: absolute;
   left: 0;
@@ -953,6 +969,19 @@ button {
   margin-top: 0.45rem;
   overflow: hidden;
   padding-right: 0.35rem;
+  transform-origin: center center;
+}
+
+.pile-preview.settling {
+  animation: pileSettle 320ms ease;
+}
+
+.pile-preview.taking {
+  animation: pileTaking 360ms ease;
+}
+
+.pile-preview.burning {
+  animation: pileBurn 520ms ease;
 }
 
 .mini-card {
@@ -1077,6 +1106,18 @@ button {
   background: rgba(255, 252, 246, 0.92);
   backdrop-filter: blur(14px);
   padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+
+.hand-dock.turn-arrival .dock-header-main {
+  animation: handTurnArrival 720ms cubic-bezier(0.2, 0.85, 0.32, 1);
+}
+
+.hand-dock.motion-deal-target .hand-fan,
+.hand-dock.motion-lock-target .hand-fan,
+.hand-dock.motion-play-target .hand-fan,
+.hand-dock.motion-draw-target .hand-fan,
+.hand-dock.motion-take-target .hand-fan {
+  animation: handFanSettle 420ms ease;
 }
 
 .hand-dock.waiting {
@@ -1295,6 +1336,121 @@ button {
 .button:disabled {
   opacity: 0.48;
   box-shadow: none;
+}
+
+.motion-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 18;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.motion-card {
+  --motion-width: 3.15rem;
+  --motion-height: 4.35rem;
+  position: absolute;
+  left: calc(var(--motion-x) - (var(--motion-width) / 2));
+  top: calc(var(--motion-y) - (var(--motion-height) / 2));
+  width: var(--motion-width);
+  height: var(--motion-height);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 253, 248, 0.82);
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.68), transparent 40%),
+    linear-gradient(180deg, rgba(255, 252, 246, 0.92) 0%, rgba(242, 231, 217, 0.78) 100%);
+  box-shadow:
+    0 10px 24px rgba(8, 23, 19, 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+  opacity: 0;
+  transform: translate3d(0, 0, 0) scale(0.84) rotate(var(--motion-rotate, 0deg));
+  animation: motionTravel 520ms cubic-bezier(0.2, 0.85, 0.32, 1) forwards;
+  animation-delay: var(--motion-delay, 0ms);
+  will-change: transform, opacity;
+}
+
+.motion-card.motion-local {
+  left: var(--motion-left);
+  top: var(--motion-top);
+  width: var(--motion-width);
+  height: var(--motion-height);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: translate3d(0, 0, 0);
+  transform-origin: top left;
+  animation: motionMorphTravel 560ms cubic-bezier(0.2, 0.85, 0.32, 1) forwards;
+}
+
+.motion-card.motion-local::before {
+  display: none;
+}
+
+.motion-card-shell {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.motion-card-face.card {
+  width: 100%;
+  min-height: 100%;
+  height: 100%;
+  margin: 0;
+  transform: none;
+  transition: none;
+  box-shadow:
+    0 14px 26px rgba(16, 38, 31, 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+
+.motion-card.motion-local-draw .motion-card-face.card {
+  box-shadow:
+    0 12px 24px rgba(16, 38, 31, 0.16),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+
+.motion-card::before {
+  content: "";
+  position: absolute;
+  inset: 0.28rem;
+  border-radius: 12px;
+  border: 1px solid rgba(16, 38, 31, 0.06);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.32), transparent 80%);
+}
+
+.motion-card.motion-deal {
+  --motion-width: 2.9rem;
+  --motion-height: 4rem;
+}
+
+.motion-card.motion-lock,
+.motion-card.motion-play,
+.motion-card.motion-draw-self,
+.motion-card.motion-reveal-hidden {
+  border-color: rgba(216, 91, 50, 0.26);
+}
+
+.motion-card.motion-draw-self {
+  --motion-width: 2.9rem;
+  --motion-height: 4rem;
+  border-color: rgba(247, 239, 225, 0.6);
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.72), transparent 40%),
+    linear-gradient(180deg, rgba(255, 252, 246, 0.94) 0%, rgba(239, 232, 220, 0.82) 100%);
+  animation-duration: 470ms;
+}
+
+.motion-card.motion-take-pile {
+  border-color: rgba(247, 239, 225, 0.5);
+}
+
+.motion-card.motion-burn {
+  border-color: rgba(244, 216, 120, 0.36);
+  background:
+    radial-gradient(circle at 50% 26%, rgba(255, 227, 158, 0.64), transparent 42%),
+    linear-gradient(180deg, rgba(255, 248, 236, 0.88) 0%, rgba(238, 209, 165, 0.68) 100%);
+  animation-name: burnCardTravel;
 }
 
 .field {
@@ -2258,18 +2414,51 @@ body.game-active-mobile .hand-layout-scroll .hand-fan {
   scroll-snap-type: x proximity;
 }
 
-@keyframes turnPulse {
+@keyframes seatTurnArrival {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(244, 216, 120, 0.38),
+      0 10px 24px rgba(8, 23, 19, 0.12);
+  }
+
+  55% {
+    box-shadow:
+      0 0 0 8px rgba(244, 216, 120, 0.18),
+      0 16px 32px rgba(8, 23, 19, 0.22);
+  }
+
+  100% {
+    box-shadow:
+      0 0 0 3px rgba(244, 216, 120, 0.2),
+      0 12px 28px rgba(8, 23, 19, 0.16);
+  }
+}
+
+@keyframes seatCurrentPulse {
   0%,
   100% {
     box-shadow:
-      0 0 0 4px rgba(244, 216, 120, 0.34),
+      0 0 0 3px rgba(244, 216, 120, 0.16),
       0 12px 28px rgba(8, 23, 19, 0.16);
   }
 
   50% {
     box-shadow:
-      0 0 0 8px rgba(244, 216, 120, 0.22),
-      0 14px 30px rgba(8, 23, 19, 0.2);
+      0 0 0 7px rgba(244, 216, 120, 0.24),
+      0 16px 32px rgba(8, 23, 19, 0.2);
+  }
+}
+
+@keyframes seatReceiveGlow {
+  0%,
+  100% {
+    box-shadow: 0 12px 28px rgba(8, 23, 19, 0.16);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 6px rgba(247, 239, 225, 0.1),
+      0 18px 34px rgba(8, 23, 19, 0.22);
   }
 }
 
@@ -2288,6 +2477,178 @@ body.game-active-mobile .hand-layout-scroll .hand-fan {
   to {
     opacity: 1;
     transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes deckDealPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  45% {
+    transform: scale(1.04);
+  }
+}
+
+@keyframes pileSettle {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.4;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pileTaking {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(0.86);
+    opacity: 0.18;
+  }
+}
+
+@keyframes pileBurn {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(-0.4rem) scale(0.72);
+    opacity: 0;
+  }
+}
+
+@keyframes handTurnArrival {
+  0% {
+    opacity: 0.78;
+    transform: translateY(0.18rem);
+  }
+
+  55% {
+    opacity: 1;
+    transform: translateY(-0.08rem);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes handFanSettle {
+  0% {
+    transform: scale(0.985);
+    opacity: 0.88;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes motionTravel {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.84) rotate(var(--motion-rotate, 0deg));
+  }
+
+  14% {
+    opacity: 0.95;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--motion-dx), var(--motion-dy), 0) scale(0.68) rotate(calc(var(--motion-rotate, 0deg) * -0.35));
+  }
+}
+
+@keyframes motionMorphTravel {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(1, 1) rotate(var(--motion-rotate, 0deg));
+  }
+
+  12% {
+    opacity: 1;
+  }
+
+  78% {
+    opacity: 0.96;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--motion-dx), var(--motion-dy), 0)
+      scale(var(--motion-scale-x), var(--motion-scale-y))
+      rotate(calc(var(--motion-rotate, 0deg) * -0.32));
+  }
+}
+
+@keyframes burnCardTravel {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.9) rotate(var(--motion-rotate, 0deg));
+  }
+
+  16% {
+    opacity: 0.96;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--motion-dx), var(--motion-dy), 0) scale(0.54) rotate(calc(var(--motion-rotate, 0deg) + 12deg));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-card {
+    animation: motionReduced 180ms ease forwards;
+  }
+
+  .motion-card.motion-burn {
+    animation: motionReduced 180ms ease forwards;
+  }
+
+  .seat-panel.current-turn {
+    animation: none;
+  }
+
+  .seat-panel.turn-arrival,
+  .seat-panel.motion-deal-target,
+  .seat-panel.motion-lock-target,
+  .seat-panel.motion-take-target,
+  .seat-panel.motion-reveal-target,
+  .hand-dock.turn-arrival .dock-header-main,
+  .hand-dock.motion-deal-target .hand-fan,
+  .hand-dock.motion-lock-target .hand-fan,
+  .hand-dock.motion-play-target .hand-fan,
+  .hand-dock.motion-take-target .hand-fan,
+  .deck-stack.dealing,
+  .pile-preview.settling,
+  .pile-preview.taking,
+  .pile-preview.burning,
+  .turn-toast {
+    animation-duration: 1ms;
+  }
+}
+
+@keyframes motionReduced {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 0;
   }
 }
 

@@ -35,6 +35,18 @@ const state = {
   leaveArmed: false,
   leaveConfirmTimer: null,
   rulesMenuOpen: false,
+  animations: [],
+  localMotionAnimations: [],
+  animationCounter: 0,
+  animationTimers: [],
+  turnArrivalSeat: null,
+  turnArrivalTimer: null,
+  motionAnchors: {},
+  motionAnchorSignature: "",
+  motionRerenderScheduled: false,
+  pendingLocalPlayCapture: null,
+  pendingLocalPlayAnimation: null,
+  pendingLocalDrawAnimation: null,
 };
 
 const app = document.getElementById("app");
@@ -158,6 +170,72 @@ function clearTurnNoticeTimer() {
   }
 }
 
+function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function clearAnimationTimers() {
+  state.animationTimers.forEach((timer) => window.clearTimeout(timer));
+  state.animationTimers = [];
+}
+
+function clearTurnArrivalTimer() {
+  if (state.turnArrivalTimer !== null) {
+    window.clearTimeout(state.turnArrivalTimer);
+    state.turnArrivalTimer = null;
+  }
+}
+
+function clearMotionState() {
+  clearAnimationTimers();
+  clearTurnArrivalTimer();
+  state.animations = [];
+  state.localMotionAnimations = [];
+  state.turnArrivalSeat = null;
+  state.motionAnchors = {};
+  state.motionAnchorSignature = "";
+  state.motionRerenderScheduled = false;
+  state.pendingLocalPlayCapture = null;
+  state.pendingLocalPlayAnimation = null;
+  state.pendingLocalDrawAnimation = null;
+}
+
+function queueAnimation(animation) {
+  const duration = prefersReducedMotion() ? 180 : (animation.duration || 520);
+  const id = state.animationCounter + 1;
+  state.animationCounter = id;
+  state.animations = [...state.animations, { ...animation, id, duration }];
+  const timer = window.setTimeout(() => {
+    state.animations = state.animations.filter((entry) => entry.id !== id);
+    state.animationTimers = state.animationTimers.filter((entry) => entry !== timer);
+    render();
+  }, duration + 90);
+  state.animationTimers = [...state.animationTimers, timer];
+}
+
+function queueLocalMotion(animation) {
+  const duration = prefersReducedMotion() ? 180 : (animation.duration || 540);
+  const id = state.animationCounter + 1;
+  state.animationCounter = id;
+  state.localMotionAnimations = [...state.localMotionAnimations, { ...animation, id, duration }];
+  const timer = window.setTimeout(() => {
+    state.localMotionAnimations = state.localMotionAnimations.filter((entry) => entry.id !== id);
+    state.animationTimers = state.animationTimers.filter((entry) => entry !== timer);
+    render();
+  }, duration + 120);
+  state.animationTimers = [...state.animationTimers, timer];
+}
+
+function markTurnArrival(seat) {
+  clearTurnArrivalTimer();
+  state.turnArrivalSeat = seat;
+  state.turnArrivalTimer = window.setTimeout(() => {
+    state.turnArrivalTimer = null;
+    state.turnArrivalSeat = null;
+    render();
+  }, prefersReducedMotion() ? 220 : 1100);
+}
+
 function clearRestoreRetryTimer() {
   if (state.restoreRetryTimer !== null) {
     window.clearTimeout(state.restoreRetryTimer);
@@ -197,6 +275,7 @@ function clearSession(errorMessage = "") {
   closeWebSocket();
   hideTurnNotice();
   clearRestoreRetryTimer();
+  clearMotionState();
   resetLeaveConfirmation();
   state.rulesMenuOpen = false;
   state.inviteCode = "";
@@ -219,6 +298,7 @@ function forgetSavedSession() {
   closeWebSocket();
   hideTurnNotice();
   clearRestoreRetryTimer();
+  clearMotionState();
   resetLeaveConfirmation();
   state.rulesMenuOpen = false;
   state.inviteCode = "";
@@ -239,6 +319,32 @@ function forgetSavedSession() {
 
 function cardId(card) {
   return `${card.rank}-${card.suit}`;
+}
+
+function cardMultiset(cards = []) {
+  const counts = new Map();
+  cards.forEach((card) => {
+    const key = cardId(card);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  return counts;
+}
+
+function collectAddedCards(previousCards = [], nextCards = [], limit = Infinity) {
+  const counts = cardMultiset(previousCards);
+  const added = [];
+  nextCards.forEach((card) => {
+    const key = cardId(card);
+    const remaining = counts.get(key) || 0;
+    if (remaining > 0) {
+      counts.set(key, remaining - 1);
+      return;
+    }
+    if (added.length < limit) {
+      added.push(card);
+    }
+  });
+  return added;
 }
 
 function isJokerCard(card) {
@@ -646,6 +752,7 @@ async function api(path, options = {}) {
 }
 
 function applyAuthPayload(payload) {
+  clearMotionState();
   state.inviteCode = payload.invite_code;
   state.playerToken = payload.player_token;
   state.seat = payload.seat;
@@ -791,7 +898,9 @@ function connectWebSocket() {
     }
     const payload = JSON.parse(event.data);
     if (payload.type === "session_snapshot") {
+      const previousSnapshot = state.snapshot?.data || null;
       state.snapshot = payload;
+      detectAnimationEvents(previousSnapshot, payload.data);
       if (!payload.data.players.some((player) => player.seat === state.seat)) {
         clearSession("Your saved session is no longer available. Join the game again if it is still active.");
         return;
@@ -802,7 +911,19 @@ function connectWebSocket() {
       }
       render();
     } else if (payload.type === "private_state") {
+      const previousPrivateCards = state.privateState?.data?.private_cards || [];
       state.privateState = payload;
+      if (
+        state.pendingLocalDrawAnimation
+        && !Array.isArray(state.pendingLocalDrawAnimation)
+        && Number.isInteger(state.pendingLocalDrawAnimation.count)
+      ) {
+        state.pendingLocalDrawAnimation = collectAddedCards(
+          previousPrivateCards,
+          payload.data.private_cards || [],
+          state.pendingLocalDrawAnimation.count,
+        );
+      }
       if (payload.data.pending_joker_selection || payload.data.pending_hidden_take) {
         state.selectedCards = [];
         state.jokerRank = payload.data.pending_joker_card?.effective_rank || null;
@@ -810,6 +931,9 @@ function connectWebSocket() {
       }
       render();
     } else if (payload.type === "action_error") {
+      state.pendingLocalPlayCapture = null;
+      state.pendingLocalPlayAnimation = null;
+      state.pendingLocalDrawAnimation = null;
       state.error = payload.message;
       render();
     }
@@ -832,11 +956,13 @@ function connectWebSocket() {
 
 async function startGame() {
   try {
+    const previousSnapshot = state.snapshot?.data || null;
     const response = await api(`/api/games/${state.inviteCode}/start`, {
       method: "POST",
       body: JSON.stringify({ player_token: state.playerToken }),
     });
     state.snapshot = response;
+    detectAnimationEvents(previousSnapshot, response.data);
     state.error = "";
     syncTurnNotice(response.data);
     render();
@@ -905,6 +1031,7 @@ function submitPlayCards() {
     render();
     return;
   }
+  state.pendingLocalPlayCapture = captureLocalPlaySelection();
   sendAction({
     type: "play_private_cards",
     cards: state.selectedCards,
@@ -967,6 +1094,18 @@ function onSubmit(event) {
   }
 }
 
+function renderCardBody(card) {
+  const rankMarkup = isJokerCard(card) ? jokerSymbol : rankLabel(card.rank);
+  return `
+    <span class="card-rank">${rankMarkup}</span>
+    ${
+      isJokerCard(card)
+        ? `<span class="card-joker-tag">${card.effective_rank ? `as ${rankLabel(card.effective_rank)}` : "wild"}</span>`
+        : `<span class="card-suit">${suitLabel(card.suit)}</span>`
+    }
+  `;
+}
+
 function renderCard(card, selected, clickable = true) {
   const classes = ["card"];
   if (selected) {
@@ -979,14 +1118,9 @@ function renderCard(card, selected, clickable = true) {
     classes.push("red");
   }
   const disabled = clickable ? "" : "disabled";
-  const rankMarkup = isJokerCard(card) ? jokerSymbol : rankLabel(card.rank);
-  const detailMarkup = isJokerCard(card)
-    ? `<span class="card-joker-tag">${card.effective_rank ? `as ${rankLabel(card.effective_rank)}` : "wild"}</span>`
-    : `<span class="card-suit">${suitLabel(card.suit)}</span>`;
   return `
     <button class="${classes.join(" ")}" data-card-id="${cardId(card)}" ${disabled}>
-      <span class="card-rank">${rankMarkup}</span>
-      ${detailMarkup}
+      ${renderCardBody(card)}
     </button>
   `;
 }
@@ -1007,6 +1141,447 @@ function seatPositionClass(snapshot, player) {
     4: ["seat-bottom", "seat-top-left", "seat-top", "seat-top-right"],
   };
   return layouts[snapshot.players.length]?.[relativeIndex] || "seat-top";
+}
+
+function playerMap(snapshot) {
+  return new Map((snapshot?.players || []).map((player) => [player.seat, player]));
+}
+
+function hasActiveMotion(kind) {
+  return state.animations.some((animation) => animation.kind === kind);
+}
+
+function seatHasActiveMotion(seat, kinds) {
+  return state.animations.some(
+    (animation) => kinds.includes(animation.kind) && animation.seat === seat,
+  );
+}
+
+function motionAnchorKeyForSeat(seat, purpose = "seat") {
+  if (purpose === "hand" && seat === state.seat) {
+    return "hand-self";
+  }
+  return `seat-${purpose}-${seat}`;
+}
+
+function getMotionAnchor(key) {
+  return key ? state.motionAnchors[key] || null : null;
+}
+
+function resolveMotionAnchor(...keys) {
+  for (const key of keys.flat()) {
+    const anchor = getMotionAnchor(key);
+    if (anchor) {
+      return anchor;
+    }
+  }
+  return null;
+}
+
+function measureMotionAnchors() {
+  const root = document.querySelector(".game-screen");
+  if (!root) {
+    state.motionAnchors = {};
+    state.motionAnchorSignature = "";
+    return false;
+  }
+
+  const rootRect = root.getBoundingClientRect();
+  const nextAnchors = {};
+  root.querySelectorAll("[data-motion-anchor]").forEach((element) => {
+    const key = element.dataset.motionAnchor;
+    if (!key) {
+      return;
+    }
+    const rect = element.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      return;
+    }
+    nextAnchors[key] = {
+      x: rect.left - rootRect.left + rect.width / 2,
+      y: rect.top - rootRect.top + rect.height / 2,
+    };
+  });
+
+  const signature = Object.entries(nextAnchors)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, point]) => `${key}:${Math.round(point.x)}:${Math.round(point.y)}`)
+    .join("|");
+  const changed = signature !== state.motionAnchorSignature;
+  state.motionAnchors = nextAnchors;
+  state.motionAnchorSignature = signature;
+  return changed;
+}
+
+function getGameScreenRoot() {
+  return document.querySelector(".game-screen");
+}
+
+function rectWithinGameScreen(element) {
+  const root = getGameScreenRoot();
+  if (!root || !element) {
+    return null;
+  }
+  const rootRect = root.getBoundingClientRect();
+  const rect = element.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) {
+    return null;
+  }
+  return {
+    left: rect.left - rootRect.left,
+    top: rect.top - rootRect.top,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+function centerToRect(center, width, height) {
+  return {
+    left: center.x - width / 2,
+    top: center.y - height / 2,
+    width,
+    height,
+  };
+}
+
+function getPileTopRect() {
+  const explicit = document.querySelector('[data-motion-rect="pile-top"]');
+  if (explicit) {
+    return rectWithinGameScreen(explicit);
+  }
+  const anchor = resolveMotionAnchor("pile");
+  if (!anchor) {
+    return null;
+  }
+  return centerToRect(anchor, 38, 52);
+}
+
+function getDeckTopRect() {
+  const explicit = document.querySelector('[data-motion-rect="deck-top"]');
+  if (explicit) {
+    return rectWithinGameScreen(explicit);
+  }
+  const anchor = resolveMotionAnchor("deck");
+  if (!anchor) {
+    return null;
+  }
+  return centerToRect(anchor, 42, 58);
+}
+
+function getHandCenterRect() {
+  const handFan = document.querySelector(".hand-fan");
+  if (!handFan) {
+    return null;
+  }
+  const handRect = rectWithinGameScreen(handFan);
+  if (!handRect) {
+    return null;
+  }
+  const visibleCard = handFan.querySelector(".card");
+  const cardRect = visibleCard ? rectWithinGameScreen(visibleCard) : null;
+  const styles = window.getComputedStyle(handFan);
+  const fallbackWidth = Number.parseFloat(styles.getPropertyValue("--hand-card-width")) || 72;
+  const fallbackHeight = Number.parseFloat(styles.getPropertyValue("--hand-card-height")) || 102;
+  const width = cardRect?.width || fallbackWidth;
+  const height = cardRect?.height || fallbackHeight;
+  return {
+    left: handRect.left + (handRect.width - width) / 2,
+    top: handRect.top + (handRect.height - height) / 2,
+    width,
+    height,
+  };
+}
+
+function offsetRect(rect, deltaX = 0, deltaY = 0) {
+  return {
+    left: rect.left + deltaX,
+    top: rect.top + deltaY,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+function captureLocalPlaySelection() {
+  if (prefersReducedMotion()) {
+    return null;
+  }
+  const root = getGameScreenRoot();
+  if (!root || state.selectedCards.length === 0) {
+    return null;
+  }
+  const rootRect = root.getBoundingClientRect();
+  const captures = state.selectedCards.map((card, index) => {
+    const element = root.querySelector(`.hand-fan [data-card-id="${cardId(card)}"]`);
+    if (!element) {
+      return null;
+    }
+    const rect = element.getBoundingClientRect();
+    return {
+      card,
+      index,
+      fromRect: {
+        left: rect.left - rootRect.left,
+        top: rect.top - rootRect.top,
+        width: rect.width,
+        height: rect.height,
+      },
+    };
+  }).filter(Boolean);
+  return captures.length > 0 ? captures : null;
+}
+
+function buildLocalPlayMotions(captures) {
+  const pileRect = getPileTopRect();
+  if (!captures || captures.length === 0 || !pileRect) {
+    return [];
+  }
+  return captures.slice(0, 3).map((capture, index) => {
+    const spread = (index - ((Math.min(captures.length, 3) - 1) / 2)) * 10;
+    return {
+      kind: "local-play",
+      card: capture.card,
+      fromRect: capture.fromRect,
+      toRect: offsetRect(pileRect, spread, index * 2),
+      delay: index * 70,
+      rotate: index % 2 === 0 ? -5 : 4,
+      duration: 560,
+    };
+  });
+}
+
+function buildLocalDrawMotions(cards) {
+  const deckRect = getDeckTopRect();
+  const handRect = getHandCenterRect();
+  if (!deckRect || !handRect || !cards || cards.length === 0) {
+    return [];
+  }
+  return cards.slice(0, 3).map((card, index) => {
+    const spread = (index - ((Math.min(cards.length, 3) - 1) / 2)) * 16;
+    return {
+      kind: "local-draw",
+      card,
+      fromRect: offsetRect(deckRect, index * 4, index * 3),
+      toRect: offsetRect(handRect, spread, 0),
+      delay: index * 65,
+      rotate: index % 2 === 0 ? -6 : 5,
+      duration: 520,
+    };
+  });
+}
+
+function flushPendingLocalMotions() {
+  let changed = false;
+
+  if (state.pendingLocalPlayAnimation) {
+    const motions = buildLocalPlayMotions(state.pendingLocalPlayAnimation);
+    state.pendingLocalPlayAnimation = null;
+    if (motions.length > 0) {
+      motions.forEach((motion) => queueLocalMotion(motion));
+      changed = true;
+    }
+  }
+
+  if (Array.isArray(state.pendingLocalDrawAnimation)) {
+    const motions = buildLocalDrawMotions(state.pendingLocalDrawAnimation);
+    state.pendingLocalDrawAnimation = null;
+    if (motions.length > 0) {
+      motions.forEach((motion) => queueLocalMotion(motion));
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
+function detectPlaySource(previousSnapshot, snapshot, previousPlayers) {
+  const localPrivateCards = state.privateState?.data?.private_cards || [];
+  const localPreviousPlayer = Number.isInteger(state.seat) ? previousPlayers.get(state.seat) : null;
+  const localPlayer = Number.isInteger(state.seat)
+    ? snapshot.players.find((entry) => entry.seat === state.seat) || null
+    : null;
+  const localDeckDraw = snapshot.cards_in_deck < previousSnapshot.cards_in_deck;
+  const localPrivateHandWasVisible = localPrivateCards.length > 0;
+  const localWasActing = previousSnapshot.current_turn_seat === state.seat;
+
+  if (
+    localWasActing
+    && localDeckDraw
+    && localPrivateHandWasVisible
+    && localPlayer
+    && localPreviousPlayer
+  ) {
+    return { seat: state.seat, source: "hand-self" };
+  }
+
+  const candidateSeats = [
+    previousSnapshot.current_turn_seat,
+    snapshot.current_turn_seat,
+    ...snapshot.players.map((player) => player.seat),
+  ].filter((seat, index, list) => Number.isInteger(seat) && list.indexOf(seat) === index);
+
+  for (const seat of candidateSeats) {
+    const previousPlayer = previousPlayers.get(seat);
+    const player = snapshot.players.find((entry) => entry.seat === seat);
+    if (!previousPlayer || !player) {
+      continue;
+    }
+
+    if (player.private_cards_count < previousPlayer.private_cards_count) {
+      return { seat, source: seat === state.seat ? "hand-self" : "hand" };
+    }
+
+    if (player.public_cards.length < previousPlayer.public_cards.length) {
+      return { seat, source: "public" };
+    }
+  }
+
+  const fallbackSeat = candidateSeats.find((seat) => Number.isInteger(seat));
+  if (Number.isInteger(fallbackSeat)) {
+    return { seat: fallbackSeat, source: fallbackSeat === state.seat ? "hand-self" : "hand" };
+  }
+
+  return null;
+}
+
+function detectAnimationEvents(previousSnapshot, snapshot) {
+  if (!previousSnapshot || previousSnapshot.invite_code !== snapshot.invite_code) {
+    return;
+  }
+
+  if (
+    previousSnapshot.status === "LOBBY"
+    && snapshot.status === "IN_GAME"
+    && snapshot.game_state === "PLAYERS_CHOOSE_PUBLIC_CARDS"
+  ) {
+    queueAnimation({
+      kind: "deal",
+      targets: snapshot.players.map((player) => player.seat),
+      duration: 760,
+    });
+  }
+
+  if (
+    snapshot.status === "IN_GAME"
+    && Number.isInteger(snapshot.current_turn_seat)
+    && previousSnapshot.current_turn_seat !== snapshot.current_turn_seat
+  ) {
+    markTurnArrival(snapshot.current_turn_seat);
+  }
+
+  const previousPlayers = playerMap(previousSnapshot);
+  const lockedSeats = [];
+  let revealHiddenSeat = null;
+
+  snapshot.players.forEach((player) => {
+    const previousPlayer = previousPlayers.get(player.seat);
+    if (!previousPlayer) {
+      return;
+    }
+
+    if (
+      previousSnapshot.game_state === "PLAYERS_CHOOSE_PUBLIC_CARDS"
+      && player.public_cards.length > previousPlayer.public_cards.length
+    ) {
+      lockedSeats.push({
+        seat: player.seat,
+        count: player.public_cards.length - previousPlayer.public_cards.length,
+      });
+    }
+
+    if (
+      player.hidden_cards_count < previousPlayer.hidden_cards_count
+      && snapshot.play_pile.length > previousSnapshot.play_pile.length
+      && player.private_cards_count === previousPlayer.private_cards_count
+      && player.public_cards.length === previousPlayer.public_cards.length
+    ) {
+      revealHiddenSeat = player.seat;
+    }
+  });
+
+  lockedSeats.forEach(({ seat, count }) => queueAnimation({
+    kind: "lock",
+    seat,
+    count: Math.max(1, Math.min(count, 3)),
+    duration: 460,
+  }));
+
+  if (
+    snapshot.status !== "IN_GAME"
+    || previousSnapshot.status !== "IN_GAME"
+    || !previousSnapshot.game_state
+    || !snapshot.game_state
+  ) {
+    return;
+  }
+
+  if (revealHiddenSeat !== null) {
+    queueAnimation({ kind: "reveal-hidden", seat: revealHiddenSeat, count: 1, duration: 430 });
+  }
+
+  if (previousSnapshot.play_pile.length > 0 && snapshot.play_pile.length === 0) {
+    if ((snapshot.status_message || "").includes("Burn!")) {
+      queueAnimation({ kind: "burn", duration: 620 });
+      return;
+    }
+
+    const takeSeat = snapshot.players.find((player) => {
+      const previousPlayer = previousPlayers.get(player.seat);
+      return previousPlayer && player.private_cards_count > previousPlayer.private_cards_count;
+    })?.seat;
+
+    if (Number.isInteger(takeSeat)) {
+      queueAnimation({
+        kind: "take-pile",
+        seat: takeSeat,
+        count: Math.min(previousSnapshot.play_pile.length, 4),
+        duration: 520,
+      });
+    }
+    return;
+  }
+
+  if (snapshot.play_pile.length > previousSnapshot.play_pile.length && revealHiddenSeat === null) {
+    const playSource = detectPlaySource(previousSnapshot, snapshot, previousPlayers);
+    if (playSource && Number.isInteger(playSource.seat)) {
+      const deckCardsDrawn = Math.max(0, previousSnapshot.cards_in_deck - snapshot.cards_in_deck);
+      const canUseLocalMorph = (
+        !prefersReducedMotion()
+        && playSource.seat === state.seat
+        && playSource.source === "hand-self"
+        && Array.isArray(state.pendingLocalPlayCapture)
+        && state.pendingLocalPlayCapture.length > 0
+      );
+      if (canUseLocalMorph) {
+        state.pendingLocalPlayAnimation = state.pendingLocalPlayCapture
+          .slice(0, Math.min(snapshot.play_pile.length - previousSnapshot.play_pile.length, 3));
+        state.pendingLocalPlayCapture = null;
+        if (deckCardsDrawn > 0) {
+          state.pendingLocalDrawAnimation = { count: Math.min(deckCardsDrawn, 3) };
+        }
+        return;
+      }
+      state.pendingLocalPlayCapture = null;
+      queueAnimation({
+        kind: "play",
+        seat: playSource.seat,
+        source: playSource.source,
+        count: Math.min(snapshot.play_pile.length - previousSnapshot.play_pile.length, 3),
+        duration: 440,
+      });
+      if (
+        playSource.seat === state.seat
+        && playSource.source === "hand-self"
+        && deckCardsDrawn > 0
+      ) {
+        queueAnimation({
+          kind: "draw-self",
+          seat: state.seat,
+          count: Math.min(deckCardsDrawn, 3),
+          duration: 420,
+        });
+      }
+    }
+  }
 }
 
 function renderSeatBackCard(rotation = 0, offset = 0) {
@@ -1088,8 +1663,13 @@ function renderSeat(snapshot, player) {
     "seat-panel",
     seatPositionClass(snapshot, player),
     isCurrentTurn ? "current-turn" : "",
+    state.turnArrivalSeat === player.seat ? "turn-arrival" : "",
     isWinner ? "winner" : "",
     isYou ? "you" : "",
+    seatHasActiveMotion(player.seat, ["deal"]) ? "motion-deal-target" : "",
+    seatHasActiveMotion(player.seat, ["lock"]) ? "motion-lock-target" : "",
+    seatHasActiveMotion(player.seat, ["take-pile"]) ? "motion-take-target" : "",
+    seatHasActiveMotion(player.seat, ["reveal-hidden"]) ? "motion-reveal-target" : "",
     !player.is_connected ? "disconnected" : "",
   ]
     .filter(Boolean)
@@ -1106,22 +1686,29 @@ function renderSeat(snapshot, player) {
     .join("");
 
   return `
-    <div class="${seatClasses}">
+    <div class="${seatClasses}" data-motion-anchor="seat-seat-${player.seat}">
       ${seatBadges ? `<div class="seat-badge-rail">${seatBadges}</div>` : ""}
       <div class="seat-header">
         <div class="seat-title-row">
           <strong>${escapeHtml(player.display_name)}</strong>
         </div>
       </div>
-      <div class="seat-hand-row">${renderSeatHandFan(player.private_cards_count)}</div>
-      <div class="seat-public-cards">${renderSeatPublicStack(player.public_cards, player.hidden_cards_count)}</div>
+      <div class="seat-hand-row" data-motion-anchor="seat-hand-${player.seat}">${renderSeatHandFan(player.private_cards_count)}</div>
+      <div
+        class="seat-public-cards"
+        data-motion-anchor="seat-public-${player.seat}"
+      >
+        <div class="seat-public-anchor" data-motion-anchor="seat-hidden-${player.seat}">
+          ${renderSeatPublicStack(player.public_cards, player.hidden_cards_count)}
+        </div>
+      </div>
     </div>
   `;
 }
 
-function renderMiniCard(card) {
+function renderMiniCard(card, attributes = "") {
   return `
-    <div class="mini-card ${isRedSuit(card.suit) ? "red" : ""} ${isJokerCard(card) ? "joker" : ""}">
+    <div class="mini-card ${isRedSuit(card.suit) ? "red" : ""} ${isJokerCard(card) ? "joker" : ""}" ${attributes}>
       <span>${isJokerCard(card) ? jokerSymbol : rankLabel(card.rank)}</span>
       <span>${isJokerCard(card) ? (card.effective_rank ? `as ${rankLabel(card.effective_rank)}` : "wild") : suitLabel(card.suit)}</span>
     </div>
@@ -1132,25 +1719,26 @@ function renderPilePreview(playPile) {
   if (playPile.length === 0) {
     return "";
   }
-  return playPile
-    .slice(0, playPilePreviewLimit)
-    .reverse()
-    .map((card) => renderMiniCard(card))
+  const visibleCards = playPile.slice(0, playPilePreviewLimit).reverse();
+  return visibleCards
+    .map((card, index) => renderMiniCard(
+      card,
+      index === visibleCards.length - 1 ? 'data-motion-rect="pile-top"' : "",
+    ))
     .join("");
 }
 
 function renderDeckPreview(cardsInDeck) {
   const visibleCards = Math.min(cardsInDeck, 3);
   return `
-    <div class="deck-stack" aria-hidden="true">
-      ${Array.from({ length: visibleCards }, (_, index) => `
-        <span
-          class="deck-back-card"
-          style="transform: translate(${index * 4}px, ${index * 3}px) rotate(${index * 3 - 3}deg);"
-        ></span>
-      `).join("")}
-      <span class="deck-count-badge">${cardsInDeck}</span>
-    </div>
+    ${Array.from({ length: visibleCards }, (_, index) => `
+      <span
+        class="deck-back-card"
+        ${index === visibleCards - 1 ? 'data-motion-rect="deck-top"' : ""}
+        style="transform: translate(${index * 4}px, ${index * 3}px) rotate(${index * 3 - 3}deg);"
+      ></span>
+    `).join("")}
+    <span class="deck-count-badge">${cardsInDeck}</span>
   `;
 }
 
@@ -1497,6 +2085,12 @@ function renderActions(snapshot) {
     "panel",
     "hand-dock",
     layout.classes,
+    seatHasActiveMotion(state.seat, ["deal"]) ? "motion-deal-target" : "",
+    seatHasActiveMotion(state.seat, ["lock"]) ? "motion-lock-target" : "",
+    seatHasActiveMotion(state.seat, ["play"]) ? "motion-play-target" : "",
+    hasActiveMotion("draw-self") ? "motion-draw-target" : "",
+    seatHasActiveMotion(state.seat, ["take-pile"]) ? "motion-take-target" : "",
+    state.turnArrivalSeat === state.seat ? "turn-arrival" : "",
     currentGameState() === "DURING_GAME" && !isMyTurn() ? "waiting" : "",
   ]
     .filter(Boolean)
@@ -1524,7 +2118,7 @@ function renderActions(snapshot) {
           ${renderCard(pendingCard, false, false)}
         </div>
       ` : `
-        <div class="hand-fan">
+        <div class="hand-fan" data-motion-anchor="hand-self">
           ${
             cards.map((card) => renderCard(card, selectedIds.has(cardId(card)))).join("")
               || '<p class="muted">No cards in hand right now.</p>'
@@ -1616,6 +2210,169 @@ function renderPileAction(snapshot) {
       Take pile
     </button>
   `;
+}
+
+function renderMotionGhost(kind, from, to, index = 0) {
+  if (!from || !to) {
+    return "";
+  }
+  return `
+    <span
+      class="motion-card motion-${kind}"
+      style="
+        --motion-x:${Math.round(from.x)}px;
+        --motion-y:${Math.round(from.y)}px;
+        --motion-dx:${Math.round(to.x - from.x)}px;
+        --motion-dy:${Math.round(to.y - from.y)}px;
+        --motion-delay:${index * 60}ms;
+        --motion-rotate:${index % 2 === 0 ? -7 : 6}deg;
+      "
+      aria-hidden="true"
+    ></span>
+  `;
+}
+
+function renderLocalMotionCard(animation) {
+  const source = animation.fromRect;
+  const target = animation.toRect;
+  if (!source || !target) {
+    return "";
+  }
+  const scaleX = target.width / Math.max(source.width, 1);
+  const scaleY = target.height / Math.max(source.height, 1);
+  return `
+    <span
+      class="motion-card motion-local motion-${animation.kind}"
+      style="
+        --motion-left:${Math.round(source.left)}px;
+        --motion-top:${Math.round(source.top)}px;
+        --motion-width:${Math.round(source.width)}px;
+        --motion-height:${Math.round(source.height)}px;
+        --motion-dx:${Math.round(target.left - source.left)}px;
+        --motion-dy:${Math.round(target.top - source.top)}px;
+        --motion-scale-x:${scaleX.toFixed(3)};
+        --motion-scale-y:${scaleY.toFixed(3)};
+        --motion-delay:${animation.delay || 0}ms;
+        --motion-rotate:${animation.rotate || 0}deg;
+      "
+      aria-hidden="true"
+    >
+      <span class="motion-card-shell">
+        <span class="card motion-card-face ${isJokerCard(animation.card) ? "joker" : ""} ${isRedSuit(animation.card.suit) ? "red" : ""}">
+          ${renderCardBody(animation.card)}
+        </span>
+      </span>
+    </span>
+  `;
+}
+
+function renderMotionLayer(snapshot) {
+  if (!snapshot || (state.animations.length === 0 && state.localMotionAnimations.length === 0)) {
+    return "";
+  }
+
+  const genericMarkup = state.animations.map((animation) => {
+    if (animation.kind === "deal") {
+      return (animation.targets || []).map((seat, index) => {
+        const from = resolveMotionAnchor("deck");
+        const target = resolveMotionAnchor(
+          motionAnchorKeyForSeat(seat, "hand"),
+          `seat-seat-${seat}`,
+        );
+        return renderMotionGhost("deal", from, target, index);
+      }).join("");
+    }
+
+    if (animation.kind === "lock") {
+      const from = resolveMotionAnchor(
+        motionAnchorKeyForSeat(animation.seat, "hand"),
+        `seat-seat-${animation.seat}`,
+      );
+      const to = resolveMotionAnchor(
+        motionAnchorKeyForSeat(animation.seat, "public"),
+        `seat-seat-${animation.seat}`,
+      );
+      return Array.from({ length: animation.count || 3 }, (_, index) =>
+        renderMotionGhost("lock", from, to, index)).join("");
+    }
+
+    if (animation.kind === "play") {
+      const sourceKeys = animation.source === "public"
+        ? [
+          motionAnchorKeyForSeat(animation.seat, "public"),
+          motionAnchorKeyForSeat(animation.seat, "hand"),
+          `seat-seat-${animation.seat}`,
+        ]
+        : animation.source === "hand-self"
+          ? [
+            "hand-self",
+            motionAnchorKeyForSeat(animation.seat, "hand"),
+            `seat-seat-${animation.seat}`,
+          ]
+        : [
+          motionAnchorKeyForSeat(animation.seat, "hand"),
+          motionAnchorKeyForSeat(animation.seat, "public"),
+          `seat-seat-${animation.seat}`,
+        ];
+      const from = resolveMotionAnchor(sourceKeys);
+      return Array.from({ length: animation.count || 1 }, (_, index) =>
+        renderMotionGhost("play", from, resolveMotionAnchor("pile"), index)).join("");
+    }
+
+    if (animation.kind === "draw-self") {
+      return Array.from({ length: animation.count || 1 }, (_, index) =>
+        renderMotionGhost("draw-self", resolveMotionAnchor("deck"), resolveMotionAnchor("hand-self"), index)).join("");
+    }
+
+    if (animation.kind === "take-pile") {
+      const from = resolveMotionAnchor("pile");
+      const to = resolveMotionAnchor(
+        motionAnchorKeyForSeat(animation.seat, "hand"),
+        motionAnchorKeyForSeat(animation.seat, "public"),
+        `seat-seat-${animation.seat}`,
+      );
+      return Array.from({ length: animation.count || 3 }, (_, index) =>
+        renderMotionGhost("take-pile", from, to, index)).join("");
+    }
+
+    if (animation.kind === "reveal-hidden") {
+      return renderMotionGhost(
+        "reveal-hidden",
+        resolveMotionAnchor(
+          motionAnchorKeyForSeat(animation.seat, "hidden"),
+          motionAnchorKeyForSeat(animation.seat, "public"),
+          `seat-seat-${animation.seat}`,
+        ),
+        resolveMotionAnchor("pile"),
+      );
+    }
+
+    if (animation.kind === "burn") {
+      const from = resolveMotionAnchor("pile");
+      if (!from) {
+        return "";
+      }
+      const offsets = [
+        { x: -36, y: -34 },
+        { x: -10, y: -54 },
+        { x: 18, y: -42 },
+        { x: 42, y: -58 },
+      ];
+      return Array.from({ length: 4 }, (_, index) =>
+        renderMotionGhost("burn", from, {
+          x: from.x + offsets[index].x,
+          y: from.y + offsets[index].y,
+        }, index)).join("");
+    }
+
+    return "";
+  }).join("");
+
+  const localMarkup = state.localMotionAnimations
+    .map((animation) => renderLocalMotionCard(animation))
+    .join("");
+
+  return `<div class="motion-layer" aria-hidden="true">${genericMarkup}${localMarkup}</div>`;
 }
 
 function renderRulesMenu() {
@@ -1732,6 +2489,21 @@ function renderTable(snapshot) {
     <button class="button secondary" id="share-invite">Share invite</button>
   ` : "";
 
+  const pilePreviewClasses = [
+    "pile-preview",
+    hasActiveMotion("play") || hasActiveMotion("reveal-hidden") ? "settling" : "",
+    hasActiveMotion("take-pile") ? "taking" : "",
+    hasActiveMotion("burn") ? "burning" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const deckStackClasses = [
+    "deck-stack",
+    hasActiveMotion("deal") ? "dealing" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return `
     <section class="panel table-stage stack">
       ${showMobileLobbyLayout && state.error ? `<div class="dock-error">${escapeHtml(state.error)}</div>` : ""}
@@ -1759,11 +2531,13 @@ function renderTable(snapshot) {
           <div class="table-resources">
             <div class="deck-orb">
               <span class="resource-label">Deck</span>
-              ${renderDeckPreview(displayedDeckCount(snapshot))}
+              <div class="${deckStackClasses}" data-motion-anchor="deck">
+                ${renderDeckPreview(displayedDeckCount(snapshot))}
+              </div>
             </div>
             <div class="pile-zone">
               <span class="resource-label">Play pile</span>
-              <div class="pile-preview">${renderPilePreview(snapshot.play_pile)}</div>
+              <div class="${pilePreviewClasses}" data-motion-anchor="pile">${renderPilePreview(snapshot.play_pile)}</div>
               <span class="pile-caption">${playPileCaption(snapshot.play_pile)}</span>
               ${renderPileAction(snapshot)}
             </div>
@@ -1802,6 +2576,7 @@ function renderApp() {
     <section class="${gameScreenClasses}">
       ${renderTable(snapshot)}
       ${showMobileLobbyLayout ? "" : renderActions(snapshot)}
+      ${renderMotionLayer(snapshot)}
     </section>
     ${!isMobileActiveGameLayout(snapshot) && state.error ? `<section class="panel error">${escapeHtml(state.error)}</section>` : ""}
     ${renderStandings(snapshot)}
@@ -2070,7 +2845,21 @@ function render() {
     }
   }
   wireEvents();
-  window.requestAnimationFrame(syncMobileGameLayout);
+  window.requestAnimationFrame(() => {
+    syncMobileGameLayout();
+    const anchorsChanged = measureMotionAnchors();
+    const queuedLocalMotion = flushPendingLocalMotions();
+    if (queuedLocalMotion) {
+      return;
+    }
+    if (anchorsChanged && state.snapshot && state.animations.length > 0 && !state.motionRerenderScheduled) {
+      state.motionRerenderScheduled = true;
+      window.requestAnimationFrame(() => {
+        state.motionRerenderScheduled = false;
+        render();
+      });
+    }
+  });
 }
 
 loadStoredSession();
@@ -2115,7 +2904,7 @@ window.addEventListener("orientationchange", () => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/static/sw.js?v=20260330c").then(() => {
+  navigator.serviceWorker.register("/static/sw.js?v=20260402e").then(() => {
     if (navigator.serviceWorker.controller) {
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         window.location.reload();

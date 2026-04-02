@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 SESSION_STORAGE_KEY = "shithead.alpha.session"
-STATIC_ASSET_VERSION = "20260402a"
+STATIC_ASSET_VERSION = "20260402f"
 
 
 def _http_error(err: ValueError) -> HTTPException:
