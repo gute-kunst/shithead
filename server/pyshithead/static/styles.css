@@ -1225,6 +1225,11 @@ button {
   box-shadow: 0 18px 28px rgba(216, 91, 50, 0.24);
 }
 
+.card.local-play-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .card-rank {
   font-size: 1.22rem;
   font-weight: 800;
@@ -1408,6 +1413,18 @@ button {
   box-shadow:
     0 12px 24px rgba(16, 38, 31, 0.16),
     0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+
+.motion-card.motion-local-play-throw {
+  animation: localPlayThrow 320ms cubic-bezier(0.22, 0.86, 0.34, 1) forwards;
+}
+
+.motion-card.motion-local-play-settle {
+  animation: localPlaySettle 250ms cubic-bezier(0.26, 0.88, 0.4, 1) forwards;
+}
+
+.motion-card.motion-local-draw-settle {
+  animation: localDrawSettle 520ms cubic-bezier(0.2, 0.85, 0.32, 1) forwards;
 }
 
 .motion-card::before {
@@ -2591,6 +2608,64 @@ body.game-active-mobile .hand-layout-scroll .hand-fan {
     transform: translate3d(var(--motion-dx), var(--motion-dy), 0)
       scale(var(--motion-scale-x), var(--motion-scale-y))
       rotate(calc(var(--motion-rotate, 0deg) * -0.32));
+  }
+}
+
+@keyframes localPlayThrow {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(1, 1) rotate(var(--motion-rotate, 0deg));
+  }
+
+  12% {
+    opacity: 1;
+  }
+
+  84% {
+    opacity: 0.98;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--motion-dx), var(--motion-dy), 0)
+      scale(var(--motion-scale-x), var(--motion-scale-y))
+      rotate(calc(var(--motion-rotate, 0deg) * -0.22));
+  }
+}
+
+@keyframes localPlaySettle {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(1, 1) rotate(var(--motion-rotate, 0deg));
+  }
+
+  22% {
+    opacity: 0.98;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--motion-dx), var(--motion-dy), 0)
+      scale(var(--motion-scale-x), var(--motion-scale-y))
+      rotate(calc(var(--motion-rotate, 0deg) * -0.4));
+  }
+}
+
+@keyframes localDrawSettle {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(1, 1) rotate(var(--motion-rotate, 0deg));
+  }
+
+  16% {
+    opacity: 0.96;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--motion-dx), var(--motion-dy), 0)
+      scale(var(--motion-scale-x), var(--motion-scale-y))
+      rotate(calc(var(--motion-rotate, 0deg) * -0.3));
   }
 }
 

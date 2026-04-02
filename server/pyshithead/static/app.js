@@ -44,9 +44,10 @@ const state = {
   motionAnchors: {},
   motionAnchorSignature: "",
   motionRerenderScheduled: false,
-  pendingLocalPlayCapture: null,
-  pendingLocalPlayAnimation: null,
+  pendingLocalPlay: null,
   pendingLocalDrawAnimation: null,
+  hiddenLocalHandCardIds: [],
+  localPlaySendTimer: null,
 };
 
 const app = document.getElementById("app");
@@ -186,18 +187,32 @@ function clearTurnArrivalTimer() {
   }
 }
 
+function clearLocalPlaySendTimer() {
+  if (state.localPlaySendTimer !== null) {
+    window.clearTimeout(state.localPlaySendTimer);
+    state.localPlaySendTimer = null;
+  }
+}
+
+function clearPendingLocalPlay() {
+  clearLocalPlaySendTimer();
+  state.pendingLocalPlay = null;
+  state.hiddenLocalHandCardIds = [];
+}
+
 function clearMotionState() {
   clearAnimationTimers();
   clearTurnArrivalTimer();
+  clearLocalPlaySendTimer();
   state.animations = [];
   state.localMotionAnimations = [];
   state.turnArrivalSeat = null;
   state.motionAnchors = {};
   state.motionAnchorSignature = "";
   state.motionRerenderScheduled = false;
-  state.pendingLocalPlayCapture = null;
-  state.pendingLocalPlayAnimation = null;
+  state.pendingLocalPlay = null;
   state.pendingLocalDrawAnimation = null;
+  state.hiddenLocalHandCardIds = [];
 }
 
 function queueAnimation(animation) {
@@ -516,6 +531,10 @@ function mustTakePile(snapshot = state.snapshot?.data) {
 
 function privateCards() {
   return state.privateState?.data?.private_cards || [];
+}
+
+function isLocalHandCardHidden(card) {
+  return state.hiddenLocalHandCardIds.includes(cardId(card));
 }
 
 function selectedRank() {
@@ -914,16 +933,18 @@ function connectWebSocket() {
       const previousPrivateCards = state.privateState?.data?.private_cards || [];
       state.privateState = payload;
       if (
-        state.pendingLocalDrawAnimation
-        && !Array.isArray(state.pendingLocalDrawAnimation)
-        && Number.isInteger(state.pendingLocalDrawAnimation.count)
+        state.pendingLocalPlay
+        && Number.isInteger(state.pendingLocalPlay.expectedDrawCount)
+        && state.pendingLocalPlay.expectedDrawCount > 0
       ) {
         state.pendingLocalDrawAnimation = collectAddedCards(
           previousPrivateCards,
           payload.data.private_cards || [],
-          state.pendingLocalDrawAnimation.count,
+          state.pendingLocalPlay.expectedDrawCount,
         );
       }
+      state.hiddenLocalHandCardIds = [];
+      state.pendingLocalPlay = null;
       if (payload.data.pending_joker_selection || payload.data.pending_hidden_take) {
         state.selectedCards = [];
         state.jokerRank = payload.data.pending_joker_card?.effective_rank || null;
@@ -931,8 +952,7 @@ function connectWebSocket() {
       }
       render();
     } else if (payload.type === "action_error") {
-      state.pendingLocalPlayCapture = null;
-      state.pendingLocalPlayAnimation = null;
+      clearPendingLocalPlay();
       state.pendingLocalDrawAnimation = null;
       state.error = payload.message;
       render();
@@ -994,9 +1014,10 @@ function sendAction(payload) {
   if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
     state.error = "Realtime connection is not ready.";
     render();
-    return;
+    return false;
   }
   state.ws.send(JSON.stringify(payload));
+  return true;
 }
 
 function submitChoosePublicCards() {
@@ -1013,6 +1034,9 @@ function submitChoosePublicCards() {
 }
 
 function submitPlayCards() {
+  if (state.localPlaySendTimer !== null) {
+    return;
+  }
   if (state.selectedCards.length === 0) {
     state.error = "Select at least one card.";
     render();
@@ -1031,14 +1055,48 @@ function submitPlayCards() {
     render();
     return;
   }
-  state.pendingLocalPlayCapture = captureLocalPlaySelection();
-  sendAction({
+  const selectedCards = [...state.selectedCards];
+  const payload = {
     type: "play_private_cards",
-    cards: state.selectedCards,
+    cards: selectedCards,
     choice: playRank() === state.snapshot.data.rules.high_low_rank ? state.highLowChoice : "",
     joker_rank: selectedHasJoker() ? state.jokerRank : null,
-  });
+  };
+  const capturedCards = captureLocalPlaySelection();
+  const shouldStageLocalThrow = !prefersReducedMotion() && Array.isArray(capturedCards) && capturedCards.length > 0;
+  if (!shouldStageLocalThrow) {
+    sendAction(payload);
+    resetSelection();
+    return;
+  }
+
+  const throwCards = buildLocalPlayThrowMotions(capturedCards);
+  state.pendingLocalPlay = {
+    throwCards: throwCards.map((motion) => ({
+      card: motion.card,
+      fromRect: motion.toRect,
+      delay: motion.delay,
+      rotate: motion.rotate,
+    })),
+    expectedDrawCount: 0,
+    actionSent: false,
+  };
+  state.hiddenLocalHandCardIds = capturedCards.map((entry) => cardId(entry.card));
+  throwCards.forEach((motion) => queueLocalMotion(motion));
   resetSelection();
+  render();
+  state.localPlaySendTimer = window.setTimeout(() => {
+    state.localPlaySendTimer = null;
+    const sent = sendAction(payload);
+    if (!sent) {
+      clearPendingLocalPlay();
+      render();
+      return;
+    }
+    if (state.pendingLocalPlay) {
+      state.pendingLocalPlay.actionSent = true;
+    }
+  }, 140);
 }
 
 function submitTakePile() {
@@ -1106,10 +1164,13 @@ function renderCardBody(card) {
   `;
 }
 
-function renderCard(card, selected, clickable = true) {
+function renderCard(card, selected, clickable = true, hidden = false) {
   const classes = ["card"];
   if (selected) {
     classes.push("selected");
+  }
+  if (hidden) {
+    classes.push("local-play-hidden");
   }
   if (isJokerCard(card)) {
     classes.push("joker");
@@ -1330,21 +1391,63 @@ function captureLocalPlaySelection() {
   return captures.length > 0 ? captures : null;
 }
 
-function buildLocalPlayMotions(captures) {
-  const pileRect = getPileTopRect();
-  if (!captures || captures.length === 0 || !pileRect) {
+function buildLocalPlayThrowMotions(captures) {
+  if (!captures || captures.length === 0) {
     return [];
   }
   return captures.slice(0, 3).map((capture, index) => {
-    const spread = (index - ((Math.min(captures.length, 3) - 1) / 2)) * 10;
+    const throwRect = buildLocalPlayThrowRect(capture.fromRect, index, Math.min(captures.length, 3));
     return {
-      kind: "local-play",
+      kind: "local-play-throw",
+      card: capture.card,
+      fromRect: capture.fromRect,
+      toRect: throwRect,
+      delay: index * 70,
+      rotate: index % 2 === 0 ? -8 : 7,
+      duration: 320,
+    };
+  });
+}
+
+function buildLocalPlayThrowRect(fromRect, index, totalCount) {
+  const pileRect = getPileTopRect();
+  const fallbackHandRect = getHandCenterRect();
+  const fromCenterX = fromRect.left + fromRect.width / 2;
+  const fromCenterY = fromRect.top + fromRect.height / 2;
+  const fallbackTargetX = fallbackHandRect
+    ? fallbackHandRect.left + fallbackHandRect.width / 2
+    : fromCenterX;
+  const fallbackTargetY = fallbackHandRect
+    ? fallbackHandRect.top - 130
+    : fromCenterY - 150;
+  const targetCenterX = pileRect ? pileRect.left + pileRect.width / 2 : fallbackTargetX;
+  const targetCenterY = pileRect ? pileRect.top + pileRect.height / 2 : fallbackTargetY;
+  const laneOffset = (index - ((totalCount - 1) / 2)) * 28;
+  const waypointCenterX = fromCenterX + ((targetCenterX - fromCenterX) * 0.64) + laneOffset;
+  const waypointCenterY = fromCenterY + ((targetCenterY - fromCenterY) * 0.46) - 54 - (index * 4);
+  return {
+    left: waypointCenterX - (fromRect.width * 0.92) / 2,
+    top: waypointCenterY - (fromRect.height * 0.92) / 2,
+    width: fromRect.width * 0.92,
+    height: fromRect.height * 0.92,
+  };
+}
+
+function buildLocalPlaySettleMotions(throwCards) {
+  const pileRect = getPileTopRect();
+  if (!throwCards || throwCards.length === 0 || !pileRect) {
+    return [];
+  }
+  return throwCards.slice(0, 3).map((capture, index) => {
+    const spread = (index - ((Math.min(throwCards.length, 3) - 1) / 2)) * 10;
+    return {
+      kind: "local-play-settle",
       card: capture.card,
       fromRect: capture.fromRect,
       toRect: offsetRect(pileRect, spread, index * 2),
-      delay: index * 70,
-      rotate: index % 2 === 0 ? -5 : 4,
-      duration: 560,
+      delay: index * 52,
+      rotate: capture.rotate ?? (index % 2 === 0 ? -3 : 3),
+      duration: 250,
     };
   });
 }
@@ -1358,7 +1461,7 @@ function buildLocalDrawMotions(cards) {
   return cards.slice(0, 3).map((card, index) => {
     const spread = (index - ((Math.min(cards.length, 3) - 1) / 2)) * 16;
     return {
-      kind: "local-draw",
+      kind: "local-draw-settle",
       card,
       fromRect: offsetRect(deckRect, index * 4, index * 3),
       toRect: offsetRect(handRect, spread, 0),
@@ -1372,9 +1475,9 @@ function buildLocalDrawMotions(cards) {
 function flushPendingLocalMotions() {
   let changed = false;
 
-  if (state.pendingLocalPlayAnimation) {
-    const motions = buildLocalPlayMotions(state.pendingLocalPlayAnimation);
-    state.pendingLocalPlayAnimation = null;
+  if (state.pendingLocalPlay?.throwCards) {
+    const motions = buildLocalPlaySettleMotions(state.pendingLocalPlay.throwCards);
+    state.pendingLocalPlay.throwCards = null;
     if (motions.length > 0) {
       motions.forEach((motion) => queueLocalMotion(motion));
       changed = true;
@@ -1548,19 +1651,19 @@ function detectAnimationEvents(previousSnapshot, snapshot) {
         !prefersReducedMotion()
         && playSource.seat === state.seat
         && playSource.source === "hand-self"
-        && Array.isArray(state.pendingLocalPlayCapture)
-        && state.pendingLocalPlayCapture.length > 0
+        && state.pendingLocalPlay
+        && Array.isArray(state.pendingLocalPlay.throwCards)
+        && state.pendingLocalPlay.throwCards.length > 0
       );
       if (canUseLocalMorph) {
-        state.pendingLocalPlayAnimation = state.pendingLocalPlayCapture
+        state.pendingLocalPlay.throwCards = state.pendingLocalPlay.throwCards
           .slice(0, Math.min(snapshot.play_pile.length - previousSnapshot.play_pile.length, 3));
-        state.pendingLocalPlayCapture = null;
         if (deckCardsDrawn > 0) {
-          state.pendingLocalDrawAnimation = { count: Math.min(deckCardsDrawn, 3) };
+          state.pendingLocalPlay.expectedDrawCount = Math.min(deckCardsDrawn, 3);
         }
         return;
       }
-      state.pendingLocalPlayCapture = null;
+      clearPendingLocalPlay();
       queueAnimation({
         kind: "play",
         seat: playSource.seat,
@@ -2120,7 +2223,12 @@ function renderActions(snapshot) {
       ` : `
         <div class="hand-fan" data-motion-anchor="hand-self">
           ${
-            cards.map((card) => renderCard(card, selectedIds.has(cardId(card)))).join("")
+            cards.map((card) => renderCard(
+              card,
+              selectedIds.has(cardId(card)),
+              true,
+              isLocalHandCardHidden(card),
+            )).join("")
               || '<p class="muted">No cards in hand right now.</p>'
           }
         </div>
@@ -2850,6 +2958,13 @@ function render() {
     const anchorsChanged = measureMotionAnchors();
     const queuedLocalMotion = flushPendingLocalMotions();
     if (queuedLocalMotion) {
+      if (!state.motionRerenderScheduled) {
+        state.motionRerenderScheduled = true;
+        window.requestAnimationFrame(() => {
+          state.motionRerenderScheduled = false;
+          render();
+        });
+      }
       return;
     }
     if (anchorsChanged && state.snapshot && state.animations.length > 0 && !state.motionRerenderScheduled) {
