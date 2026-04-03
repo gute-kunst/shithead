@@ -111,3 +111,24 @@ def browser_factory(browser):
 
     for context in contexts:
         context.close()
+
+
+@pytest.fixture
+def touch_browser_factory(browser):
+    contexts = []
+
+    def factory():
+        context = browser.new_context(
+            service_workers="allow",
+            viewport={"width": 375, "height": 812},
+            is_mobile=True,
+            has_touch=True,
+            device_scale_factor=2,
+        )
+        contexts.append(context)
+        return context
+
+    yield factory
+
+    for context in contexts:
+        context.close()

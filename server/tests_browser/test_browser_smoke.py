@@ -200,6 +200,46 @@ def test_lobby_optional_take_setting_syncs_and_shows_take_pile_action(live_serve
     expect(host_page.locator(".dock-prompt")).to_contain_text("take the pile")
 
 
+def test_mobile_hand_fan_drag_scrolls_and_taps_afterward(
+    live_server, touch_browser_factory
+):
+    host_page = open_page(touch_browser_factory(), live_server)
+    create_table(host_page, "Host")
+    invite_code = extract_invite_code(host_page)
+
+    guest_page = open_page(touch_browser_factory(), live_server)
+    join_table(guest_page, invite_code, "Guest")
+
+    host_page.locator("#start-game").click()
+
+    hand_dock = host_page.locator(".hand-dock")
+    hand_fan = host_page.locator(".hand-fan")
+    expect(hand_dock).to_have_class(re.compile(r"\bhand-layout-scroll\b"))
+    assert hand_fan.evaluate("(element) => element.scrollWidth > element.clientWidth")
+
+    initial_scroll_left = hand_fan.evaluate("(element) => element.scrollLeft")
+    hand_fan.dispatch_event(
+        "pointerdown",
+        {"pointerId": 1, "pointerType": "touch", "clientX": 260, "clientY": 36, "buttons": 1},
+    )
+    hand_fan.dispatch_event(
+        "pointermove",
+        {"pointerId": 1, "pointerType": "touch", "clientX": 120, "clientY": 40, "buttons": 1},
+    )
+    hand_fan.dispatch_event(
+        "pointerup",
+        {"pointerId": 1, "pointerType": "touch", "clientX": 120, "clientY": 40, "buttons": 0},
+    )
+
+    assert hand_fan.evaluate("(element) => element.scrollLeft") > initial_scroll_left
+    expect(host_page.locator(".hand-fan .card.selected")).to_have_count(0)
+
+    host_page.wait_for_timeout(400)
+    host_page.locator(".hand-fan [data-card-id]").first.click()
+
+    expect(host_page.locator(".hand-fan .card.selected")).to_have_count(1)
+
+
 def test_lobby_shoutouts_open_menu_and_broadcast_animation(live_server, browser_factory):
     host_page = open_page(browser_factory(), live_server)
     create_table(host_page, "Host")
