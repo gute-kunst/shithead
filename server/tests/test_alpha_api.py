@@ -145,9 +145,7 @@ def test_lobby_shoutout_broadcasts_live_event_to_connected_players():
                 assert host_join_notice["type"] == "session_snapshot"
                 assert host_join_notice["data"]["players"][1]["is_connected"] is True
 
-                host_ws.send_json(
-                    {"type": "send_shoutout", "shoutout_key": "hahaha"}
-                )
+                host_ws.send_json({"type": "send_shoutout", "shoutout_key": "hahaha"})
 
                 host_event = host_ws.receive_json()
                 guest_event = guest_ws.receive_json()
@@ -1006,7 +1004,9 @@ def test_unplayable_hidden_seven_requires_taking_the_pile_not_high_low_choice():
         assert resolved_snapshot.play_pile == []
         assert resolved_snapshot.status_message == "Host took the play pile."
         assert resolved_private_state.pending_hidden_take is False
-        assert any(card.rank == SpecialRank.HIGHLOW for card in resolved_private_state.private_cards)
+        assert any(
+            card.rank == SpecialRank.HIGHLOW for card in resolved_private_state.private_cards
+        )
 
 
 def test_unplayable_hidden_card_stays_visible_and_requires_taking_the_pile():

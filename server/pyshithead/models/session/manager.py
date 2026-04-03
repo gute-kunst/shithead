@@ -276,9 +276,8 @@ class GameSession:
     def _build_shoutout_event(self, player: SessionPlayer, shoutout_key: str) -> ShoutoutEvent:
         preset = self._get_shoutout_preset(shoutout_key)
         now = _utc_now()
-        if (
-            player.last_shoutout_at is not None
-            and now - player.last_shoutout_at < timedelta(seconds=self.SHOUTOUT_COOLDOWN_SECONDS)
+        if player.last_shoutout_at is not None and now - player.last_shoutout_at < timedelta(
+            seconds=self.SHOUTOUT_COOLDOWN_SECONDS
         ):
             raise ValueError("Please wait before sending another shoutout.")
         player.last_shoutout_at = now
@@ -369,7 +368,9 @@ class GameSession:
 
     def _sync_disconnect_policies(self):
         inferred_current_action = {
-            player.seat: self._infer_disconnect_action(player.seat) if not player.connected else None
+            player.seat: self._infer_disconnect_action(player.seat)
+            if not player.connected
+            else None
             for player in self.players
         }
         for player in self.players:
@@ -483,7 +484,9 @@ class GameSession:
         if game.all_players_chosen_public_card():
             game.state = GameState.DURING_GAME
 
-    def _resolve_current_offline_turn(self, seat: int, *, set_status_message: bool = True) -> str | None:
+    def _resolve_current_offline_turn(
+        self, seat: int, *, set_status_message: bool = True
+    ) -> str | None:
         player = self._get_player_entry(seat)
         if player is None or self.game_manager is None:
             return None
@@ -499,9 +502,7 @@ class GameSession:
             revealed_name = self._card_status_name(self.pending_joker_card)
             self._clear_pending_joker()
             if set_status_message:
-                self.last_status_message = (
-                    f"{player.display_name} disconnected after revealing {revealed_name} and took the play pile."
-                )
+                self.last_status_message = f"{player.display_name} disconnected after revealing {revealed_name} and took the play pile."
             summary = f"took the play pile after revealing {revealed_name}"
         elif self.pending_hidden_take_seat == seat:
             timed_out_player = game.get_player(seat)
@@ -509,14 +510,14 @@ class GameSession:
             game.process_playrequest(take_request, allow_when_hidden_available=True)
             self._clear_pending_hidden_take()
             if set_status_message:
-                self.last_status_message = (
-                    f"{player.display_name} disconnected after revealing a hidden card and took the play pile."
-                )
+                self.last_status_message = f"{player.display_name} disconnected after revealing a hidden card and took the play pile."
             summary = "took the play pile after revealing a hidden card"
         else:
             game.active_players.next()
             if set_status_message:
-                self.last_status_message = f"{player.display_name} disconnected and missed their turn."
+                self.last_status_message = (
+                    f"{player.display_name} disconnected and missed their turn."
+                )
         return summary
 
     async def _apply_disconnect_timeout(
@@ -877,14 +878,10 @@ class GameSession:
                     if int(revealed_card.rank) in game.valid_ranks:
                         self.pending_joker_seat = player.seat
                         self.pending_joker_card = revealed_card
-                        self.last_status_message = (
-                            f"{player.display_name} revealed {self._card_status_name(revealed_card)}."
-                        )
+                        self.last_status_message = f"{player.display_name} revealed {self._card_status_name(revealed_card)}."
                     else:
                         self.pending_hidden_take_seat = player.seat
-                        self.last_status_message = (
-                            f"{player.display_name} revealed {self._card_status_name(revealed_card)} and must take the pile."
-                        )
+                        self.last_status_message = f"{player.display_name} revealed {self._card_status_name(revealed_card)} and must take the pile."
                     self._finalize_state_change()
                     return
                 if int(revealed_card.rank) in game.valid_ranks:

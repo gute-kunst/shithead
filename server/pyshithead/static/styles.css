@@ -2698,9 +2698,6 @@ body.game-active-mobile .hand-layout-scroll .hand-fan {
   overflow-x: auto;
   scrollbar-width: none;
   scroll-padding-inline: 0.38rem;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
 }
 
 body.game-active-mobile .hand-layout-fit .hand-fan {
@@ -2713,7 +2710,6 @@ body.game-active-mobile .hand-layout-scroll .hand-fan::-webkit-scrollbar {
 
 body.game-active-mobile .hand-layout-scroll .card {
   scroll-snap-align: start;
-  touch-action: none;
 }
 
 body.game-active-mobile .hand-layout-scroll .hand-fan {
@@ -2723,6 +2719,18 @@ body.game-active-mobile .hand-layout-scroll .hand-fan {
 body.game-active-mobile .hand-layout-scroll .hand-fan.is-dragging {
   scroll-snap-type: none;
   cursor: grabbing;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  body.game-active-mobile .hand-layout-scroll .hand-fan {
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  body.game-active-mobile .hand-layout-scroll .card {
+    touch-action: none;
+  }
 }
 
 @keyframes seatTurnArrival {

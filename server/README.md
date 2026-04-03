@@ -54,6 +54,7 @@ Available presets:
 - `normal-turn`
 - `host-specials`
 - `host-specials-lock`
+- `host-turn-15`
 - `hidden-reveal`
 - `hidden-take`
 - `revealed-joker`

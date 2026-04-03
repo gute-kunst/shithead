@@ -3118,7 +3118,7 @@ function syncMobileGameLayout() {
 }
 
 function wireHandFanInteractions(handFan) {
-  const dragThreshold = 8;
+  const dragThreshold = 14;
   const tapSuppressMs = 350;
   let activeInputId = null;
   let startX = 0;
@@ -3178,7 +3178,7 @@ function wireHandFanInteractions(handFan) {
 
   if (window.PointerEvent) {
     handFan.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0 || event.pointerType === "mouse") {
+      if (event.button !== 0) {
         return;
       }
       beginDrag(event.pointerId, event.clientX, event.clientY);

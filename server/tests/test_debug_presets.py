@@ -78,6 +78,21 @@ def test_host_specials_lock_preset_stays_in_public_card_selection():
     }.issubset(private_ranks)
 
 
+def test_host_turn_15_preset_sets_host_turn_and_hand_size():
+    manager = GameSessionManager()
+    seed = seed_debug_preset(manager, "host-turn-15")
+
+    snapshot = seed.session.build_snapshot()
+    private_state = seed.session.build_private_state(0)
+    host_snapshot = next(player for player in snapshot.players if player.seat == 0)
+
+    assert snapshot.game_state == "DURING_GAME"
+    assert snapshot.current_turn_seat == 0
+    assert snapshot.current_turn_display_name == "Host"
+    assert len(private_state.private_cards) == 15
+    assert host_snapshot.private_cards_count == 15
+
+
 def test_revealed_card_presets_keep_resolution_state_visible():
     manager = GameSessionManager()
 

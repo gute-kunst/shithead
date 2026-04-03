@@ -23,6 +23,7 @@ DEBUG_PRESET_NAMES = (
     "normal-turn",
     "host-specials",
     "host-specials-lock",
+    "host-turn-15",
     "hidden-reveal",
     "hidden-take",
     "revealed-joker",
@@ -192,6 +193,45 @@ def _build_host_specials_lock(manager: GameSessionManager) -> GameSession:
     return session
 
 
+def _build_host_turn_15(manager: GameSessionManager) -> GameSession:
+    session = _base_started_session(manager, ("Host", "Guest"))
+    game = _prepare_during_game(session)
+    game.play_pile = PileOfCards([Card(6, Suit.HEART)])
+    game.valid_ranks = _valid_ranks_for_top_rank(6)
+    _set_player_cards(
+        session,
+        0,
+        private=[
+            Card(3, Suit.HEART),
+            Card(3, Suit.CLOVERS),
+            Card(4, Suit.PIKES),
+            Card(6, Suit.HEART),
+            Card(7, Suit.CLOVERS),
+            Card(8, Suit.TILES),
+            Card(9, Suit.HEART),
+            Card(9, Suit.PIKES),
+            Card(11, Suit.TILES),
+            Card(12, Suit.CLOVERS),
+            Card(13, Suit.HEART),
+            Card(14, Suit.PIKES),
+            Card(SpecialRank.RESET, Suit.CLOVERS),
+            Card(SpecialRank.SKIP, Suit.HEART),
+            Card(JOKER_RANK, Suit.JOKER_RED),
+        ],
+        public=[],
+        hidden=[],
+    )
+    _set_player_cards(
+        session,
+        1,
+        private=[Card(9, Suit.CLOVERS), Card(12, Suit.HEART), Card(13, Suit.PIKES)],
+        public=[],
+        hidden=[],
+    )
+    session.last_status_message = "Host is up with a 15-card hand."
+    return session
+
+
 def _build_hidden_reveal(manager: GameSessionManager) -> GameSession:
     session = _base_started_session(manager, ("Host", "Guest"))
     game = _prepare_during_game(session)
@@ -297,6 +337,7 @@ PRESET_BUILDERS = {
     "normal-turn": _build_normal_turn,
     "host-specials": _build_host_specials,
     "host-specials-lock": _build_host_specials_lock,
+    "host-turn-15": _build_host_turn_15,
     "hidden-reveal": _build_hidden_reveal,
     "hidden-take": _build_hidden_take,
     "revealed-joker": _build_revealed_joker,

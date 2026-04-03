@@ -4,7 +4,7 @@ import pytest
 from playwright.sync_api import expect
 
 from pyshithead.main import session_manager
-from pyshithead.models.game import Card, PileOfCards, SetOfCards, Suit
+from pyshithead.models.game import Card, GameState, PileOfCards, SetOfCards, Suit
 from pyshithead.models.session.models import ActionRequest
 
 pytestmark = pytest.mark.browser
@@ -46,23 +46,33 @@ def extract_invite_code(page) -> str:
     return match.group(1)
 
 
-def choose_public_cards(page):
-    cards = page.locator(".hand-fan [data-card-id]")
-    expect(cards).to_have_count(6)
-    for index in range(3):
-        cards.nth(index).click()
-    page.locator("#hand-primary-action").click()
+def finish_public_selection(invite_code: str):
+    session = session_manager.get_session(invite_code)
+    game = session.game_manager.game
+    for player in game.active_players:
+        player.public_cards_were_selected = True
+    game.state = GameState.DURING_GAME
+    session_manager._save_session(session)
 
 
-def wait_until_public_selection_finished(page):
-    page.wait_for_function(
-        """
-        () => {
-          const prompt = document.querySelector(".dock-prompt");
-          return prompt && !prompt.textContent.includes("Pick 3 public cards for the table.");
-        }
-        """
-    )
+def build_large_hand_cards():
+    return [
+        Card(3, Suit.HEART),
+        Card(4, Suit.HEART),
+        Card(5, Suit.HEART),
+        Card(6, Suit.HEART),
+        Card(7, Suit.HEART),
+        Card(8, Suit.HEART),
+        Card(9, Suit.HEART),
+        Card(10, Suit.HEART),
+        Card(11, Suit.HEART),
+        Card(12, Suit.HEART),
+        Card(13, Suit.HEART),
+        Card(14, Suit.HEART),
+        Card(3, Suit.CLOVERS),
+        Card(4, Suit.CLOVERS),
+        Card(6, Suit.CLOVERS),
+    ]
 
 
 def test_landing_shows_folded_buckets_and_rules_menu(live_server, browser_factory):
@@ -106,11 +116,7 @@ def test_multiplayer_lobby_start_public_selection_and_refresh_reconnect(
     expect(host_page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
     expect(guest_page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
 
-    choose_public_cards(host_page)
-    choose_public_cards(guest_page)
-
-    wait_until_public_selection_finished(host_page)
-    wait_until_public_selection_finished(guest_page)
+    finish_public_selection(invite_code)
 
     guest_page.reload(wait_until="networkidle")
     expect(guest_page.locator(".hand-dock")).to_be_visible()
@@ -182,10 +188,9 @@ def test_lobby_optional_take_setting_syncs_and_shows_take_pile_action(live_serve
     expect(guest_page.locator(".lobby-setting-indicator")).to_contain_text("On")
 
     host_page.locator("#start-game").click()
-    choose_public_cards(host_page)
-    choose_public_cards(guest_page)
-    wait_until_public_selection_finished(host_page)
-    wait_until_public_selection_finished(guest_page)
+    expect(host_page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
+    expect(guest_page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
+    finish_public_selection(invite_code)
 
     session = session_manager.get_session(invite_code)
     game = session.game_manager.game
@@ -200,9 +205,48 @@ def test_lobby_optional_take_setting_syncs_and_shows_take_pile_action(live_serve
     expect(host_page.locator(".dock-prompt")).to_contain_text("take the pile")
 
 
-def test_mobile_hand_fan_drag_scrolls_and_taps_afterward(
-    live_server, touch_browser_factory
-):
+def test_large_hand_scrolls_with_mouse_drag_on_desktop(live_server, browser_factory):
+    host_page = open_page(browser_factory(), live_server)
+    create_table(host_page, "Host")
+    invite_code = extract_invite_code(host_page)
+
+    guest_page = open_page(browser_factory(), live_server)
+    join_table(guest_page, invite_code, "Guest")
+
+    host_page.locator("#start-game").click()
+    expect(host_page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
+    expect(guest_page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
+    finish_public_selection(invite_code)
+
+    session = session_manager.get_session(invite_code)
+    host_player = session.game_manager.game.get_player(0)
+    host_player.private_cards = SetOfCards(build_large_hand_cards())
+    session_manager._save_session(session)
+
+    host_page.set_viewport_size({"width": 390, "height": 844})
+    host_page.reload(wait_until="networkidle")
+
+    hand_dock = host_page.locator(".hand-dock")
+    hand_fan = host_page.locator(".hand-fan")
+    expect(hand_dock).to_have_class(re.compile(r"\bhand-layout-scroll\b"))
+    assert hand_fan.evaluate("(element) => element.scrollWidth > element.clientWidth")
+
+    hand_box = hand_fan.bounding_box()
+    assert hand_box is not None
+    start_x = hand_box["x"] + hand_box["width"] * 0.72
+    start_y = hand_box["y"] + hand_box["height"] * 0.5
+    initial_scroll_left = hand_fan.evaluate("(element) => element.scrollLeft")
+
+    host_page.mouse.move(start_x, start_y)
+    host_page.mouse.down(button="left")
+    host_page.mouse.move(start_x - 180, start_y, steps=8)
+    host_page.mouse.up(button="left")
+
+    assert hand_fan.evaluate("(element) => element.scrollLeft") > initial_scroll_left
+    expect(host_page.locator(".hand-fan .card.selected")).to_have_count(0)
+
+
+def test_mobile_hand_fan_drag_scrolls_and_taps_afterward(live_server, touch_browser_factory):
     host_page = open_page(touch_browser_factory(), live_server)
     create_table(host_page, "Host")
     invite_code = extract_invite_code(host_page)
@@ -211,6 +255,17 @@ def test_mobile_hand_fan_drag_scrolls_and_taps_afterward(
     join_table(guest_page, invite_code, "Guest")
 
     host_page.locator("#start-game").click()
+    expect(host_page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
+    expect(guest_page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
+    finish_public_selection(invite_code)
+
+    session = session_manager.get_session(invite_code)
+    host_player = session.game_manager.game.get_player(0)
+    host_player.private_cards = SetOfCards(build_large_hand_cards())
+    session_manager._save_session(session)
+
+    host_page.set_viewport_size({"width": 390, "height": 844})
+    host_page.reload(wait_until="networkidle")
 
     hand_dock = host_page.locator(".hand-dock")
     hand_fan = host_page.locator(".hand-fan")
@@ -235,7 +290,7 @@ def test_mobile_hand_fan_drag_scrolls_and_taps_afterward(
     expect(host_page.locator(".hand-fan .card.selected")).to_have_count(0)
 
     host_page.wait_for_timeout(400)
-    host_page.locator(".hand-fan [data-card-id]").first.click()
+    host_page.locator(".hand-fan [data-card-id]").first.tap()
 
     expect(host_page.locator(".hand-fan .card.selected")).to_have_count(1)
 
@@ -285,10 +340,9 @@ def test_hidden_card_reveal_is_public_and_forces_take_pile(live_server, browser_
     join_table(guest_page, invite_code, "Guest")
 
     host_page.locator("#start-game").click()
-    choose_public_cards(host_page)
-    choose_public_cards(guest_page)
-    wait_until_public_selection_finished(host_page)
-    wait_until_public_selection_finished(guest_page)
+    expect(host_page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
+    expect(guest_page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
+    finish_public_selection(invite_code)
 
     session = session_manager.get_session(invite_code)
     game = session.game_manager.game
