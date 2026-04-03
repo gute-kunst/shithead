@@ -67,3 +67,4 @@ poetry run python -m pytest tests_browser/test_debug_presets.py tests_browser/te
 - Presence is transport-based: `is_connected` means the server currently has a live WebSocket.
 - Browser snapshots are the source of truth for the UI. The client only keeps reconnect metadata in `localStorage`.
 - Host-managed offline removal and reconnect grace behavior are documented in [docs/architecture.md](./architecture.md).
+- Bugs and initiatives should be tracked in-repo under [work/INDEX.md](../work/INDEX.md) and [work/STATE.md](../work/STATE.md).

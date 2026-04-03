@@ -2,7 +2,7 @@
 
 Architecture documentation: [docs/architecture.md](docs/architecture.md)
 Development guide: [docs/dev.md](docs/dev.md)
-GSD prep and workflow: [docs/gsd.md](docs/gsd.md)
+Work tracking: [work/INDEX.md](work/INDEX.md)
 Draw.io diagram: [docs/architecture.drawio](docs/architecture.drawio)
 
 ## Mobile Browser Alpha
@@ -40,7 +40,7 @@ The current alpha persists session state in SQLite, but deploys, restarts, or fr
 ## Development
 
 - canonical bootstrap and test commands live in [docs/dev.md](docs/dev.md)
-- GSD-specific onboarding and milestone flow live in [docs/gsd.md](docs/gsd.md)
+- in-repo work tracking lives in [work/INDEX.md](work/INDEX.md) and [work/STATE.md](work/STATE.md)
 
 ## Resources
 

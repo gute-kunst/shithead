@@ -5,7 +5,7 @@ Canonical project docs:
 
 - architecture: `../docs/architecture.md`
 - development commands: `../docs/dev.md`
-- GSD workflow: `../docs/gsd.md`
+- work tracking: `../work/INDEX.md`
 
 ## Start Server
 ```uvicorn pyshithead.main:app```
