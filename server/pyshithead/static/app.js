@@ -286,26 +286,35 @@ function clearMotionState() {
 }
 
 function queueAnimation(animation) {
-  const duration = prefersReducedMotion() ? 180 : (animation.duration || 520);
+  const duration = prefersReducedMotion() ? 180 : animation.duration || 520;
   const id = state.animationCounter + 1;
   state.animationCounter = id;
   state.animations = [...state.animations, { ...animation, id, duration }];
   const timer = window.setTimeout(() => {
     state.animations = state.animations.filter((entry) => entry.id !== id);
-    state.animationTimers = state.animationTimers.filter((entry) => entry !== timer);
+    state.animationTimers = state.animationTimers.filter(
+      (entry) => entry !== timer,
+    );
     render();
   }, duration + 90);
   state.animationTimers = [...state.animationTimers, timer];
 }
 
 function queueLocalMotion(animation) {
-  const duration = prefersReducedMotion() ? 180 : (animation.duration || 540);
+  const duration = prefersReducedMotion() ? 180 : animation.duration || 540;
   const id = state.animationCounter + 1;
   state.animationCounter = id;
-  state.localMotionAnimations = [...state.localMotionAnimations, { ...animation, id, duration }];
+  state.localMotionAnimations = [
+    ...state.localMotionAnimations,
+    { ...animation, id, duration },
+  ];
   const timer = window.setTimeout(() => {
-    state.localMotionAnimations = state.localMotionAnimations.filter((entry) => entry.id !== id);
-    state.animationTimers = state.animationTimers.filter((entry) => entry !== timer);
+    state.localMotionAnimations = state.localMotionAnimations.filter(
+      (entry) => entry.id !== id,
+    );
+    state.animationTimers = state.animationTimers.filter(
+      (entry) => entry !== timer,
+    );
     render();
   }, duration + 120);
   state.animationTimers = [...state.animationTimers, timer];
@@ -314,13 +323,18 @@ function queueLocalMotion(animation) {
 function markTurnArrival(seat) {
   clearTurnArrivalTimer();
   state.turnArrivalSeat = seat;
-  state.turnArrivalTimer = window.setTimeout(() => {
-    state.turnArrivalTimer = null;
-    state.turnArrivalSeat = null;
-    document.querySelectorAll(".seat-panel.turn-arrival, .hand-dock.turn-arrival").forEach((element) => {
-      element.classList.remove("turn-arrival");
-    });
-  }, prefersReducedMotion() ? 220 : 1100);
+  state.turnArrivalTimer = window.setTimeout(
+    () => {
+      state.turnArrivalTimer = null;
+      state.turnArrivalSeat = null;
+      document
+        .querySelectorAll(".seat-panel.turn-arrival, .hand-dock.turn-arrival")
+        .forEach((element) => {
+          element.classList.remove("turn-arrival");
+        });
+    },
+    prefersReducedMotion() ? 220 : 1100,
+  );
 }
 
 function clearRestoreRetryTimer() {
@@ -354,7 +368,10 @@ function closeWebSocket({ allowReconnect = false } = {}) {
   state.shoutoutMenuOpen = false;
   const websocket = state.ws;
   state.ws = null;
-  if (websocket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(websocket.readyState)) {
+  if (
+    websocket &&
+    [WebSocket.OPEN, WebSocket.CONNECTING].includes(websocket.readyState)
+  ) {
     websocket.close();
   }
 }
@@ -424,7 +441,11 @@ function cardMultiset(cards = []) {
   return counts;
 }
 
-function collectAddedCards(previousCards = [], nextCards = [], limit = Infinity) {
+function collectAddedCards(
+  previousCards = [],
+  nextCards = [],
+  limit = Infinity,
+) {
   const counts = cardMultiset(previousCards);
   const added = [];
   nextCards.forEach((card) => {
@@ -449,7 +470,9 @@ function cardEffectiveRank(card) {
   if (!card) {
     return null;
   }
-  return isJokerCard(card) && Number.isInteger(card.effective_rank) ? card.effective_rank : card.rank;
+  return isJokerCard(card) && Number.isInteger(card.effective_rank)
+    ? card.effective_rank
+    : card.rank;
 }
 
 function rankLabel(rank) {
@@ -516,12 +539,18 @@ function ordinal(value) {
 }
 
 function me() {
-  return state.snapshot?.data?.players.find((player) => player.seat === state.seat) || null;
+  return (
+    state.snapshot?.data?.players.find(
+      (player) => player.seat === state.seat,
+    ) || null
+  );
 }
 
 function canHostRemovePlayer(player) {
   const self = me();
-  return Boolean(self && self.is_host && !player.is_host && !player.is_connected);
+  return Boolean(
+    self && self.is_host && !player.is_host && !player.is_connected,
+  );
 }
 
 function parseTimestamp(value) {
@@ -544,7 +573,9 @@ function formatDuration(totalSeconds) {
   }
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
-  return remainingMinutes === 0 ? `${hours}h` : `${hours}h ${remainingMinutes}m`;
+  return remainingMinutes === 0
+    ? `${hours}h`
+    : `${hours}h ${remainingMinutes}m`;
 }
 
 function disconnectActionLabel(action) {
@@ -573,7 +604,9 @@ function renderOfflinePresence(player) {
 
   const deadlineMs = parseTimestamp(player.disconnect_deadline_at);
   if (deadlineMs !== null && player.disconnect_action) {
-    lines.push(`${disconnectActionLabel(player.disconnect_action)} in ${formatDuration((deadlineMs - nowMs) / 1000)}`);
+    lines.push(
+      `${disconnectActionLabel(player.disconnect_action)} in ${formatDuration((deadlineMs - nowMs) / 1000)}`,
+    );
   } else if (canHostRemovePlayer(player)) {
     lines.push("Waiting for reconnect. Host can remove now.");
   } else {
@@ -601,16 +634,20 @@ function renderOfflinePresence(player) {
 }
 
 function renderOfflineSummary(snapshot) {
-  const offlinePlayers = snapshot.players.filter((player) => !player.is_connected);
+  const offlinePlayers = snapshot.players.filter(
+    (player) => !player.is_connected,
+  );
   if (offlinePlayers.length === 0) {
     return "";
   }
   const self = me();
-  const hasCountdown = offlinePlayers.some((player) => Boolean(player.disconnect_deadline_at));
+  const hasCountdown = offlinePlayers.some((player) =>
+    Boolean(player.disconnect_deadline_at),
+  );
   const copy = self?.is_host
-    ? (hasCountdown
+    ? hasCountdown
       ? "Offline players can reconnect. Setup fallback waits up to 10 minutes and an offline turn waits up to 5 minutes. You can remove offline players sooner."
-      : "Offline players can reconnect. In the lobby they stay offline until they return or the host removes them.")
+      : "Offline players can reconnect. In the lobby they stay offline until they return or the host removes them."
     : "Offline players can reconnect when they return.";
   return `
     <div class="event-box event-box-muted">
@@ -621,7 +658,9 @@ function renderOfflineSummary(snapshot) {
 
 function syncPresenceTicker() {
   const snapshot = state.snapshot?.data;
-  const hasOfflinePlayers = Boolean(snapshot?.players?.some((player) => !player.is_connected));
+  const hasOfflinePlayers = Boolean(
+    snapshot?.players?.some((player) => !player.is_connected),
+  );
   if (!hasOfflinePlayers) {
     clearPresenceTicker();
     return;
@@ -639,14 +678,20 @@ function syncKickSeatConfirmation(snapshot = state.snapshot?.data) {
   if (!Number.isInteger(state.kickSeatArmed)) {
     return;
   }
-  const armedPlayer = snapshot?.players?.find((player) => player.seat === state.kickSeatArmed);
+  const armedPlayer = snapshot?.players?.find(
+    (player) => player.seat === state.kickSeatArmed,
+  );
   if (!armedPlayer || !canHostRemovePlayer(armedPlayer)) {
     resetKickSeatConfirmation();
   }
 }
 
 function winner() {
-  return state.snapshot?.data?.players.find((player) => player.finished_position === 1) || null;
+  return (
+    state.snapshot?.data?.players.find(
+      (player) => player.finished_position === 1,
+    ) || null
+  );
 }
 
 function turnPlayer() {
@@ -716,9 +761,9 @@ function shoutoutPresets(snapshot = state.snapshot?.data) {
 
 function canSendShoutouts(snapshot = state.snapshot?.data) {
   return Boolean(
-    snapshot
-    && state.wsReady
-    && (snapshot.status === "LOBBY" || snapshot.status === "IN_GAME"),
+    snapshot &&
+    state.wsReady &&
+    (snapshot.status === "LOBBY" || snapshot.status === "IN_GAME"),
   );
 }
 
@@ -726,7 +771,10 @@ function canOptionallyTakePile(snapshot = state.snapshot?.data) {
   if (currentGameState() !== "DURING_GAME" || !isMyTurn()) {
     return false;
   }
-  if (!optionalTakeRuleEnabled(snapshot) || (snapshot?.play_pile?.length || 0) === 0) {
+  if (
+    !optionalTakeRuleEnabled(snapshot) ||
+    (snapshot?.play_pile?.length || 0) === 0
+  ) {
     return false;
   }
   return !hasPendingJokerSelection() && !hasPendingHiddenTake();
@@ -740,9 +788,9 @@ function mustTakePile(snapshot = state.snapshot?.data) {
     return true;
   }
   return (
-    privateCards().length > 0
-    && !canPlayHiddenCard()
-    && !hasPlayablePrivateCard(snapshot)
+    privateCards().length > 0 &&
+    !canPlayHiddenCard() &&
+    !hasPlayablePrivateCard(snapshot)
   );
 }
 
@@ -751,7 +799,9 @@ function privateCards() {
 }
 
 function currentHandScrollKey() {
-  return privateCards().map((card) => cardId(card)).join("|");
+  return privateCards()
+    .map((card) => cardId(card))
+    .join("|");
 }
 
 function captureHandFanScroll() {
@@ -768,7 +818,10 @@ function restoreHandFanScroll() {
     return;
   }
   const maxScrollLeft = Math.max(0, handFan.scrollWidth - handFan.clientWidth);
-  handFan.scrollLeft = Math.min(maxScrollLeft, Math.max(0, state.handFanScrollLeft));
+  handFan.scrollLeft = Math.min(
+    maxScrollLeft,
+    Math.max(0, state.handFanScrollLeft),
+  );
 }
 
 function isLocalHandCardHidden(card) {
@@ -797,7 +850,13 @@ function selectedHasJoker() {
 }
 
 function selectedNonJokerRank() {
-  const ranks = [...new Set(state.selectedCards.filter((card) => !isJokerCard(card)).map((card) => card.rank))];
+  const ranks = [
+    ...new Set(
+      state.selectedCards
+        .filter((card) => !isJokerCard(card))
+        .map((card) => card.rank),
+    ),
+  ];
   if (ranks.length !== 1) {
     return null;
   }
@@ -809,21 +868,32 @@ function pendingJokerCard() {
 }
 
 function hasPendingJokerSelection() {
-  return Boolean(state.privateState?.data?.pending_joker_selection && pendingJokerCard());
+  return Boolean(
+    state.privateState?.data?.pending_joker_selection && pendingJokerCard(),
+  );
 }
 
-function jokerOptions(snapshot = state.snapshot?.data, cards = state.selectedCards) {
+function jokerOptions(
+  snapshot = state.snapshot?.data,
+  cards = state.selectedCards,
+) {
   if (!cards.some((card) => isJokerCard(card))) {
     return [];
   }
   const validRanks = new Set(snapshot?.current_valid_ranks || []);
-  const nonJokerRanks = [...new Set(cards.filter((card) => !isJokerCard(card)).map((card) => card.rank))];
+  const nonJokerRanks = [
+    ...new Set(
+      cards.filter((card) => !isJokerCard(card)).map((card) => card.rank),
+    ),
+  ];
   if (nonJokerRanks.length > 1) {
     return [];
   }
   if (nonJokerRanks.length === 1) {
     const [rank] = nonJokerRanks;
-    return jokerAllowedRanks.includes(rank) && validRanks.has(rank) ? [rank] : [];
+    return jokerAllowedRanks.includes(rank) && validRanks.has(rank)
+      ? [rank]
+      : [];
   }
   return jokerAllowedRanks.filter((rank) => validRanks.has(rank));
 }
@@ -874,7 +944,10 @@ function turnNoticePayload(snapshot) {
   } else if (snapshot.status === "LOBBY") {
     headline = "Lobby";
   } else if (isMyTurn()) {
-    headline = currentGameState() === "PLAYERS_CHOOSE_PUBLIC_CARDS" ? "Choose your cards" : "It's your turn!";
+    headline =
+      currentGameState() === "PLAYERS_CHOOSE_PUBLIC_CARDS"
+        ? "Choose your cards"
+        : "It's your turn!";
   } else if (snapshot.current_turn_display_name) {
     headline = `${snapshot.current_turn_display_name} is up`;
   }
@@ -913,9 +986,13 @@ function syncTurnNotice(snapshot, { suppress = false } = {}) {
 }
 
 function toggleCard(card) {
-  const exists = state.selectedCards.some((selected) => cardId(selected) === cardId(card));
+  const exists = state.selectedCards.some(
+    (selected) => cardId(selected) === cardId(card),
+  );
   if (exists) {
-    state.selectedCards = state.selectedCards.filter((selected) => cardId(selected) !== cardId(card));
+    state.selectedCards = state.selectedCards.filter(
+      (selected) => cardId(selected) !== cardId(card),
+    );
     syncJokerSelection();
     render();
     return;
@@ -944,7 +1021,11 @@ function toggleCard(card) {
       state.selectedCards = [...state.selectedCards, card];
       state.error = "";
       syncJokerSelection();
-    } else if (selectedHasJoker() && nonJokerRank === null && state.selectedCards.length > 0) {
+    } else if (
+      selectedHasJoker() &&
+      nonJokerRank === null &&
+      state.selectedCards.length > 0
+    ) {
       if (!jokerAllowedRanks.includes(card.rank)) {
         state.error = "Jokers cannot be 2, 5, or 10.";
         render();
@@ -1016,8 +1097,9 @@ function applyAuthPayload(payload) {
   state.snapshot = { type: "session_snapshot", data: payload.snapshot };
   state.privateState = { type: "private_state", data: payload.private_state };
   state.presenceNow = Date.now();
-  state.displayName = payload.snapshot.players.find((player) => player.seat === payload.seat)?.display_name
-    || state.displayName;
+  state.displayName =
+    payload.snapshot.players.find((player) => player.seat === payload.seat)
+      ?.display_name || state.displayName;
   state.error = "";
   state.restoringSession = false;
   resetSelection();
@@ -1056,16 +1138,25 @@ async function joinGame(form) {
 }
 
 function isPermanentRestoreError(error) {
-  return ["auth", "not_found"].includes(error.kind) || [400, 401, 403, 404].includes(error.status);
+  return (
+    ["auth", "not_found"].includes(error.kind) ||
+    [400, 401, 403, 404].includes(error.status)
+  );
 }
 
 function scheduleRestoreRetry() {
-  if (!hasSavedSession() || state.snapshot || state.restoringSession || state.restoreRetryCount >= 3) {
+  if (
+    !hasSavedSession() ||
+    state.snapshot ||
+    state.restoringSession ||
+    state.restoreRetryCount >= 3
+  ) {
     return;
   }
   clearRestoreRetryTimer();
   const retryDelays = [1500, 4000, 8000];
-  const delay = retryDelays[state.restoreRetryCount] || retryDelays[retryDelays.length - 1];
+  const delay =
+    retryDelays[state.restoreRetryCount] || retryDelays[retryDelays.length - 1];
   state.restoreRetryCount += 1;
   state.restoreRetryTimer = window.setTimeout(() => {
     state.restoreRetryTimer = null;
@@ -1093,7 +1184,9 @@ async function restoreSession({ resetRetry = false } = {}) {
   } catch (error) {
     state.restoringSession = false;
     if (isPermanentRestoreError(error)) {
-      clearSession("Your saved session is no longer available. Join the game again if it is still active.");
+      clearSession(
+        "Your saved session is no longer available. Join the game again if it is still active.",
+      );
       return;
     }
     state.error = "Could not restore your saved session right now. Try again.";
@@ -1107,7 +1200,10 @@ function attemptSessionRecovery({ resetRetry = false } = {}) {
     return;
   }
   if (state.snapshot) {
-    if (!state.ws || ![WebSocket.OPEN, WebSocket.CONNECTING].includes(state.ws.readyState)) {
+    if (
+      !state.ws ||
+      ![WebSocket.OPEN, WebSocket.CONNECTING].includes(state.ws.readyState)
+    ) {
       connectWebSocket();
     }
     return;
@@ -1130,7 +1226,10 @@ function connectWebSocket() {
   if (!state.inviteCode || !state.playerToken) {
     return;
   }
-  if (state.ws && [WebSocket.OPEN, WebSocket.CONNECTING].includes(state.ws.readyState)) {
+  if (
+    state.ws &&
+    [WebSocket.OPEN, WebSocket.CONNECTING].includes(state.ws.readyState)
+  ) {
     return;
   }
   clearReconnectTimer();
@@ -1162,7 +1261,9 @@ function connectWebSocket() {
       state.presenceNow = Date.now();
       detectAnimationEvents(previousSnapshot, payload.data);
       if (!payload.data.players.some((player) => player.seat === state.seat)) {
-        clearSession("Your saved session is no longer available. Join the game again if it is still active.");
+        clearSession(
+          "Your saved session is no longer available. Join the game again if it is still active.",
+        );
         return;
       }
       syncKickSeatConfirmation(payload.data);
@@ -1172,12 +1273,13 @@ function connectWebSocket() {
       }
       render();
     } else if (payload.type === "private_state") {
-      const previousPrivateCards = state.privateState?.data?.private_cards || [];
+      const previousPrivateCards =
+        state.privateState?.data?.private_cards || [];
       state.privateState = payload;
       if (
-        state.pendingLocalPlay
-        && Number.isInteger(state.pendingLocalPlay.expectedDrawCount)
-        && state.pendingLocalPlay.expectedDrawCount > 0
+        state.pendingLocalPlay &&
+        Number.isInteger(state.pendingLocalPlay.expectedDrawCount) &&
+        state.pendingLocalPlay.expectedDrawCount > 0
       ) {
         state.pendingLocalDrawAnimation = collectAddedCards(
           previousPrivateCards,
@@ -1187,9 +1289,13 @@ function connectWebSocket() {
       }
       state.hiddenLocalHandCardIds = [];
       state.pendingLocalPlay = null;
-      if (payload.data.pending_joker_selection || payload.data.pending_hidden_take) {
+      if (
+        payload.data.pending_joker_selection ||
+        payload.data.pending_hidden_take
+      ) {
         state.selectedCards = [];
-        state.jokerRank = payload.data.pending_joker_card?.effective_rank || null;
+        state.jokerRank =
+          payload.data.pending_joker_card?.effective_rank || null;
         state.highLowChoice = "";
       }
       render();
@@ -1216,7 +1322,9 @@ function connectWebSocket() {
     state.ws = null;
     state.wsReady = false;
     if (event.code === 1008) {
-      clearSession("Your saved session is no longer available. Join the game again if it is still active.");
+      clearSession(
+        "Your saved session is no longer available. Join the game again if it is still active.",
+      );
       return;
     }
     render();
@@ -1262,10 +1370,13 @@ async function updateGameSettings(allowOptionalTakePile) {
 
 async function kickPlayer(seat) {
   try {
-    const response = await api(`/api/games/${state.inviteCode}/players/${seat}/kick`, {
-      method: "POST",
-      body: JSON.stringify({ player_token: state.playerToken }),
-    });
+    const response = await api(
+      `/api/games/${state.inviteCode}/players/${seat}/kick`,
+      {
+        method: "POST",
+        body: JSON.stringify({ player_token: state.playerToken }),
+      },
+    );
     resetKickSeatConfirmation();
     state.snapshot = response;
     state.error = "";
@@ -1319,7 +1430,8 @@ function submitPlayCards() {
     playRank() === state.snapshot.data.rules.high_low_rank &&
     !["HIGHER", "LOWER"].includes(state.highLowChoice)
   ) {
-    state.error = "Choose whether the next player must go higher or may go lower.";
+    state.error =
+      "Choose whether the next player must go higher or may go lower.";
     render();
     return;
   }
@@ -1327,11 +1439,17 @@ function submitPlayCards() {
   const payload = {
     type: "play_private_cards",
     cards: selectedCards,
-    choice: playRank() === state.snapshot.data.rules.high_low_rank ? state.highLowChoice : "",
+    choice:
+      playRank() === state.snapshot.data.rules.high_low_rank
+        ? state.highLowChoice
+        : "",
     joker_rank: selectedHasJoker() ? state.jokerRank : null,
   };
   const capturedCards = captureLocalPlaySelection();
-  const shouldStageLocalThrow = !prefersReducedMotion() && Array.isArray(capturedCards) && capturedCards.length > 0;
+  const shouldStageLocalThrow =
+    !prefersReducedMotion() &&
+    Array.isArray(capturedCards) &&
+    capturedCards.length > 0;
   if (!shouldStageLocalThrow) {
     sendAction(payload);
     resetSelection();
@@ -1349,7 +1467,9 @@ function submitPlayCards() {
     expectedDrawCount: 0,
     actionSent: false,
   };
-  state.hiddenLocalHandCardIds = capturedCards.map((entry) => cardId(entry.card));
+  state.hiddenLocalHandCardIds = capturedCards.map((entry) =>
+    cardId(entry.card),
+  );
   throwCards.forEach((motion) => queueLocalMotion(motion));
   resetSelection();
   render();
@@ -1402,13 +1522,17 @@ function submitResolveJoker() {
     state.jokerRank === state.snapshot.data.rules.high_low_rank &&
     !["HIGHER", "LOWER"].includes(state.highLowChoice)
   ) {
-    state.error = "Choose whether the next player must go higher or may go lower.";
+    state.error =
+      "Choose whether the next player must go higher or may go lower.";
     render();
     return;
   }
   sendAction({
     type: "resolve_joker",
-    choice: state.jokerRank === state.snapshot.data.rules.high_low_rank ? state.highLowChoice : "",
+    choice:
+      state.jokerRank === state.snapshot.data.rules.high_low_rank
+        ? state.highLowChoice
+        : "",
     joker_rank: state.jokerRank,
   });
   resetSelection();
@@ -1470,7 +1594,10 @@ function relativeSeatIndex(snapshot, player) {
   if (state.seat === null || snapshot.players.length === 0) {
     return player.seat;
   }
-  return (player.seat - state.seat + snapshot.players.length) % snapshot.players.length;
+  return (
+    (player.seat - state.seat + snapshot.players.length) %
+    snapshot.players.length
+  );
 }
 
 function seatPositionClass(snapshot, player) {
@@ -1511,7 +1638,9 @@ function shoutoutOffsetForSeat(snapshot, player) {
 }
 
 function playerMap(snapshot) {
-  return new Map((snapshot?.players || []).map((player) => [player.seat, player]));
+  return new Map(
+    (snapshot?.players || []).map((player) => [player.seat, player]),
+  );
 }
 
 function hasActiveMotion(kind) {
@@ -1572,7 +1701,9 @@ function measureMotionAnchors() {
 
   const signature = Object.entries(nextAnchors)
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, point]) => `${key}:${Math.round(point.x)}:${Math.round(point.y)}`)
+    .map(
+      ([key, point]) => `${key}:${Math.round(point.x)}:${Math.round(point.y)}`,
+    )
     .join("|");
   const changed = signature !== state.motionAnchorSignature;
   state.motionAnchors = nextAnchors;
@@ -1647,8 +1778,10 @@ function getHandCenterRect() {
   const visibleCard = handFan.querySelector(".card");
   const cardRect = visibleCard ? rectWithinGameScreen(visibleCard) : null;
   const styles = window.getComputedStyle(handFan);
-  const fallbackWidth = Number.parseFloat(styles.getPropertyValue("--hand-card-width")) || 72;
-  const fallbackHeight = Number.parseFloat(styles.getPropertyValue("--hand-card-height")) || 102;
+  const fallbackWidth =
+    Number.parseFloat(styles.getPropertyValue("--hand-card-width")) || 72;
+  const fallbackHeight =
+    Number.parseFloat(styles.getPropertyValue("--hand-card-height")) || 102;
   const width = cardRect?.width || fallbackWidth;
   const height = cardRect?.height || fallbackHeight;
   return {
@@ -1677,23 +1810,27 @@ function captureLocalPlaySelection() {
     return null;
   }
   const rootRect = root.getBoundingClientRect();
-  const captures = state.selectedCards.map((card, index) => {
-    const element = root.querySelector(`.hand-fan [data-card-id="${cardId(card)}"]`);
-    if (!element) {
-      return null;
-    }
-    const rect = element.getBoundingClientRect();
-    return {
-      card,
-      index,
-      fromRect: {
-        left: rect.left - rootRect.left,
-        top: rect.top - rootRect.top,
-        width: rect.width,
-        height: rect.height,
-      },
-    };
-  }).filter(Boolean);
+  const captures = state.selectedCards
+    .map((card, index) => {
+      const element = root.querySelector(
+        `.hand-fan [data-card-id="${cardId(card)}"]`,
+      );
+      if (!element) {
+        return null;
+      }
+      const rect = element.getBoundingClientRect();
+      return {
+        card,
+        index,
+        fromRect: {
+          left: rect.left - rootRect.left,
+          top: rect.top - rootRect.top,
+          width: rect.width,
+          height: rect.height,
+        },
+      };
+    })
+    .filter(Boolean);
   return captures.length > 0 ? captures : null;
 }
 
@@ -1702,7 +1839,11 @@ function buildLocalPlayThrowMotions(captures) {
     return [];
   }
   return captures.slice(0, 3).map((capture, index) => {
-    const throwRect = buildLocalPlayThrowRect(capture.fromRect, index, Math.min(captures.length, 3));
+    const throwRect = buildLocalPlayThrowRect(
+      capture.fromRect,
+      index,
+      Math.min(captures.length, 3),
+    );
     return {
       kind: "local-play-throw",
       card: capture.card,
@@ -1726,11 +1867,17 @@ function buildLocalPlayThrowRect(fromRect, index, totalCount) {
   const fallbackTargetY = fallbackHandRect
     ? fallbackHandRect.top - 130
     : fromCenterY - 150;
-  const targetCenterX = pileRect ? pileRect.left + pileRect.width / 2 : fallbackTargetX;
-  const targetCenterY = pileRect ? pileRect.top + pileRect.height / 2 : fallbackTargetY;
-  const laneOffset = (index - ((totalCount - 1) / 2)) * 28;
-  const waypointCenterX = fromCenterX + ((targetCenterX - fromCenterX) * 0.64) + laneOffset;
-  const waypointCenterY = fromCenterY + ((targetCenterY - fromCenterY) * 0.46) - 54 - (index * 4);
+  const targetCenterX = pileRect
+    ? pileRect.left + pileRect.width / 2
+    : fallbackTargetX;
+  const targetCenterY = pileRect
+    ? pileRect.top + pileRect.height / 2
+    : fallbackTargetY;
+  const laneOffset = (index - (totalCount - 1) / 2) * 28;
+  const waypointCenterX =
+    fromCenterX + (targetCenterX - fromCenterX) * 0.64 + laneOffset;
+  const waypointCenterY =
+    fromCenterY + (targetCenterY - fromCenterY) * 0.46 - 54 - index * 4;
   return {
     left: waypointCenterX - (fromRect.width * 0.92) / 2,
     top: waypointCenterY - (fromRect.height * 0.92) / 2,
@@ -1745,7 +1892,7 @@ function buildLocalPlaySettleMotions(throwCards) {
     return [];
   }
   return throwCards.slice(0, 3).map((capture, index) => {
-    const spread = (index - ((Math.min(throwCards.length, 3) - 1) / 2)) * 10;
+    const spread = (index - (Math.min(throwCards.length, 3) - 1) / 2) * 10;
     return {
       kind: "local-play-settle",
       card: capture.card,
@@ -1765,7 +1912,7 @@ function buildLocalDrawMotions(cards) {
     return [];
   }
   return cards.slice(0, 3).map((card, index) => {
-    const spread = (index - ((Math.min(cards.length, 3) - 1) / 2)) * 16;
+    const spread = (index - (Math.min(cards.length, 3) - 1) / 2) * 16;
     return {
       kind: "local-draw-settle",
       card,
@@ -1782,7 +1929,9 @@ function flushPendingLocalMotions() {
   let changed = false;
 
   if (state.pendingLocalPlay?.throwCards) {
-    const motions = buildLocalPlaySettleMotions(state.pendingLocalPlay.throwCards);
+    const motions = buildLocalPlaySettleMotions(
+      state.pendingLocalPlay.throwCards,
+    );
     state.pendingLocalPlay.throwCards = null;
     if (motions.length > 0) {
       motions.forEach((motion) => queueLocalMotion(motion));
@@ -1804,7 +1953,9 @@ function flushPendingLocalMotions() {
 
 function detectPlaySource(previousSnapshot, snapshot, previousPlayers) {
   const localPrivateCards = state.privateState?.data?.private_cards || [];
-  const localPreviousPlayer = Number.isInteger(state.seat) ? previousPlayers.get(state.seat) : null;
+  const localPreviousPlayer = Number.isInteger(state.seat)
+    ? previousPlayers.get(state.seat)
+    : null;
   const localPlayer = Number.isInteger(state.seat)
     ? snapshot.players.find((entry) => entry.seat === state.seat) || null
     : null;
@@ -1813,11 +1964,11 @@ function detectPlaySource(previousSnapshot, snapshot, previousPlayers) {
   const localWasActing = previousSnapshot.current_turn_seat === state.seat;
 
   if (
-    localWasActing
-    && localDeckDraw
-    && localPrivateHandWasVisible
-    && localPlayer
-    && localPreviousPlayer
+    localWasActing &&
+    localDeckDraw &&
+    localPrivateHandWasVisible &&
+    localPlayer &&
+    localPreviousPlayer
   ) {
     return { seat: state.seat, source: "hand-self" };
   }
@@ -1826,7 +1977,10 @@ function detectPlaySource(previousSnapshot, snapshot, previousPlayers) {
     previousSnapshot.current_turn_seat,
     snapshot.current_turn_seat,
     ...snapshot.players.map((player) => player.seat),
-  ].filter((seat, index, list) => Number.isInteger(seat) && list.indexOf(seat) === index);
+  ].filter(
+    (seat, index, list) =>
+      Number.isInteger(seat) && list.indexOf(seat) === index,
+  );
 
   for (const seat of candidateSeats) {
     const previousPlayer = previousPlayers.get(seat);
@@ -1846,21 +2000,27 @@ function detectPlaySource(previousSnapshot, snapshot, previousPlayers) {
 
   const fallbackSeat = candidateSeats.find((seat) => Number.isInteger(seat));
   if (Number.isInteger(fallbackSeat)) {
-    return { seat: fallbackSeat, source: fallbackSeat === state.seat ? "hand-self" : "hand" };
+    return {
+      seat: fallbackSeat,
+      source: fallbackSeat === state.seat ? "hand-self" : "hand",
+    };
   }
 
   return null;
 }
 
 function detectAnimationEvents(previousSnapshot, snapshot) {
-  if (!previousSnapshot || previousSnapshot.invite_code !== snapshot.invite_code) {
+  if (
+    !previousSnapshot ||
+    previousSnapshot.invite_code !== snapshot.invite_code
+  ) {
     return;
   }
 
   if (
-    previousSnapshot.status === "LOBBY"
-    && snapshot.status === "IN_GAME"
-    && snapshot.game_state === "PLAYERS_CHOOSE_PUBLIC_CARDS"
+    previousSnapshot.status === "LOBBY" &&
+    snapshot.status === "IN_GAME" &&
+    snapshot.game_state === "PLAYERS_CHOOSE_PUBLIC_CARDS"
   ) {
     queueAnimation({
       kind: "deal",
@@ -1870,9 +2030,9 @@ function detectAnimationEvents(previousSnapshot, snapshot) {
   }
 
   if (
-    snapshot.status === "IN_GAME"
-    && Number.isInteger(snapshot.current_turn_seat)
-    && previousSnapshot.current_turn_seat !== snapshot.current_turn_seat
+    snapshot.status === "IN_GAME" &&
+    Number.isInteger(snapshot.current_turn_seat) &&
+    previousSnapshot.current_turn_seat !== snapshot.current_turn_seat
   ) {
     markTurnArrival(snapshot.current_turn_seat);
   }
@@ -1888,8 +2048,8 @@ function detectAnimationEvents(previousSnapshot, snapshot) {
     }
 
     if (
-      previousSnapshot.game_state === "PLAYERS_CHOOSE_PUBLIC_CARDS"
-      && player.public_cards.length > previousPlayer.public_cards.length
+      previousSnapshot.game_state === "PLAYERS_CHOOSE_PUBLIC_CARDS" &&
+      player.public_cards.length > previousPlayer.public_cards.length
     ) {
       lockedSeats.push({
         seat: player.seat,
@@ -1898,36 +2058,46 @@ function detectAnimationEvents(previousSnapshot, snapshot) {
     }
 
     if (
-      player.hidden_cards_count < previousPlayer.hidden_cards_count
-      && snapshot.play_pile.length > previousSnapshot.play_pile.length
-      && player.private_cards_count === previousPlayer.private_cards_count
-      && player.public_cards.length === previousPlayer.public_cards.length
+      player.hidden_cards_count < previousPlayer.hidden_cards_count &&
+      snapshot.play_pile.length > previousSnapshot.play_pile.length &&
+      player.private_cards_count === previousPlayer.private_cards_count &&
+      player.public_cards.length === previousPlayer.public_cards.length
     ) {
       revealHiddenSeat = player.seat;
     }
   });
 
-  lockedSeats.forEach(({ seat, count }) => queueAnimation({
-    kind: "lock",
-    seat,
-    count: Math.max(1, Math.min(count, 3)),
-    duration: 460,
-  }));
+  lockedSeats.forEach(({ seat, count }) =>
+    queueAnimation({
+      kind: "lock",
+      seat,
+      count: Math.max(1, Math.min(count, 3)),
+      duration: 460,
+    }),
+  );
 
   if (
-    snapshot.status !== "IN_GAME"
-    || previousSnapshot.status !== "IN_GAME"
-    || !previousSnapshot.game_state
-    || !snapshot.game_state
+    snapshot.status !== "IN_GAME" ||
+    previousSnapshot.status !== "IN_GAME" ||
+    !previousSnapshot.game_state ||
+    !snapshot.game_state
   ) {
     return;
   }
 
   if (revealHiddenSeat !== null) {
-    queueAnimation({ kind: "reveal-hidden", seat: revealHiddenSeat, count: 1, duration: 430 });
+    queueAnimation({
+      kind: "reveal-hidden",
+      seat: revealHiddenSeat,
+      count: 1,
+      duration: 430,
+    });
   }
 
-  if (previousSnapshot.play_pile.length > 0 && snapshot.play_pile.length === 0) {
+  if (
+    previousSnapshot.play_pile.length > 0 &&
+    snapshot.play_pile.length === 0
+  ) {
     if ((snapshot.status_message || "").includes("Burn!")) {
       queueAnimation({ kind: "burn", duration: 620 });
       return;
@@ -1935,7 +2105,10 @@ function detectAnimationEvents(previousSnapshot, snapshot) {
 
     const takeSeat = snapshot.players.find((player) => {
       const previousPlayer = previousPlayers.get(player.seat);
-      return previousPlayer && player.private_cards_count > previousPlayer.private_cards_count;
+      return (
+        previousPlayer &&
+        player.private_cards_count > previousPlayer.private_cards_count
+      );
     })?.seat;
 
     if (Number.isInteger(takeSeat)) {
@@ -1949,23 +2122,41 @@ function detectAnimationEvents(previousSnapshot, snapshot) {
     return;
   }
 
-  if (snapshot.play_pile.length > previousSnapshot.play_pile.length && revealHiddenSeat === null) {
-    const playSource = detectPlaySource(previousSnapshot, snapshot, previousPlayers);
+  if (
+    snapshot.play_pile.length > previousSnapshot.play_pile.length &&
+    revealHiddenSeat === null
+  ) {
+    const playSource = detectPlaySource(
+      previousSnapshot,
+      snapshot,
+      previousPlayers,
+    );
     if (playSource && Number.isInteger(playSource.seat)) {
-      const deckCardsDrawn = Math.max(0, previousSnapshot.cards_in_deck - snapshot.cards_in_deck);
-      const canUseLocalMorph = (
-        !prefersReducedMotion()
-        && playSource.seat === state.seat
-        && playSource.source === "hand-self"
-        && state.pendingLocalPlay
-        && Array.isArray(state.pendingLocalPlay.throwCards)
-        && state.pendingLocalPlay.throwCards.length > 0
+      const deckCardsDrawn = Math.max(
+        0,
+        previousSnapshot.cards_in_deck - snapshot.cards_in_deck,
       );
+      const canUseLocalMorph =
+        !prefersReducedMotion() &&
+        playSource.seat === state.seat &&
+        playSource.source === "hand-self" &&
+        state.pendingLocalPlay &&
+        Array.isArray(state.pendingLocalPlay.throwCards) &&
+        state.pendingLocalPlay.throwCards.length > 0;
       if (canUseLocalMorph) {
-        state.pendingLocalPlay.throwCards = state.pendingLocalPlay.throwCards
-          .slice(0, Math.min(snapshot.play_pile.length - previousSnapshot.play_pile.length, 3));
+        state.pendingLocalPlay.throwCards =
+          state.pendingLocalPlay.throwCards.slice(
+            0,
+            Math.min(
+              snapshot.play_pile.length - previousSnapshot.play_pile.length,
+              3,
+            ),
+          );
         if (deckCardsDrawn > 0) {
-          state.pendingLocalPlay.expectedDrawCount = Math.min(deckCardsDrawn, 3);
+          state.pendingLocalPlay.expectedDrawCount = Math.min(
+            deckCardsDrawn,
+            3,
+          );
         }
         return;
       }
@@ -1974,13 +2165,16 @@ function detectAnimationEvents(previousSnapshot, snapshot) {
         kind: "play",
         seat: playSource.seat,
         source: playSource.source,
-        count: Math.min(snapshot.play_pile.length - previousSnapshot.play_pile.length, 3),
+        count: Math.min(
+          snapshot.play_pile.length - previousSnapshot.play_pile.length,
+          3,
+        ),
         duration: 440,
       });
       if (
-        playSource.seat === state.seat
-        && playSource.source === "hand-self"
-        && deckCardsDrawn > 0
+        playSource.seat === state.seat &&
+        playSource.source === "hand-self" &&
+        deckCardsDrawn > 0
       ) {
         queueAnimation({
           kind: "draw-self",
@@ -2026,28 +2220,30 @@ function renderSeatMiniCard(card) {
   return `
     <span class="seat-mini-card ${isRedSuit(card.suit) ? "red" : ""} ${isJoker ? "joker" : ""}">
       <span class="seat-mini-rank">${isJoker ? jokerSymbol : rankLabel(card.rank)}</span>
-      <span class="seat-mini-suit">${isJoker ? (card.effective_rank ? rankLabel(card.effective_rank) : "?" ) : suitLabel(card.suit)}</span>
+      <span class="seat-mini-suit">${isJoker ? (card.effective_rank ? rankLabel(card.effective_rank) : "?") : suitLabel(card.suit)}</span>
     </span>
   `;
 }
 
 function renderSeatPublicStack(publicCards, hiddenCardsCount) {
   if (publicCards.length === 0) {
-    return hiddenCardsCount > 0 ? renderSeatHiddenStack(hiddenCardsCount) : '<span class="seat-muted">No table cards</span>';
+    return hiddenCardsCount > 0
+      ? renderSeatHiddenStack(hiddenCardsCount)
+      : '<span class="seat-muted">No table cards</span>';
   }
 
   return `
     <div class="seat-public-stack">
       ${publicCards
-    .map(
-      (card) => `
+        .map(
+          (card) => `
           <span class="seat-public-stack-card">
             <span class="seat-hidden-underlay" aria-hidden="true"></span>
             ${renderSeatMiniCard(card)}
           </span>
         `,
-    )
-    .join("")}
+        )
+        .join("")}
     </div>
   `;
 }
@@ -2078,7 +2274,9 @@ function renderSeat(snapshot, player) {
     seatHasActiveMotion(player.seat, ["deal"]) ? "motion-deal-target" : "",
     seatHasActiveMotion(player.seat, ["lock"]) ? "motion-lock-target" : "",
     seatHasActiveMotion(player.seat, ["take-pile"]) ? "motion-take-target" : "",
-    seatHasActiveMotion(player.seat, ["reveal-hidden"]) ? "motion-reveal-target" : "",
+    seatHasActiveMotion(player.seat, ["reveal-hidden"])
+      ? "motion-reveal-target"
+      : "",
     !player.is_connected ? "disconnected" : "",
   ]
     .filter(Boolean)
@@ -2131,23 +2329,28 @@ function renderPilePreview(playPile) {
   }
   const visibleCards = playPile.slice(0, playPilePreviewLimit).reverse();
   return visibleCards
-    .map((card, index) => renderMiniCard(
-      card,
-      index === visibleCards.length - 1 ? 'data-motion-rect="pile-top"' : "",
-    ))
+    .map((card, index) =>
+      renderMiniCard(
+        card,
+        index === visibleCards.length - 1 ? 'data-motion-rect="pile-top"' : "",
+      ),
+    )
     .join("");
 }
 
 function renderDeckPreview(cardsInDeck) {
   const visibleCards = Math.min(cardsInDeck, 3);
   return `
-    ${Array.from({ length: visibleCards }, (_, index) => `
+    ${Array.from(
+      { length: visibleCards },
+      (_, index) => `
       <span
         class="deck-back-card"
         ${index === visibleCards - 1 ? 'data-motion-rect="deck-top"' : ""}
         style="transform: translate(${index * 4}px, ${index * 3}px) rotate(${index * 3 - 3}deg);"
       ></span>
-    `).join("")}
+    `,
+    ).join("")}
     <span class="deck-count-badge">${cardsInDeck}</span>
   `;
 }
@@ -2199,27 +2402,34 @@ function handLayout(snapshot) {
   const playerCount = snapshot.players.length;
   const viewportWidth = window.innerWidth || 390;
   const viewportHeight = window.innerHeight || 844;
-  const compactViewport = viewportHeight < 760 || playerCount >= 4 || viewportWidth < 420;
+  const compactViewport =
+    viewportHeight < 760 || playerCount >= 4 || viewportWidth < 420;
   const narrowViewport = viewportWidth < 400;
   const availableWidth = Math.max(viewportWidth - 64, 220);
   const maxWidth = compactViewport ? 46 : 72;
   const minWidth = compactViewport ? 36 : 46;
   const stepFactor = cardCount >= 7 ? 0.48 : cardCount >= 5 ? 0.54 : 0.62;
-  const fitWidth = cardCount <= 1
-    ? maxWidth
-    : Math.floor(availableWidth / (1 + Math.max(0, cardCount - 1) * stepFactor));
-  const shouldScroll = (
-    cardCount > 0
-    && (
-      fitWidth < minWidth
-      || (compactViewport && cardCount >= 5)
-      || (narrowViewport && cardCount >= 4)
-    )
-  );
+  const fitWidth =
+    cardCount <= 1
+      ? maxWidth
+      : Math.floor(
+          availableWidth / (1 + Math.max(0, cardCount - 1) * stepFactor),
+        );
+  const shouldScroll =
+    cardCount > 0 &&
+    (fitWidth < minWidth ||
+      (compactViewport && cardCount >= 5) ||
+      (narrowViewport && cardCount >= 4));
   const cardWidth = shouldScroll
-    ? (compactViewport ? (narrowViewport ? 35 : 38) : 56)
+    ? compactViewport
+      ? narrowViewport
+        ? 35
+        : 38
+      : 56
     : Math.max(minWidth, Math.min(maxWidth, fitWidth || maxWidth));
-  const overlap = Math.round(cardWidth * (shouldScroll ? 0.26 : 1 - stepFactor));
+  const overlap = Math.round(
+    cardWidth * (shouldScroll ? 0.26 : 1 - stepFactor),
+  );
   const cardHeight = Math.round(cardWidth * 1.42);
   const lift = Math.max(6, Math.round(cardHeight * 0.13));
   const classes = [
@@ -2241,8 +2451,11 @@ function handLayout(snapshot) {
 }
 
 function currentPrompt(snapshot) {
-  const turnTarget = snapshot.current_turn_display_name
-    || (Number.isInteger(snapshot.current_turn_seat) ? `Seat ${snapshot.current_turn_seat}` : "the next player");
+  const turnTarget =
+    snapshot.current_turn_display_name ||
+    (Number.isInteger(snapshot.current_turn_seat)
+      ? `Seat ${snapshot.current_turn_seat}`
+      : "the next player");
   if (snapshot.status === "LOBBY") {
     return "Share the code, wait for enough players, then start.";
   }
@@ -2375,15 +2588,19 @@ function renderLanding() {
             <div class="landing-form-row">
               ${landingBuckets.join("")}
             </div>
-            ${showSavedSessionCard ? `
+            ${
+              showSavedSessionCard
+                ? `
               <div class="landing-table-banner-row landing-table-banner-row-bottom">
                 <section class="landing-table-banner landing-table-resume stack">
                   <div>
                     <strong>${state.restoringSession ? "Restoring your game" : "Resume saved game"}</strong>
                     <p class="muted">
-                      ${state.restoringSession
-    ? "Reclaiming your seat and reconnecting to live updates."
-    : "A saved game was found on this device. You can restore it or forget it."}
+                      ${
+                        state.restoringSession
+                          ? "Reclaiming your seat and reconnecting to live updates."
+                          : "A saved game was found on this device. You can restore it or forget it."
+                      }
                     </p>
                   </div>
                   <div class="status-strip">
@@ -2391,21 +2608,29 @@ function renderLanding() {
                     ${state.displayName ? `<span class="status-chip">${escapeHtml(state.displayName)}</span>` : ""}
                   </div>
                   ${state.error ? `<div class="dock-error">${escapeHtml(state.error)}</div>` : ""}
-                  ${!state.restoringSession ? `
+                  ${
+                    !state.restoringSession
+                      ? `
                     <div class="secondary-action-row">
                       <button class="button accent" id="restore-session">Restore saved session</button>
                       <button class="button secondary" id="forget-session">Forget saved session</button>
                     </div>
-                  ` : ""}
+                  `
+                      : ""
+                  }
                 </section>
               </div>
-            ` : state.error ? `
+            `
+                : state.error
+                  ? `
               <div class="landing-table-banner-row landing-table-banner-row-bottom">
                 <section class="landing-table-banner landing-table-error">
                   <strong>${escapeHtml(state.error)}</strong>
                 </section>
               </div>
-            ` : ""}
+            `
+                  : ""
+            }
           </div>
           <button class="table-help-trigger" id="open-rules-menu" type="button" aria-label="Open rules" title="Rules">?</button>
           ${renderRulesMenu()}
@@ -2449,47 +2674,74 @@ function renderActions(snapshot) {
   const pendingCard = pendingJokerCard();
   const pendingJoker = hasPendingJokerSelection();
   const pendingRevealedJoker = pendingJoker && isJokerCard(pendingCard);
-  const currentPendingRank = pendingJoker ? cardEffectiveRank(pendingCard) : null;
+  const currentPendingRank = pendingJoker
+    ? cardEffectiveRank(pendingCard)
+    : null;
   const choosingPublicCards = canChoosePublicCards();
-  const isPlayDecisionPhase = currentGameState() === "DURING_GAME" && isMyTurn();
-  const allowJokerDefinition = isPlayDecisionPhase && (pendingRevealedJoker || selectedHasJoker());
-  const jokerChoices = pendingJoker ? jokerOptions(snapshot, [pendingCard]) : jokerOptions(snapshot);
+  const isPlayDecisionPhase =
+    currentGameState() === "DURING_GAME" && isMyTurn();
+  const allowJokerDefinition =
+    isPlayDecisionPhase && (pendingRevealedJoker || selectedHasJoker());
+  const jokerChoices = pendingJoker
+    ? jokerOptions(snapshot, [pendingCard])
+    : jokerOptions(snapshot);
   const currentPlayRank = pendingJoker
-    ? (pendingRevealedJoker ? state.jokerRank : currentPendingRank)
+    ? pendingRevealedJoker
+      ? state.jokerRank
+      : currentPendingRank
     : playRank();
-  const showHighLowChoice = isPlayDecisionPhase
-    && !choosingPublicCards
-    && currentPlayRank === snapshot.rules.high_low_rank;
+  const showHighLowChoice =
+    isPlayDecisionPhase &&
+    !choosingPublicCards &&
+    currentPlayRank === snapshot.rules.high_low_rank;
   const hasHighLowChoice = ["HIGHER", "LOWER"].includes(state.highLowChoice);
-  const turnName = snapshot.current_turn_display_name
-    || (Number.isInteger(snapshot.current_turn_seat) ? `Seat ${snapshot.current_turn_seat}` : "the next player");
+  const turnName =
+    snapshot.current_turn_display_name ||
+    (Number.isInteger(snapshot.current_turn_seat)
+      ? `Seat ${snapshot.current_turn_seat}`
+      : "the next player");
   const layout = handLayout(snapshot);
   const showTakePileOverlay = mustTakePile(snapshot);
   const showHiddenAction = canPlayHiddenCard();
-  const showMobileTurnPrompt = isMobileActiveGameLayout(snapshot) && currentGameState() === "DURING_GAME";
-  const showPlaySelectedAction = (
-    currentGameState() === "DURING_GAME"
-    && isMyTurn()
-    && !showHiddenAction
-    && !showTakePileOverlay
-    && !pendingJoker
-  );
-  const playSelectedDisabled = cards.length === 0
-    || (selectedHasJoker() && !state.jokerRank)
-    || (showHighLowChoice && !hasHighLowChoice);
+  const showMobileTurnPrompt =
+    isMobileActiveGameLayout(snapshot) && currentGameState() === "DURING_GAME";
+  const showPlaySelectedAction =
+    currentGameState() === "DURING_GAME" &&
+    isMyTurn() &&
+    !showHiddenAction &&
+    !showTakePileOverlay &&
+    !pendingJoker;
+  const playSelectedDisabled =
+    cards.length === 0 ||
+    (selectedHasJoker() && !state.jokerRank) ||
+    (showHighLowChoice && !hasHighLowChoice);
   let handPrimaryAction = null;
   if (choosingPublicCards) {
-    handPrimaryAction = { action: "choose-public", label: "Lock cards", disabled: false };
+    handPrimaryAction = {
+      action: "choose-public",
+      label: "Lock cards",
+      disabled: false,
+    };
   } else if (pendingJoker) {
     handPrimaryAction = {
       action: "resolve-joker",
       label: pendingRevealedJoker ? "Play joker" : "Play revealed card",
-      disabled: (pendingRevealedJoker && state.jokerRank === null) || (showHighLowChoice && !hasHighLowChoice),
+      disabled:
+        (pendingRevealedJoker && state.jokerRank === null) ||
+        (showHighLowChoice && !hasHighLowChoice),
     };
   } else if (showHiddenAction) {
-    handPrimaryAction = { action: "play-hidden", label: "Reveal hidden card", disabled: false };
+    handPrimaryAction = {
+      action: "play-hidden",
+      label: "Reveal hidden card",
+      disabled: false,
+    };
   } else if (showPlaySelectedAction) {
-    handPrimaryAction = { action: "play-cards", label: "Play cards", disabled: playSelectedDisabled };
+    handPrimaryAction = {
+      action: "play-cards",
+      label: "Play cards",
+      disabled: playSelectedDisabled,
+    };
   }
   const dockClasses = [
     "panel",
@@ -2512,56 +2764,79 @@ function renderActions(snapshot) {
         <div class="dock-header-main">
           <p class="section-title">Your hand</p>
         </div>
-        ${handPrimaryAction ? `
+        ${
+          handPrimaryAction
+            ? `
           <button
             class="button accent button-inline dock-header-action"
             id="hand-primary-action"
             data-hand-action="${handPrimaryAction.action}"
             ${handPrimaryAction.disabled ? "disabled" : ""}
           >${handPrimaryAction.label}</button>
-        ` : ""}
+        `
+            : ""
+        }
       </div>
       <div class="dock-prompt">${escapeHtml(currentPrompt(snapshot))}</div>
       ${state.error ? `<div class="dock-error">${escapeHtml(state.error)}</div>` : ""}
-      ${pendingJoker ? `
+      ${
+        pendingJoker
+          ? `
         <div class="joker-pending-card">
           ${renderCard(pendingCard, false, false)}
         </div>
-      ` : `
+      `
+          : `
         <div class="hand-fan" data-motion-anchor="hand-self">
           ${
-            cards.map((card) => renderCard(
-              card,
-              selectedIds.has(cardId(card)),
-              true,
-              isLocalHandCardHidden(card),
-            )).join("")
-              || '<p class="muted">No cards in hand right now.</p>'
+            cards
+              .map((card) =>
+                renderCard(
+                  card,
+                  selectedIds.has(cardId(card)),
+                  true,
+                  isLocalHandCardHidden(card),
+                ),
+              )
+              .join("") || '<p class="muted">No cards in hand right now.</p>'
           }
         </div>
-      `}
+      `
+      }
       <div class="actions">
-        ${allowJokerDefinition ? `
+        ${
+          allowJokerDefinition
+            ? `
           <div class="choice-block">
             <strong class="choice-title">${pendingRevealedJoker ? "Choose the revealed joker" : "Choose the joker rank"}</strong>
             <div class="joker-choice-row">
-              ${jokerChoices.map((rank) => `
+              ${jokerChoices
+                .map(
+                  (rank) => `
                 <button
                   class="button ${state.jokerRank === rank ? "accent" : "secondary"}"
                   data-joker-rank="${rank}"
                 >${rankLabel(rank)}</button>
-              `).join("")}
+              `,
+                )
+                .join("")}
             </div>
           </div>
-        ` : ""}
-        ${showHighLowChoice ? `
+        `
+            : ""
+        }
+        ${
+          showHighLowChoice
+            ? `
           <div class="choice-block">
             <div class="choice-row">
               <button class="button ${state.highLowChoice === "LOWER" ? "accent" : "secondary"}" id="choose-lower">7 or lower</button>
               <button class="button ${state.highLowChoice === "HIGHER" ? "accent" : "secondary"}" id="choose-higher">7 or higher</button>
             </div>
           </div>
-        ` : ""}
+        `
+            : ""
+        }
         ${currentGameState() === "DURING_GAME" && !isMyTurn() && !showMobileTurnPrompt ? `<p class="muted tiny">Waiting for ${escapeHtml(turnName)}.</p>` : ""}
       </div>
     </section>
@@ -2579,12 +2854,16 @@ function renderGameTopbar(snapshot) {
 
   return `
     <div class="game-topbar ${showCompactBrand ? "" : "actions-only"}">
-      ${showCompactBrand ? `
+      ${
+        showCompactBrand
+          ? `
         <div class="game-topbar-title">
           <strong class="game-topbar-name">Shithead</strong>
           <span class="game-topbar-eyebrow">Private Mobile Alpha</span>
         </div>
-      ` : ""}
+      `
+          : ""
+      }
       <div class="game-topbar-actions">
         <span
           class="connection-indicator ${state.wsReady ? "connected" : "reconnecting"}"
@@ -2682,7 +2961,9 @@ function renderLocalMotionCard(animation) {
 }
 
 function renderShoutoutBubble(animation, snapshot) {
-  const player = snapshot?.players?.find((entry) => entry.seat === animation.seat);
+  const player = snapshot?.players?.find(
+    (entry) => entry.seat === animation.seat,
+  );
   const anchor = resolveMotionAnchor(
     motionAnchorKeyForSeat(animation.seat, "seat"),
     `seat-seat-${animation.seat}`,
@@ -2717,110 +2998,133 @@ function renderShoutoutBubble(animation, snapshot) {
 }
 
 function renderMotionLayer(snapshot) {
-  if (!snapshot || (state.animations.length === 0 && state.localMotionAnimations.length === 0)) {
+  if (
+    !snapshot ||
+    (state.animations.length === 0 && state.localMotionAnimations.length === 0)
+  ) {
     return "";
   }
 
-  const genericMarkup = state.animations.map((animation) => {
-    if (animation.kind === "deal") {
-      return (animation.targets || []).map((seat, index) => {
-        const from = resolveMotionAnchor("deck");
-        const target = resolveMotionAnchor(
-          motionAnchorKeyForSeat(seat, "hand"),
-          `seat-seat-${seat}`,
-        );
-        return renderMotionGhost("deal", from, target, index);
-      }).join("");
-    }
-
-    if (animation.kind === "lock") {
-      const from = resolveMotionAnchor(
-        motionAnchorKeyForSeat(animation.seat, "hand"),
-        `seat-seat-${animation.seat}`,
-      );
-      const to = resolveMotionAnchor(
-        motionAnchorKeyForSeat(animation.seat, "public"),
-        `seat-seat-${animation.seat}`,
-      );
-      return Array.from({ length: animation.count || 3 }, (_, index) =>
-        renderMotionGhost("lock", from, to, index)).join("");
-    }
-
-    if (animation.kind === "play") {
-      const sourceKeys = animation.source === "public"
-        ? [
-          motionAnchorKeyForSeat(animation.seat, "public"),
-          motionAnchorKeyForSeat(animation.seat, "hand"),
-          `seat-seat-${animation.seat}`,
-        ]
-        : animation.source === "hand-self"
-          ? [
-            "hand-self",
-            motionAnchorKeyForSeat(animation.seat, "hand"),
-            `seat-seat-${animation.seat}`,
-          ]
-        : [
-          motionAnchorKeyForSeat(animation.seat, "hand"),
-          motionAnchorKeyForSeat(animation.seat, "public"),
-          `seat-seat-${animation.seat}`,
-        ];
-      const from = resolveMotionAnchor(sourceKeys);
-      return Array.from({ length: animation.count || 1 }, (_, index) =>
-        renderMotionGhost("play", from, resolveMotionAnchor("pile"), index)).join("");
-    }
-
-    if (animation.kind === "shoutout") {
-      return renderShoutoutBubble(animation, snapshot);
-    }
-
-    if (animation.kind === "draw-self") {
-      return Array.from({ length: animation.count || 1 }, (_, index) =>
-        renderMotionGhost("draw-self", resolveMotionAnchor("deck"), resolveMotionAnchor("hand-self"), index)).join("");
-    }
-
-    if (animation.kind === "take-pile") {
-      const from = resolveMotionAnchor("pile");
-      const to = resolveMotionAnchor(
-        motionAnchorKeyForSeat(animation.seat, "hand"),
-        motionAnchorKeyForSeat(animation.seat, "public"),
-        `seat-seat-${animation.seat}`,
-      );
-      return Array.from({ length: animation.count || 3 }, (_, index) =>
-        renderMotionGhost("take-pile", from, to, index)).join("");
-    }
-
-    if (animation.kind === "reveal-hidden") {
-      return renderMotionGhost(
-        "reveal-hidden",
-        resolveMotionAnchor(
-          motionAnchorKeyForSeat(animation.seat, "hidden"),
-          motionAnchorKeyForSeat(animation.seat, "public"),
-          `seat-seat-${animation.seat}`,
-        ),
-        resolveMotionAnchor("pile"),
-      );
-    }
-
-    if (animation.kind === "burn") {
-      const from = resolveMotionAnchor("pile");
-      if (!from) {
-        return "";
+  const genericMarkup = state.animations
+    .map((animation) => {
+      if (animation.kind === "deal") {
+        return (animation.targets || [])
+          .map((seat, index) => {
+            const from = resolveMotionAnchor("deck");
+            const target = resolveMotionAnchor(
+              motionAnchorKeyForSeat(seat, "hand"),
+              `seat-seat-${seat}`,
+            );
+            return renderMotionGhost("deal", from, target, index);
+          })
+          .join("");
       }
-      const offsets = [
-        { x: -36, y: -34 },
-        { x: -10, y: -54 },
-        { x: 18, y: -42 },
-        { x: 42, y: -58 },
-      ];
-      return Array.from({ length: 4 }, (_, index) =>
-        renderMotionGhost("burn", from, {
-          x: from.x + offsets[index].x,
-          y: from.y + offsets[index].y,
-        }, index)).join("");
-    }
 
-    return "";
-  }).join("");
+      if (animation.kind === "lock") {
+        const from = resolveMotionAnchor(
+          motionAnchorKeyForSeat(animation.seat, "hand"),
+          `seat-seat-${animation.seat}`,
+        );
+        const to = resolveMotionAnchor(
+          motionAnchorKeyForSeat(animation.seat, "public"),
+          `seat-seat-${animation.seat}`,
+        );
+        return Array.from({ length: animation.count || 3 }, (_, index) =>
+          renderMotionGhost("lock", from, to, index),
+        ).join("");
+      }
+
+      if (animation.kind === "play") {
+        const sourceKeys =
+          animation.source === "public"
+            ? [
+                motionAnchorKeyForSeat(animation.seat, "public"),
+                motionAnchorKeyForSeat(animation.seat, "hand"),
+                `seat-seat-${animation.seat}`,
+              ]
+            : animation.source === "hand-self"
+              ? [
+                  "hand-self",
+                  motionAnchorKeyForSeat(animation.seat, "hand"),
+                  `seat-seat-${animation.seat}`,
+                ]
+              : [
+                  motionAnchorKeyForSeat(animation.seat, "hand"),
+                  motionAnchorKeyForSeat(animation.seat, "public"),
+                  `seat-seat-${animation.seat}`,
+                ];
+        const from = resolveMotionAnchor(sourceKeys);
+        return Array.from({ length: animation.count || 1 }, (_, index) =>
+          renderMotionGhost("play", from, resolveMotionAnchor("pile"), index),
+        ).join("");
+      }
+
+      if (animation.kind === "shoutout") {
+        return renderShoutoutBubble(animation, snapshot);
+      }
+
+      if (animation.kind === "draw-self") {
+        return Array.from({ length: animation.count || 1 }, (_, index) =>
+          renderMotionGhost(
+            "draw-self",
+            resolveMotionAnchor("deck"),
+            resolveMotionAnchor("hand-self"),
+            index,
+          ),
+        ).join("");
+      }
+
+      if (animation.kind === "take-pile") {
+        const from = resolveMotionAnchor("pile");
+        const to = resolveMotionAnchor(
+          motionAnchorKeyForSeat(animation.seat, "hand"),
+          motionAnchorKeyForSeat(animation.seat, "public"),
+          `seat-seat-${animation.seat}`,
+        );
+        return Array.from({ length: animation.count || 3 }, (_, index) =>
+          renderMotionGhost("take-pile", from, to, index),
+        ).join("");
+      }
+
+      if (animation.kind === "reveal-hidden") {
+        return renderMotionGhost(
+          "reveal-hidden",
+          resolveMotionAnchor(
+            motionAnchorKeyForSeat(animation.seat, "hidden"),
+            motionAnchorKeyForSeat(animation.seat, "public"),
+            `seat-seat-${animation.seat}`,
+          ),
+          resolveMotionAnchor("pile"),
+        );
+      }
+
+      if (animation.kind === "burn") {
+        const from = resolveMotionAnchor("pile");
+        if (!from) {
+          return "";
+        }
+        const offsets = [
+          { x: -36, y: -34 },
+          { x: -10, y: -54 },
+          { x: 18, y: -42 },
+          { x: 42, y: -58 },
+        ];
+        return Array.from({ length: 4 }, (_, index) =>
+          renderMotionGhost(
+            "burn",
+            from,
+            {
+              x: from.x + offsets[index].x,
+              y: from.y + offsets[index].y,
+            },
+            index,
+          ),
+        ).join("");
+      }
+
+      return "";
+    })
+    .join("");
 
   const localMarkup = state.localMotionAnimations
     .map((animation) => renderLocalMotionCard(animation))
@@ -2834,7 +3138,8 @@ function renderRulesMenu() {
     return "";
   }
 
-  const optionalTakeRuleCopy = state.snapshot?.data?.rules?.allow_optional_take_pile
+  const optionalTakeRuleCopy = state.snapshot?.data?.rules
+    ?.allow_optional_take_pile
     ? " This table also allows taking the pile voluntarily at the start of your turn."
     : " Some lobbies may enable taking the pile voluntarily at the start of your turn.";
 
@@ -2903,15 +3208,13 @@ function renderShoutoutMenu(snapshot) {
         <div class="shoutout-menu-header">
           <div>
             <p class="section-title">Shoutouts</p>
-            <strong>Drop a reaction</strong>
           </div>
           <button class="button secondary button-inline" id="close-shoutout-menu" type="button">Close</button>
         </div>
-        <div class="shoutout-menu-copy">
-          <p class="muted">Pick a vibe for the whole table. Reactions are live only.</p>
-        </div>
         <div class="shoutout-grid">
-          ${presets.map((preset) => `
+          ${presets
+            .map(
+              (preset) => `
             <button
               class="shoutout-chip"
               type="button"
@@ -2922,7 +3225,9 @@ function renderShoutoutMenu(snapshot) {
               <span class="shoutout-chip-emoji">${escapeHtml(preset.emoji)}</span>
               <span class="shoutout-chip-label">${escapeHtml(preset.label)}</span>
             </button>
-          `).join("")}
+          `,
+            )
+            .join("")}
         </div>
       </section>
     </div>
@@ -2937,7 +3242,9 @@ function renderLobbySettings(snapshot, isHost) {
         <strong>Optional take pile</strong>
         <span>${isHost ? "Allow taking the pile at the start of a turn." : "Host controls whether players may take the pile voluntarily."}</span>
       </div>
-      ${isHost ? `
+      ${
+        isHost
+          ? `
         <button
           class="toggle-switch-button ${enabled ? "active" : ""}"
           id="toggle-optional-take-pile"
@@ -2950,11 +3257,13 @@ function renderLobbySettings(snapshot, isHost) {
             <span class="toggle-switch-knob"></span>
           </span>
         </button>
-      ` : `
+      `
+          : `
         <div class="lobby-setting-indicator ${enabled ? "active" : ""}" aria-label="Optional take pile is ${enabled ? "on" : "off"}">
           ${enabled ? "On" : "Off"}
         </div>
-      `}
+      `
+      }
     </div>
   `;
 }
@@ -2963,14 +3272,17 @@ function renderTable(snapshot) {
   const self = me();
   const isHost = self && self.is_host;
   const showLobbyControls = snapshot.status === "LOBBY";
-  const showShoutoutControls = snapshot.status === "LOBBY" || snapshot.status === "IN_GAME";
+  const showShoutoutControls =
+    snapshot.status === "LOBBY" || snapshot.status === "IN_GAME";
   const shoutoutEnabled = showShoutoutControls && canSendShoutouts(snapshot);
   const showMobileLobbyLayout = isMobileLobbyLayout(snapshot);
   const sortedPlayers = [...snapshot.players].sort(
-    (left, right) => relativeSeatIndex(snapshot, left) - relativeSeatIndex(snapshot, right),
+    (left, right) =>
+      relativeSeatIndex(snapshot, left) - relativeSeatIndex(snapshot, right),
   );
 
-  const lobbyControls = showLobbyControls ? `
+  const lobbyControls = showLobbyControls
+    ? `
     <button
       class="invite-code"
       id="copy-invite-code"
@@ -2987,11 +3299,14 @@ function renderTable(snapshot) {
       />
     </button>
     <button class="button secondary" id="share-invite">Share invite</button>
-  ` : "";
+  `
+    : "";
 
   const pilePreviewClasses = [
     "pile-preview",
-    hasActiveMotion("play") || hasActiveMotion("reveal-hidden") ? "settling" : "",
+    hasActiveMotion("play") || hasActiveMotion("reveal-hidden")
+      ? "settling"
+      : "",
     hasActiveMotion("take-pile") ? "taking" : "",
     hasActiveMotion("burn") ? "burning" : "",
   ]
@@ -3008,26 +3323,38 @@ function renderTable(snapshot) {
     <section class="panel table-stage stack">
       ${showMobileLobbyLayout && state.error ? `<div class="dock-error">${escapeHtml(state.error)}</div>` : ""}
       <div class="table-map">
-        ${showMobileLobbyLayout ? `
+        ${
+          showMobileLobbyLayout
+            ? `
           <div class="table-map-controls">
             ${lobbyControls}
           </div>
-        ` : ""}
+        `
+            : ""
+        }
         <div class="table-surface"></div>
         ${sortedPlayers.map((player) => renderSeat(snapshot, player)).join("")}
         ${renderTurnToast(snapshot)}
         <div class="table-center">
           ${snapshot.status === "LOBBY" ? renderLobbySettings(snapshot, isHost) : ""}
-          ${snapshot.status === "LOBBY" && !isHost ? `
+          ${
+            snapshot.status === "LOBBY" && !isHost
+              ? `
             <div class="event-box">
               <span>Waiting for host to start the game.</span>
             </div>
-          ` : ""}
-          ${snapshot.status_message ? `
+          `
+              : ""
+          }
+          ${
+            snapshot.status_message
+              ? `
             <div class="event-box">
               <span>${escapeHtml(snapshot.status_message)}</span>
             </div>
-          ` : ""}
+          `
+              : ""
+          }
           ${renderOfflineSummary(snapshot)}
           <div class="table-resources">
             <div class="deck-orb">
@@ -3044,7 +3371,9 @@ function renderTable(snapshot) {
             </div>
           </div>
         </div>
-        ${showShoutoutControls ? `
+        ${
+          showShoutoutControls
+            ? `
           <button
             class="table-shoutout-trigger ${shoutoutEnabled ? "" : "disabled"}"
             id="open-shoutout-menu"
@@ -3053,24 +3382,24 @@ function renderTable(snapshot) {
             title="${shoutoutEnabled ? "Shoutouts" : "Connecting to the table"}"
             ${shoutoutEnabled ? "" : "disabled"}
           >
-            <span class="shoutout-face" aria-hidden="true">
-              <span class="shoutout-face-eyes">
-                <span class="shoutout-eye shoutout-eye-left"></span>
-                <span class="shoutout-eye shoutout-eye-right"></span>
-              </span>
-              <span class="shoutout-mouth"></span>
-            </span>
+            <span class="shoutout-joker-emoji" aria-hidden="true">★</span>
           </button>
-        ` : ""}
+        `
+            : ""
+        }
         <button class="table-help-trigger" id="open-rules-menu" type="button" aria-label="Open rules" title="Rules">?</button>
         ${showShoutoutControls ? renderShoutoutMenu(snapshot) : ""}
         ${renderRulesMenu()}
       </div>
-      ${snapshot.status === "LOBBY" && isHost ? `
+      ${
+        snapshot.status === "LOBBY" && isHost
+          ? `
         <div class="primary-action-row">
           <button class="button accent full-width" id="start-game" ${snapshot.players.length < 2 ? "disabled" : ""}>Start game</button>
         </div>
-      ` : ""}
+      `
+          : ""
+      }
     </section>
   `;
 }
@@ -3086,7 +3415,9 @@ function renderApp() {
     "game-screen",
     `players-${snapshot.players.length}`,
     isMobileActiveGameLayout(snapshot) ? "mobile-one-screen" : "",
-    isMobileActiveGameLayout(snapshot) ? `layout-${tableLayoutVariant(snapshot)}` : "",
+    isMobileActiveGameLayout(snapshot)
+      ? `layout-${tableLayoutVariant(snapshot)}`
+      : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -3116,7 +3447,9 @@ function syncMobileGameLayout() {
   const pageShell = document.querySelector(".page-shell");
   const appRoot = document.getElementById("app");
   const topbar = document.querySelector(".game-topbar");
-  const gameScreen = document.querySelector(".game-screen.mobile-one-screen, .landing-screen");
+  const gameScreen = document.querySelector(
+    ".game-screen.mobile-one-screen, .landing-screen",
+  );
   const handDock = document.querySelector(".hand-dock");
 
   if (!pageShell || !appRoot || !gameScreen) {
@@ -3125,9 +3458,11 @@ function syncMobileGameLayout() {
 
   const shellRect = pageShell.getBoundingClientRect();
   const appStyles = window.getComputedStyle(appRoot);
-  const appGap = Number.parseFloat(appStyles.rowGap || appStyles.gap || "0") || 0;
+  const appGap =
+    Number.parseFloat(appStyles.rowGap || appStyles.gap || "0") || 0;
   const screenStyles = window.getComputedStyle(gameScreen);
-  const screenGap = Number.parseFloat(screenStyles.rowGap || screenStyles.gap || "0") || 0;
+  const screenGap =
+    Number.parseFloat(screenStyles.rowGap || screenStyles.gap || "0") || 0;
   const topbarHeight = topbar?.getBoundingClientRect().height || 0;
   const handHeight = handDock?.getBoundingClientRect().height || 0;
   const availableHeight = Math.max(0, shellRect.height - topbarHeight - appGap);
@@ -3135,10 +3470,19 @@ function syncMobileGameLayout() {
     ? Math.max(0, availableHeight - handHeight - screenGap)
     : availableHeight;
 
-  root.style.setProperty("--mobile-available-height", `${Math.round(availableHeight)}px`);
-  root.style.setProperty("--mobile-topbar-height", `${Math.round(topbarHeight)}px`);
+  root.style.setProperty(
+    "--mobile-available-height",
+    `${Math.round(availableHeight)}px`,
+  );
+  root.style.setProperty(
+    "--mobile-topbar-height",
+    `${Math.round(topbarHeight)}px`,
+  );
   root.style.setProperty("--mobile-hand-height", `${Math.round(handHeight)}px`);
-  root.style.setProperty("--mobile-table-height", `${Math.round(tableHeight)}px`);
+  root.style.setProperty(
+    "--mobile-table-height",
+    `${Math.round(tableHeight)}px`,
+  );
 }
 
 function wireHandFanInteractions(handFan) {
@@ -3154,9 +3498,13 @@ function wireHandFanInteractions(handFan) {
     state.suppressCardTapUntil = Date.now() + tapSuppressMs;
   };
 
-  handFan.addEventListener("scroll", () => {
-    state.handFanScrollLeft = handFan.scrollLeft;
-  }, { passive: true });
+  handFan.addEventListener(
+    "scroll",
+    () => {
+      state.handFanScrollLeft = handFan.scrollLeft;
+    },
+    { passive: true },
+  );
 
   const beginDrag = (inputId, x, y) => {
     activeInputId = inputId;
@@ -3175,7 +3523,10 @@ function wireHandFanInteractions(handFan) {
     const deltaX = x - startX;
     const deltaY = y - startY;
     if (!dragging) {
-      if (Math.abs(deltaX) < dragThreshold || Math.abs(deltaX) <= Math.abs(deltaY)) {
+      if (
+        Math.abs(deltaX) < dragThreshold ||
+        Math.abs(deltaX) <= Math.abs(deltaY)
+      ) {
         return false;
       }
       dragging = true;
@@ -3208,19 +3559,27 @@ function wireHandFanInteractions(handFan) {
   };
 
   if (window.PointerEvent) {
-    handFan.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0) {
-        return;
-      }
-      beginDrag(event.pointerId, event.clientX, event.clientY);
-    }, { passive: true });
+    handFan.addEventListener(
+      "pointerdown",
+      (event) => {
+        if (event.button !== 0) {
+          return;
+        }
+        beginDrag(event.pointerId, event.clientX, event.clientY);
+      },
+      { passive: true },
+    );
 
-    handFan.addEventListener("pointermove", (event) => {
-      if (activeInputId !== event.pointerId) {
-        return;
-      }
-      updateDrag(event.pointerId, event.clientX, event.clientY);
-    }, { passive: true });
+    handFan.addEventListener(
+      "pointermove",
+      (event) => {
+        if (activeInputId !== event.pointerId) {
+          return;
+        }
+        updateDrag(event.pointerId, event.clientX, event.clientY);
+      },
+      { passive: true },
+    );
 
     const finishPointerDrag = (event) => {
       if (activeInputId !== event.pointerId) {
@@ -3233,33 +3592,48 @@ function wireHandFanInteractions(handFan) {
     };
 
     handFan.addEventListener("pointerup", finishPointerDrag, { passive: true });
-    handFan.addEventListener("pointercancel", finishPointerDrag, { passive: true });
+    handFan.addEventListener("pointercancel", finishPointerDrag, {
+      passive: true,
+    });
     return;
   }
 
-  handFan.addEventListener("touchstart", (event) => {
-    const touch = event.touches[0];
-    if (!touch) {
-      return;
-    }
-    beginDrag(touch.identifier, touch.clientX, touch.clientY);
-  }, { passive: true });
+  handFan.addEventListener(
+    "touchstart",
+    (event) => {
+      const touch = event.touches[0];
+      if (!touch) {
+        return;
+      }
+      beginDrag(touch.identifier, touch.clientX, touch.clientY);
+    },
+    { passive: true },
+  );
 
-  handFan.addEventListener("touchmove", (event) => {
-    const touch = [...event.touches].find((entry) => entry.identifier === activeInputId) || event.touches[0];
-    if (!touch || activeInputId === null) {
-      return;
-    }
-    if (updateDrag(touch.identifier, touch.clientX, touch.clientY)) {
-      event.preventDefault();
-    }
-  }, { passive: false });
+  handFan.addEventListener(
+    "touchmove",
+    (event) => {
+      const touch =
+        [...event.touches].find(
+          (entry) => entry.identifier === activeInputId,
+        ) || event.touches[0];
+      if (!touch || activeInputId === null) {
+        return;
+      }
+      if (updateDrag(touch.identifier, touch.clientX, touch.clientY)) {
+        event.preventDefault();
+      }
+    },
+    { passive: false },
+  );
 
   const finishTouchDrag = (event) => {
     if (activeInputId === null) {
       return;
     }
-    const touch = [...event.changedTouches].find((entry) => entry.identifier === activeInputId);
+    const touch = [...event.changedTouches].find(
+      (entry) => entry.identifier === activeInputId,
+    );
     if (!touch) {
       return;
     }
@@ -3271,7 +3645,9 @@ function wireHandFanInteractions(handFan) {
 }
 
 function wireEvents() {
-  app.querySelectorAll("form").forEach((form) => form.addEventListener("submit", onSubmit));
+  app
+    .querySelectorAll("form")
+    .forEach((form) => form.addEventListener("submit", onSubmit));
 
   const handFan = app.querySelector(".hand-fan");
   if (handFan) {
@@ -3283,7 +3659,9 @@ function wireEvents() {
       if (Date.now() < state.suppressCardTapUntil) {
         return;
       }
-      const card = privateCards().find((entry) => cardId(entry) === button.dataset.cardId);
+      const card = privateCards().find(
+        (entry) => cardId(entry) === button.dataset.cardId,
+      );
       if (card) {
         toggleCard(card);
       }
@@ -3407,17 +3785,22 @@ function wireEvents() {
           await navigator.clipboard.writeText(inviteUrl);
           state.error = "Invite link copied.";
         } catch (clipboardError) {
-          state.error = "Share failed. You can still share the invite link manually.";
+          state.error =
+            "Share failed. You can still share the invite link manually.";
         }
       }
       render();
     });
   }
 
-  const optionalTakeToggle = document.getElementById("toggle-optional-take-pile");
+  const optionalTakeToggle = document.getElementById(
+    "toggle-optional-take-pile",
+  );
   if (optionalTakeToggle) {
     optionalTakeToggle.addEventListener("click", () => {
-      updateGameSettings(optionalTakeToggle.getAttribute("aria-checked") !== "true");
+      updateGameSettings(
+        optionalTakeToggle.getAttribute("aria-checked") !== "true",
+      );
     });
   }
 
@@ -3442,17 +3825,23 @@ function wireEvents() {
     closeRulesMenuButton.addEventListener("click", closeRulesMenu);
   }
 
-  const closeRulesMenuBackdrop = document.getElementById("close-rules-menu-backdrop");
+  const closeRulesMenuBackdrop = document.getElementById(
+    "close-rules-menu-backdrop",
+  );
   if (closeRulesMenuBackdrop) {
     closeRulesMenuBackdrop.addEventListener("click", closeRulesMenu);
   }
 
-  const closeShoutoutMenuButton = document.getElementById("close-shoutout-menu");
+  const closeShoutoutMenuButton = document.getElementById(
+    "close-shoutout-menu",
+  );
   if (closeShoutoutMenuButton) {
     closeShoutoutMenuButton.addEventListener("click", closeShoutoutMenu);
   }
 
-  const closeShoutoutMenuBackdrop = document.getElementById("close-shoutout-menu-backdrop");
+  const closeShoutoutMenuBackdrop = document.getElementById(
+    "close-shoutout-menu-backdrop",
+  );
   if (closeShoutoutMenuBackdrop) {
     closeShoutoutMenuBackdrop.addEventListener("click", closeShoutoutMenu);
   }
@@ -3478,7 +3867,10 @@ function wireEvents() {
 
 function render() {
   captureHandFanScroll();
-  document.body.classList.toggle("game-active-mobile", !state.snapshot || isMobileActiveGameLayout());
+  document.body.classList.toggle(
+    "game-active-mobile",
+    !state.snapshot || isMobileActiveGameLayout(),
+  );
   document.body.classList.toggle(
     "game-started-mobile",
     isMobileActiveGameLayout() && state.snapshot?.data?.status !== "LOBBY",
@@ -3511,7 +3903,12 @@ function render() {
       }
       return;
     }
-    if (anchorsChanged && state.snapshot && state.animations.length > 0 && !state.motionRerenderScheduled) {
+    if (
+      anchorsChanged &&
+      state.snapshot &&
+      state.animations.length > 0 &&
+      !state.motionRerenderScheduled
+    ) {
       state.motionRerenderScheduled = true;
       window.requestAnimationFrame(() => {
         state.motionRerenderScheduled = false;
@@ -3565,11 +3962,14 @@ window.addEventListener("orientationchange", () => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/static/sw.js?v=20260403a").then(() => {
-    if (navigator.serviceWorker.controller) {
-      navigator.serviceWorker.addEventListener("controllerchange", () => {
-        window.location.reload();
-      });
-    }
-  }).catch(() => {});
+  navigator.serviceWorker
+    .register("/static/sw.js?v=20260403a")
+    .then(() => {
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          window.location.reload();
+        });
+      }
+    })
+    .catch(() => {});
 }

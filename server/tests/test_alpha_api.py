@@ -153,7 +153,7 @@ def test_lobby_shoutout_broadcasts_live_event_to_connected_players():
                 assert guest_event["type"] == "shoutout"
                 assert host_event["data"]["seat"] == 0
                 assert host_event["data"]["preset"]["key"] == "hahaha"
-                assert guest_event["data"]["preset"]["label"] == "Hahaha"
+                assert guest_event["data"]["preset"]["label"] == "HAHAHA"
 
 
 def test_shoutout_cooldown_blocks_rapid_repeats():

@@ -421,7 +421,7 @@ def test_lobby_shoutouts_open_menu_and_broadcast_animation(live_server, browser_
 
     expect(host_page.locator(".motion-shoutout")).to_be_visible()
     expect(guest_page.locator(".motion-shoutout")).to_be_visible()
-    expect(guest_page.locator(".motion-shoutout")).to_contain_text("Hahaha")
+    expect(guest_page.locator(".motion-shoutout")).to_contain_text("HAHAHA")
 
 
 def test_service_worker_registers_and_reload_keeps_app_usable(live_server, browser_factory):

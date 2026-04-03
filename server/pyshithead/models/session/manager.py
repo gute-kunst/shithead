@@ -63,12 +63,12 @@ def _normalize_display_name(display_name: str) -> str:
 
 
 SHOUTOUT_PRESET_DATA = (
-    {"key": "hahaha", "label": "Hahaha", "emoji": "😂", "color": "#f4b942"},
-    {"key": "great-move", "label": "Great move", "emoji": "✨", "color": "#7cc9ff"},
-    {"key": "wtf", "label": "WTF", "emoji": "😵", "color": "#ff5ca8"},
-    {"key": "shit", "label": "Shit", "emoji": "💥", "color": "#ff8b3d"},
-    {"key": "nice", "label": "Nice", "emoji": "😎", "color": "#8fd37a"},
-    {"key": "oof", "label": "Oof", "emoji": "😬", "color": "#f0a35b"},
+    {"key": "hahaha", "label": "HAHAHA", "emoji": "😹", "color": "#2F6F8F"},
+    {"key": "great-move", "label": "*!♧@#♢%^&", "emoji": "👿", "color": "#6D3FA5"},
+    {"key": "wtf", "label": "Eat the pile, loser!", "emoji": "🗑️", "color": "#56606B"},
+    {"key": "shit", "label": "That escalated quickly.", "emoji": "⚡", "color": "#3656A8"},
+    {"key": "nice", "label": "Burrrrn!", "emoji": "🔥", "color": "#C2410C"},
+    {"key": "oof", "label": "♠ ♥ Well played ♦ ♣", "emoji": "🤝", "color": "#8A5A2B"},
 )
 
 
