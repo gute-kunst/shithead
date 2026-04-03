@@ -18,6 +18,7 @@ from pyshithead.models.session import (
     CreateGameRequest,
     GameSessionManager,
     JoinGameRequest,
+    KickPlayerRequest,
     RestoreSessionRequest,
     SessionAuthResponse,
     SessionSnapshotEvent,
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 SESSION_STORAGE_KEY = "shithead.alpha.session"
-STATIC_ASSET_VERSION = "20260402g"
+STATIC_ASSET_VERSION = "20260403a"
 
 
 def _http_error(err: ValueError) -> HTTPException:
@@ -152,6 +153,16 @@ def create_app(
             raise HTTPException(status_code=401, detail=str(err)) from err
 
         return session.auth_response(player)
+
+    @app.post("/api/games/{invite_code}/players/{seat}/kick", response_model=SessionSnapshotEvent)
+    async def kick_player(invite_code: str, seat: int, payload: KickPlayerRequest):
+        try:
+            session = managed_sessions.get_session(invite_code)
+            session.kick_player(payload.player_token, seat)
+        except ValueError as err:
+            raise _http_error(err) from err
+        await session.broadcast_full_state()
+        return SessionSnapshotEvent(data=session.build_snapshot())
 
     @app.get("/api/games/{invite_code}", response_model=SessionSnapshotEvent)
     async def get_game(invite_code: str):

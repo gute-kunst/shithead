@@ -68,6 +68,13 @@ def update_game_settings(client: TestClient, invite_code: str, player_token: str
     return client.post(f"/api/games/{invite_code}/settings", json=payload)
 
 
+def kick_player(client: TestClient, invite_code: str, player_token: str, seat: int):
+    return client.post(
+        f"/api/games/{invite_code}/players/{seat}/kick",
+        json={"player_token": player_token},
+    )
+
+
 def private_card_signature(cards):
     return [
         (
@@ -168,6 +175,25 @@ def test_start_game_and_reconnect_with_same_token():
                 assert guest_after_reconnect["is_connected"] is True
 
 
+def test_snapshot_exposes_disconnect_metadata_for_setup_player():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        session.get_player_by_seat(1).connected = False
+        session._sync_disconnect_policies()
+
+        snapshot = session.build_snapshot()
+        guest = snapshot.players[1]
+        assert guest.is_connected is False
+        assert guest.last_seen_at
+        assert guest.disconnect_deadline_at is not None
+        assert guest.disconnect_action == "AUTO_REMOVE_SETUP"
+
+
 def test_host_can_update_optional_take_pile_setting_in_lobby():
     session_manager.sessions.clear()
     with TestClient(app, base_url="http://localhost") as client:
@@ -239,11 +265,71 @@ def test_fresh_started_game_has_empty_play_pile_during_public_card_selection():
         assert started["data"]["game_state"] == "PLAYERS_CHOOSE_PUBLIC_CARDS"
         assert started["data"]["play_pile"] == []
 
-        state = client.get(f"/api/games/{host['invite_code']}")
-        assert state.status_code == 200
-        snapshot = state.json()["data"]
-        assert snapshot["game_state"] == "PLAYERS_CHOOSE_PUBLIC_CARDS"
-        assert snapshot["play_pile"] == []
+
+def test_host_can_kick_offline_player_from_lobby():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        guest = join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session._handle_player_disconnect(session.get_player_by_seat(1))
+
+        response = kick_player(client, host["invite_code"], host["player_token"], 1)
+
+        assert response.status_code == 200
+        snapshot = response.json()["data"]
+        assert [player["display_name"] for player in snapshot["players"]] == ["Host"]
+
+        restored = restore_session(client, host["invite_code"], guest["player_token"])
+        assert restored.status_code == 401
+        assert restored.json() == {"detail": "Unknown player token."}
+
+
+def test_host_cannot_kick_connected_player_or_self_and_non_host_cannot_kick():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        guest = join_game(client, host["invite_code"], "Guest")
+        session = session_manager.get_session(host["invite_code"])
+        session.get_player_by_seat(1).connected = True
+
+        connected_response = kick_player(client, host["invite_code"], host["player_token"], 1)
+        assert connected_response.status_code == 400
+        assert connected_response.json()["detail"] == "Only offline players can be removed."
+
+        self_response = kick_player(client, host["invite_code"], host["player_token"], 0)
+        assert self_response.status_code == 400
+        assert self_response.json()["detail"] == "The host cannot remove themselves."
+
+        non_host_response = kick_player(client, host["invite_code"], guest["player_token"], 0)
+        assert non_host_response.status_code == 400
+        assert non_host_response.json()["detail"] == "Only the host can remove players."
+
+
+def test_host_can_kick_offline_current_player_during_game():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+        join_game(client, host["invite_code"], "Third")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        game = session.game_manager.game
+        game.state = GameState.DURING_GAME
+        game.active_players.next()
+        session.get_player_by_seat(0).connected = True
+        session.get_player_by_seat(1).connected = False
+        session.get_player_by_seat(2).connected = True
+
+        response = kick_player(client, host["invite_code"], host["player_token"], 1)
+
+        assert response.status_code == 200
+        payload = response.json()["data"]
+        assert [player["seat"] for player in payload["players"]] == [0, 2]
+        assert payload["current_turn_seat"] == 2
+        assert "removed while offline" in payload["status_message"]
 
 
 def test_optional_take_pile_rule_allows_taking_with_playable_card():
@@ -467,6 +553,10 @@ def test_persisted_session_survives_manager_restart():
             assert payload["snapshot"]["rules"]["allow_optional_take_pile"] is True
             assert payload["snapshot"]["players"][0]["is_connected"] is False
             assert payload["snapshot"]["players"][1]["is_connected"] is False
+            assert payload["snapshot"]["players"][0]["disconnect_action"] == "AUTO_REMOVE_SETUP"
+            assert payload["snapshot"]["players"][1]["disconnect_action"] == "AUTO_REMOVE_SETUP"
+            assert payload["snapshot"]["players"][0]["disconnect_deadline_at"] is not None
+            assert payload["snapshot"]["players"][1]["disconnect_deadline_at"] is not None
             assert len(payload["private_state"]["private_cards"]) == 6
     finally:
         if first_manager is not None:

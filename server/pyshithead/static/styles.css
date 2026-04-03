@@ -664,6 +664,30 @@ button {
   font-size: 0.95rem;
 }
 
+.seat-presence {
+  display: grid;
+  gap: 0.2rem;
+  margin-top: 0.42rem;
+  justify-items: center;
+  text-align: center;
+}
+
+.seat-presence-line {
+  font-size: 0.68rem;
+  line-height: 1.25;
+  color: rgba(247, 239, 225, 0.78);
+}
+
+.seat-actions {
+  margin-top: 0.18rem;
+}
+
+.seat-remove-button.armed-remove {
+  background: #f5c9a8;
+  border-color: rgba(216, 91, 50, 0.34);
+  color: var(--accent-deep);
+}
+
 .seat-badges,
 .secondary-action-row,
 .choice-row {
@@ -868,6 +892,10 @@ button {
 
 .event-box {
   background: rgba(255, 248, 236, 0.18);
+}
+
+.event-box.event-box-muted {
+  background: rgba(14, 32, 26, 0.38);
 }
 
 .event-box strong {
@@ -1333,6 +1361,12 @@ button {
 }
 
 .button.button-inline.armed-leave {
+  background: #f5c9a8;
+  border-color: rgba(216, 91, 50, 0.34);
+  color: var(--accent-deep);
+}
+
+.button.button-inline.armed-remove {
   background: #f5c9a8;
   border-color: rgba(216, 91, 50, 0.34);
   color: var(--accent-deep);

@@ -34,6 +34,10 @@ const state = {
   jokerRank: null,
   leaveArmed: false,
   leaveConfirmTimer: null,
+  kickSeatArmed: null,
+  kickSeatConfirmTimer: null,
+  presenceTicker: null,
+  presenceNow: Date.now(),
   rulesMenuOpen: false,
   animations: [],
   localMotionAnimations: [],
@@ -123,6 +127,20 @@ function clearLeaveConfirmTimer() {
   }
 }
 
+function clearKickSeatConfirmTimer() {
+  if (state.kickSeatConfirmTimer !== null) {
+    window.clearTimeout(state.kickSeatConfirmTimer);
+    state.kickSeatConfirmTimer = null;
+  }
+}
+
+function clearPresenceTicker() {
+  if (state.presenceTicker !== null) {
+    window.clearInterval(state.presenceTicker);
+    state.presenceTicker = null;
+  }
+}
+
 function resetLeaveConfirmation({ rerender = false } = {}) {
   clearLeaveConfirmTimer();
   state.leaveArmed = false;
@@ -148,6 +166,33 @@ function handleLeaveClick() {
     return;
   }
   armLeaveConfirmation();
+  render();
+}
+
+function resetKickSeatConfirmation({ rerender = false } = {}) {
+  clearKickSeatConfirmTimer();
+  state.kickSeatArmed = null;
+  if (rerender) {
+    render();
+  }
+}
+
+function armKickSeatConfirmation(seat) {
+  clearKickSeatConfirmTimer();
+  state.kickSeatArmed = seat;
+  state.kickSeatConfirmTimer = window.setTimeout(() => {
+    state.kickSeatConfirmTimer = null;
+    state.kickSeatArmed = null;
+    render();
+  }, 3000);
+}
+
+function handleKickSeatClick(seat) {
+  if (state.kickSeatArmed === seat) {
+    kickPlayer(seat);
+    return;
+  }
+  armKickSeatConfirmation(seat);
   render();
 }
 
@@ -290,8 +335,10 @@ function clearSession(errorMessage = "") {
   closeWebSocket();
   hideTurnNotice();
   clearRestoreRetryTimer();
+  clearPresenceTicker();
   clearMotionState();
   resetLeaveConfirmation();
+  resetKickSeatConfirmation();
   state.rulesMenuOpen = false;
   state.inviteCode = "";
   state.playerToken = "";
@@ -313,8 +360,10 @@ function forgetSavedSession() {
   closeWebSocket();
   hideTurnNotice();
   clearRestoreRetryTimer();
+  clearPresenceTicker();
   clearMotionState();
   resetLeaveConfirmation();
+  resetKickSeatConfirmation();
   state.rulesMenuOpen = false;
   state.inviteCode = "";
   state.playerToken = "";
@@ -438,6 +487,132 @@ function ordinal(value) {
 
 function me() {
   return state.snapshot?.data?.players.find((player) => player.seat === state.seat) || null;
+}
+
+function canHostRemovePlayer(player) {
+  const self = me();
+  return Boolean(self && self.is_host && !player.is_host && !player.is_connected);
+}
+
+function parseTimestamp(value) {
+  if (!value) {
+    return null;
+  }
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatDuration(totalSeconds) {
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  if (minutes < 60) {
+    return remainder === 0 ? `${minutes}m` : `${minutes}m ${remainder}s`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes === 0 ? `${hours}h` : `${hours}h ${remainingMinutes}m`;
+}
+
+function disconnectActionLabel(action) {
+  if (action === "AUTO_PLAY_TURN") {
+    return "Auto-play turn";
+  }
+  if (action === "AUTO_REMOVE_SETUP") {
+    return "Auto-remove";
+  }
+  return "";
+}
+
+function renderOfflinePresence(player) {
+  if (player.is_connected) {
+    return "";
+  }
+
+  const lines = [];
+  const nowMs = state.presenceNow || Date.now();
+  const lastSeenMs = parseTimestamp(player.last_seen_at);
+  if (lastSeenMs !== null) {
+    lines.push(`Offline for ${formatDuration((nowMs - lastSeenMs) / 1000)}`);
+  } else {
+    lines.push("Offline");
+  }
+
+  const deadlineMs = parseTimestamp(player.disconnect_deadline_at);
+  if (deadlineMs !== null && player.disconnect_action) {
+    lines.push(`${disconnectActionLabel(player.disconnect_action)} in ${formatDuration((deadlineMs - nowMs) / 1000)}`);
+  } else if (canHostRemovePlayer(player)) {
+    lines.push("Waiting for reconnect. Host can remove now.");
+  } else {
+    lines.push("Waiting for reconnect.");
+  }
+
+  const removeButton = canHostRemovePlayer(player)
+    ? `
+      <button
+        class="button secondary button-inline seat-remove-button ${state.kickSeatArmed === player.seat ? "armed-remove" : ""}"
+        type="button"
+        data-kick-seat="${player.seat}"
+        title="${state.kickSeatArmed === player.seat ? "Click again to remove" : "Remove offline player"}"
+        aria-label="${state.kickSeatArmed === player.seat ? "Click again to remove" : "Remove offline player"}"
+      >${state.kickSeatArmed === player.seat ? "Confirm remove" : "Remove"}</button>
+    `
+    : "";
+
+  return `
+    <div class="seat-presence">
+      ${lines.map((line) => `<span class="seat-presence-line">${escapeHtml(line)}</span>`).join("")}
+      ${removeButton ? `<div class="seat-actions">${removeButton}</div>` : ""}
+    </div>
+  `;
+}
+
+function renderOfflineSummary(snapshot) {
+  const offlinePlayers = snapshot.players.filter((player) => !player.is_connected);
+  if (offlinePlayers.length === 0) {
+    return "";
+  }
+  const self = me();
+  const hasCountdown = offlinePlayers.some((player) => Boolean(player.disconnect_deadline_at));
+  const copy = self?.is_host
+    ? (hasCountdown
+      ? "Offline players can reconnect. Setup fallback waits up to 10 minutes and an offline turn waits up to 5 minutes. You can remove offline players sooner."
+      : "Offline players can reconnect. In the lobby they stay offline until they return or the host removes them.")
+    : "Offline players can reconnect when they return.";
+  return `
+    <div class="event-box event-box-muted">
+      <span>${escapeHtml(copy)}</span>
+    </div>
+  `;
+}
+
+function syncPresenceTicker() {
+  const snapshot = state.snapshot?.data;
+  const hasOfflinePlayers = Boolean(snapshot?.players?.some((player) => !player.is_connected));
+  if (!hasOfflinePlayers) {
+    clearPresenceTicker();
+    return;
+  }
+  if (state.presenceTicker !== null) {
+    return;
+  }
+  state.presenceTicker = window.setInterval(() => {
+    state.presenceNow = Date.now();
+    render();
+  }, 1000);
+}
+
+function syncKickSeatConfirmation(snapshot = state.snapshot?.data) {
+  if (!Number.isInteger(state.kickSeatArmed)) {
+    return;
+  }
+  const armedPlayer = snapshot?.players?.find((player) => player.seat === state.kickSeatArmed);
+  if (!armedPlayer || !canHostRemovePlayer(armedPlayer)) {
+    resetKickSeatConfirmation();
+  }
 }
 
 function winner() {
@@ -777,6 +952,7 @@ function applyAuthPayload(payload) {
   state.seat = payload.seat;
   state.snapshot = { type: "session_snapshot", data: payload.snapshot };
   state.privateState = { type: "private_state", data: payload.private_state };
+  state.presenceNow = Date.now();
   state.displayName = payload.snapshot.players.find((player) => player.seat === payload.seat)?.display_name
     || state.displayName;
   state.error = "";
@@ -784,6 +960,7 @@ function applyAuthPayload(payload) {
   resetSelection();
   clearRestoreRetryTimer();
   state.restoreRetryCount = 0;
+  syncKickSeatConfirmation(payload.snapshot);
   persistSession();
   syncTurnNotice(payload.snapshot, { suppress: true });
   render();
@@ -919,11 +1096,13 @@ function connectWebSocket() {
     if (payload.type === "session_snapshot") {
       const previousSnapshot = state.snapshot?.data || null;
       state.snapshot = payload;
+      state.presenceNow = Date.now();
       detectAnimationEvents(previousSnapshot, payload.data);
       if (!payload.data.players.some((player) => player.seat === state.seat)) {
         clearSession("Your saved session is no longer available. Join the game again if it is still active.");
         return;
       }
+      syncKickSeatConfirmation(payload.data);
       syncTurnNotice(payload.data);
       if (payload.data.status === "GAME_OVER" || !isMyTurn()) {
         resetSelection();
@@ -1006,6 +1185,24 @@ async function updateGameSettings(allowOptionalTakePile) {
     render();
   } catch (error) {
     state.error = error.message;
+    render();
+  }
+}
+
+async function kickPlayer(seat) {
+  try {
+    const response = await api(`/api/games/${state.inviteCode}/players/${seat}/kick`, {
+      method: "POST",
+      body: JSON.stringify({ player_token: state.playerToken }),
+    });
+    resetKickSeatConfirmation();
+    state.snapshot = response;
+    state.error = "";
+    syncTurnNotice(response.data);
+    render();
+  } catch (error) {
+    state.error = error.message;
+    resetKickSeatConfirmation();
     render();
   }
 }
@@ -1796,6 +1993,7 @@ function renderSeat(snapshot, player) {
           <strong>${escapeHtml(player.display_name)}</strong>
         </div>
       </div>
+      ${renderOfflinePresence(player)}
       <div class="seat-hand-row" data-motion-anchor="seat-hand-${player.seat}">${renderSeatHandFan(player.private_cards_count)}</div>
       <div
         class="seat-public-cards"
@@ -2062,7 +2260,7 @@ function renderLanding() {
             <div class="landing-table-banner-row">
               <section class="landing-table-banner landing-alpha-banner">
                 <strong>Alpha notice</strong>
-                <p>Keep the tab open while you play. Live games can reset after a deploy, restart, or a long period of inactivity.</p>
+                <p>Switching tabs or apps is okay for a while. Live games can still reset after a deploy, restart, or a long period of inactivity.</p>
               </section>
             </div>
             <div class="landing-form-row">
@@ -2636,6 +2834,7 @@ function renderTable(snapshot) {
               <span>${escapeHtml(snapshot.status_message)}</span>
             </div>
           ` : ""}
+          ${renderOfflineSummary(snapshot)}
           <div class="table-resources">
             <div class="deck-orb">
               <span class="resource-label">Deck</span>
@@ -2910,6 +3109,12 @@ function wireEvents() {
     });
   }
 
+  app.querySelectorAll("[data-kick-seat]").forEach((button) => {
+    button.addEventListener("click", () => {
+      handleKickSeatClick(Number(button.dataset.kickSeat));
+    });
+  });
+
   const openRulesMenuButton = document.getElementById("open-rules-menu");
   if (openRulesMenuButton) {
     openRulesMenuButton.addEventListener("click", openRulesMenu);
@@ -2944,6 +3149,7 @@ function render() {
     "game-started-mobile",
     isMobileActiveGameLayout() && state.snapshot?.data?.status !== "LOBBY",
   );
+  syncPresenceTicker();
   app.innerHTML = renderApp();
   if (!state.snapshot && state.pendingLandingNameFocus) {
     const joinNameInput = document.getElementById("join-name");
@@ -3019,7 +3225,7 @@ window.addEventListener("orientationchange", () => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/static/sw.js?v=20260402e").then(() => {
+  navigator.serviceWorker.register("/static/sw.js?v=20260403a").then(() => {
     if (navigator.serviceWorker.controller) {
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         window.location.reload();

@@ -125,6 +125,43 @@ def test_multiplayer_lobby_start_public_selection_and_refresh_reconnect(
     )
 
 
+def test_host_can_remove_offline_lobby_player_from_ui(live_server, browser_factory):
+    host_page = open_page(browser_factory(), live_server)
+    create_table(host_page, "Host")
+    invite_code = extract_invite_code(host_page)
+
+    guest_page = open_page(browser_factory(), live_server)
+    join_table(guest_page, invite_code, "Guest")
+
+    guest_page.close()
+
+    expect(host_page.locator(".seat-panel.disconnected")).to_contain_text("Guest")
+    expect(host_page.get_by_role("button", name="Remove offline player")).to_be_visible()
+
+    host_page.get_by_role("button", name="Remove offline player").click()
+    host_page.get_by_role("button", name="Click again to remove").click()
+
+    expect(host_page.locator(".seat-panel").filter(has_text="Guest")).to_have_count(0)
+
+
+def test_setup_disconnect_shows_auto_remove_countdown(live_server, browser_factory):
+    host_page = open_page(browser_factory(), live_server)
+    create_table(host_page, "Host")
+    invite_code = extract_invite_code(host_page)
+
+    guest_page = open_page(browser_factory(), live_server)
+    join_table(guest_page, invite_code, "Guest")
+
+    host_page.locator("#start-game").click()
+    expect(host_page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
+    expect(guest_page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
+
+    guest_page.close()
+
+    expect(host_page.locator(".seat-panel.disconnected")).to_contain_text("Guest")
+    expect(host_page.locator(".seat-presence")).to_contain_text("Auto-remove in")
+
+
 def test_lobby_optional_take_setting_syncs_and_shows_take_pile_action(live_server, browser_factory):
     host_page = open_page(browser_factory(), live_server)
     create_table(host_page, "Host")

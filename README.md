@@ -1,6 +1,8 @@
 # Shithead Card Game
 
 Architecture documentation: [docs/architecture.md](docs/architecture.md)
+Development guide: [docs/dev.md](docs/dev.md)
+GSD prep and workflow: [docs/gsd.md](docs/gsd.md)
 Draw.io diagram: [docs/architecture.drawio](docs/architecture.drawio)
 
 ## Mobile Browser Alpha
@@ -12,10 +14,18 @@ The server now exposes a playable browser-based private alpha:
 - `POST /api/games/{invite_code}/join` joins a lobby.
 - `POST /api/games/{invite_code}/start` starts the game.
 - `GET /api/games/{invite_code}` returns the public snapshot.
+- `POST /api/games/{invite_code}/players/{seat}/kick` removes an offline non-host player.
 - `WS /api/games/{invite_code}/ws?token=...` streams realtime updates and player actions.
 
 The browser client in `server/pyshithead/static` is the supported alpha surface.
-The older terminal client in `client_py` is legacy tooling and does not describe the current browser-session architecture.
+
+Current multiplayer behavior is mobile-friendly by default:
+
+- players are marked offline when their WebSocket drops
+- lobby seats stay reserved until the host removes the offline player
+- setup-phase seats auto-remove only after 10 minutes
+- an offline active turn auto-resolves only after 5 minutes
+- public snapshots expose reconnect metadata so the UI can show offline duration and fallback countdowns
 
 ## Render Deploy
 
@@ -25,18 +35,14 @@ The repo now includes a Render blueprint at `render.yaml` for a single free web 
 - health endpoint: `GET /healthz`
 - start command: `poetry run python -m uvicorn pyshithead.main:app --host 0.0.0.0 --port $PORT`
 
-The current alpha keeps live sessions in memory, so deploys, restarts, or free-tier idle spin-downs can interrupt active games.
+The current alpha persists session state in SQLite, but deploys, restarts, or free-tier idle spin-downs can still interrupt active games.
 
 ## Development
 
-create schema from model in dir `server`:
-`python pyshithead/models/common/request_models.py outputfile ../client_py/shithead/request-schema.json`
+- canonical bootstrap and test commands live in [docs/dev.md](docs/dev.md)
+- GSD-specific onboarding and milestone flow live in [docs/gsd.md](docs/gsd.md)
 
-create client models from schema in dir `client_py`:
-`datamodel-codegen --input shithead/request-schema.json --output shithead/model.py --use-default-kwarg`
+## Resources
 
-## Ressources
-https://websockets.readthedocs.io/en/stable/intro/tutorial1.html#prerequisites
-
-
-https://github.com/kthwaite/fastapi-websocket-broadcast/blob/master/app.py
+- https://websockets.readthedocs.io/en/stable/intro/tutorial1.html#prerequisites
+- https://github.com/kthwaite/fastapi-websocket-broadcast/blob/master/app.py

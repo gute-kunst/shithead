@@ -55,11 +55,33 @@ class SQLiteSessionStore:
                     token TEXT NOT NULL,
                     connected INTEGER NOT NULL,
                     last_seen TEXT NOT NULL,
+                    disconnect_deadline_at TEXT,
+                    disconnect_action TEXT,
                     PRIMARY KEY (invite_code, seat),
                     FOREIGN KEY (invite_code) REFERENCES game_sessions(invite_code) ON DELETE CASCADE
                 );
                 """
             )
+            player_columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(session_players)").fetchall()
+            }
+            if "disconnect_deadline_at" not in player_columns:
+                try:
+                    connection.execute(
+                        "ALTER TABLE session_players ADD COLUMN disconnect_deadline_at TEXT"
+                    )
+                except sqlite3.OperationalError as err:
+                    if "duplicate column name" not in str(err).lower():
+                        raise
+            if "disconnect_action" not in player_columns:
+                try:
+                    connection.execute(
+                        "ALTER TABLE session_players ADD COLUMN disconnect_action TEXT"
+                    )
+                except sqlite3.OperationalError as err:
+                    if "duplicate column name" not in str(err).lower():
+                        raise
 
     def clear_all(self):
         with self._connect() as connection:
@@ -144,8 +166,10 @@ class SQLiteSessionStore:
                     display_name,
                     token,
                     connected,
-                    last_seen
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                    last_seen,
+                    disconnect_deadline_at,
+                    disconnect_action
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -155,6 +179,8 @@ class SQLiteSessionStore:
                         player["token"],
                         int(player["connected"]),
                         player["last_seen"],
+                        player.get("disconnect_deadline_at"),
+                        player.get("disconnect_action"),
                     )
                     for player in record["players"]
                 ],
@@ -170,7 +196,14 @@ class SQLiteSessionStore:
                 return None
             player_rows = connection.execute(
                 """
-                SELECT seat, display_name, token, connected, last_seen
+                SELECT
+                    seat,
+                    display_name,
+                    token,
+                    connected,
+                    last_seen,
+                    disconnect_deadline_at,
+                    disconnect_action
                 FROM session_players
                 WHERE invite_code = ?
                 ORDER BY seat
@@ -205,6 +238,8 @@ class SQLiteSessionStore:
                     "token": row["token"],
                     "connected": bool(row["connected"]),
                     "last_seen": row["last_seen"],
+                    "disconnect_deadline_at": row["disconnect_deadline_at"],
+                    "disconnect_action": row["disconnect_action"],
                 }
                 for row in player_rows
             ],

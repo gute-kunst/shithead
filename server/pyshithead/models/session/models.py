@@ -12,6 +12,11 @@ class SessionStatus(StrEnum):
     GAME_OVER = "GAME_OVER"
 
 
+class DisconnectAction(StrEnum):
+    AUTO_PLAY_TURN = "AUTO_PLAY_TURN"
+    AUTO_REMOVE_SETUP = "AUTO_REMOVE_SETUP"
+
+
 class CardModel(BaseModel):
     rank: int
     suit: int
@@ -24,6 +29,9 @@ class PlayerSnapshot(BaseModel):
     display_name: str
     is_host: bool
     is_connected: bool
+    last_seen_at: str
+    disconnect_deadline_at: str | None = None
+    disconnect_action: DisconnectAction | None = None
     has_finished: bool
     finished_position: int | None = None
     public_cards: list[CardModel] = Field(default_factory=list)
@@ -93,6 +101,10 @@ class UpdateSettingsRequest(BaseModel):
 
 
 class RestoreSessionRequest(BaseModel):
+    player_token: str
+
+
+class KickPlayerRequest(BaseModel):
     player_token: str
 
 

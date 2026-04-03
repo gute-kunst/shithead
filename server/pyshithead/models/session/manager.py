@@ -33,6 +33,7 @@ from pyshithead.models.session.models import (
     ActionErrorEvent,
     ActionRequest,
     CardModel,
+    DisconnectAction,
     PlayerSnapshot,
     PrivateState,
     PrivateStateEvent,
@@ -66,11 +67,15 @@ class SessionPlayer:
     websocket: Optional[WebSocket] = None
     connected: bool = False
     last_seen: datetime = field(default_factory=_utc_now)
+    disconnect_deadline_at: datetime | None = None
+    disconnect_action: DisconnectAction | None = None
 
     def mark_connected(self, websocket: WebSocket):
         self.websocket = websocket
         self.connected = True
         self.last_seen = _utc_now()
+        self.disconnect_deadline_at = None
+        self.disconnect_action = None
 
     def mark_disconnected(self):
         self.websocket = None
@@ -95,7 +100,8 @@ class SessionCache(dict):
 
 
 class GameSession:
-    DISCONNECT_TIMEOUT_SECONDS = 60
+    ACTIVE_TURN_DISCONNECT_GRACE_SECONDS = 300
+    SETUP_DISCONNECT_GRACE_SECONDS = 600
     LOBBY_REAP_AFTER = timedelta(hours=2)
     ACTIVE_REAP_AFTER = timedelta(minutes=30)
 
@@ -115,7 +121,8 @@ class GameSession:
         self.pending_joker_seat: int | None = None
         self.pending_joker_card: Card | None = None
         self.pending_hidden_take_seat: int | None = None
-        self.disconnect_timeout_seconds = self.DISCONNECT_TIMEOUT_SECONDS
+        self.active_turn_disconnect_grace_seconds = self.ACTIVE_TURN_DISCONNECT_GRACE_SECONDS
+        self.setup_disconnect_grace_seconds = self.SETUP_DISCONNECT_GRACE_SECONDS
         self.disconnect_timeout_tasks: dict[int, asyncio.Task] = {}
         self.last_activity_at = _utc_now()
         self._on_reap = on_reap
@@ -196,11 +203,7 @@ class GameSession:
         self.pending_joker_seat = None
         self.pending_joker_card = None
         self.pending_hidden_take_seat = None
-        self._touch()
-        self._sync_status()
-        self._schedule_setup_timeouts_for_disconnected_players()
-        self._sync_reap_schedule()
-        self._persist()
+        self._finalize_state_change()
 
     def update_settings(self, player_token: str, *, allow_optional_take_pile: bool):
         player = self.get_player_by_token(player_token)
@@ -209,9 +212,7 @@ class GameSession:
         if self.status != SessionStatus.LOBBY:
             raise ValueError("Lobby settings can only be changed before the game starts.")
         self.settings.allow_optional_take_pile = allow_optional_take_pile
-        self._touch()
-        self._sync_reap_schedule()
-        self._persist()
+        self._finalize_state_change()
 
     def _serialize_card(self, card: Card) -> CardModel:
         return CardModel(
@@ -247,6 +248,13 @@ class GameSession:
 
     def _clear_pending_hidden_take(self):
         self.pending_hidden_take_seat = None
+
+    def _get_player_entry(self, seat: int) -> SessionPlayer | None:
+        return next((entry for entry in self.players if entry.seat == seat), None)
+
+    def _clear_disconnect_tracking(self, player: SessionPlayer):
+        player.disconnect_deadline_at = None
+        player.disconnect_action = None
 
     def _cancel_all_disconnect_timeouts(self):
         for seat in list(self.disconnect_timeout_tasks):
@@ -308,52 +316,79 @@ class GameSession:
         self.host_seat = replacement_host.seat
         self.host_token = replacement_host.token
 
-    def _schedule_disconnect_timeout(self, seat: int):
-        self._cancel_disconnect_timeout(seat)
+    def _infer_disconnect_action(self, seat: int) -> DisconnectAction | None:
+        if self.game_manager is None:
+            return None
+        game = self.game_manager.game
+        if game.state == GameState.PLAYERS_CHOOSE_PUBLIC_CARDS:
+            return DisconnectAction.AUTO_REMOVE_SETUP
+        if game.state == GameState.DURING_GAME and game.get_player().id_ == seat:
+            return DisconnectAction.AUTO_PLAY_TURN
+        return None
+
+    def _sync_disconnect_policies(self):
+        inferred_current_action = {
+            player.seat: self._infer_disconnect_action(player.seat) if not player.connected else None
+            for player in self.players
+        }
+        for player in self.players:
+            desired_action = inferred_current_action[player.seat]
+            if player.connected or desired_action is None:
+                self._cancel_disconnect_timeout(player.seat)
+                self._clear_disconnect_tracking(player)
+                continue
+
+            if player.disconnect_action != desired_action or player.disconnect_deadline_at is None:
+                if desired_action == DisconnectAction.AUTO_REMOVE_SETUP:
+                    player.disconnect_deadline_at = player.last_seen + timedelta(
+                        seconds=self.setup_disconnect_grace_seconds
+                    )
+                else:
+                    player.disconnect_deadline_at = _utc_now() + timedelta(
+                        seconds=self.active_turn_disconnect_grace_seconds
+                    )
+                player.disconnect_action = desired_action
+
+            self._schedule_disconnect_timeout(player)
+
+    def _schedule_disconnect_timeout(self, player: SessionPlayer):
+        self._cancel_disconnect_timeout(player.seat)
+        if player.disconnect_deadline_at is None or player.disconnect_action is None:
+            return
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             return
-        self.disconnect_timeout_tasks[seat] = loop.create_task(
-            self._disconnect_timeout_runner(seat)
+        self.disconnect_timeout_tasks[player.seat] = loop.create_task(
+            self._disconnect_timeout_runner(
+                player.seat,
+                player.disconnect_action,
+                player.disconnect_deadline_at,
+            )
         )
 
-    def _schedule_setup_timeouts_for_disconnected_players(self):
-        if (
-            self.game_manager is None
-            or self.game_manager.game.state != GameState.PLAYERS_CHOOSE_PUBLIC_CARDS
-        ):
-            return
-        for player in self.players:
-            if not player.connected:
-                self._schedule_disconnect_timeout(player.seat)
-
-    def _schedule_current_player_timeout_if_needed(self):
-        if self.game_manager is None or self.game_manager.game.state != GameState.DURING_GAME:
-            return
-        current_seat = self.game_manager.game.get_player().id_
-        player = next((entry for entry in self.players if entry.seat == current_seat), None)
-        if player is None or player.connected:
-            return
-        if current_seat in self.disconnect_timeout_tasks:
-            return
-        self._schedule_disconnect_timeout(current_seat)
-
-    def _handle_player_disconnect(self, player: SessionPlayer):
-        player.mark_disconnected()
-        self._touch()
-        if self.game_manager is None or self.game_manager.game.state == GameState.GAME_OVER:
-            self._sync_reap_schedule()
-            self._persist()
-            return
-        self._schedule_disconnect_timeout(player.seat)
+    def _finalize_state_change(self, *, touch: bool = True):
+        if touch:
+            self._touch()
+        self._sync_status()
+        self._sync_disconnect_policies()
         self._sync_reap_schedule()
         self._persist()
 
-    async def _disconnect_timeout_runner(self, seat: int):
+    def _handle_player_disconnect(self, player: SessionPlayer):
+        player.mark_disconnected()
+        self._finalize_state_change()
+
+    async def _disconnect_timeout_runner(
+        self,
+        seat: int,
+        action: DisconnectAction,
+        deadline_at: datetime,
+    ):
         try:
-            await asyncio.sleep(self.disconnect_timeout_seconds)
-            await self._apply_disconnect_timeout(seat)
+            delay = max(0, (deadline_at - _utc_now()).total_seconds())
+            await asyncio.sleep(delay)
+            await self._apply_disconnect_timeout(seat, action)
         except asyncio.CancelledError:
             return
         finally:
@@ -361,94 +396,169 @@ class GameSession:
             if self.disconnect_timeout_tasks.get(seat) is current_task:
                 self.disconnect_timeout_tasks.pop(seat, None)
 
-    async def _apply_disconnect_timeout(self, seat: int):
-        player = next((entry for entry in self.players if entry.seat == seat), None)
-        if player is None or player.connected or self.game_manager is None:
+    def _remove_player_record(self, seat: int):
+        self._cancel_disconnect_timeout(seat)
+        player = self._get_player_entry(seat)
+        if player is None:
             return
+        self._clear_disconnect_tracking(player)
+        self.players = [entry for entry in self.players if entry.seat != seat]
+        self._promote_host_if_needed()
 
+    def _remove_player_from_game(self, seat: int):
+        if self.game_manager is None:
+            return
         game = self.game_manager.game
-        if game.state == GameState.PLAYERS_CHOOSE_PUBLIC_CARDS:
-            game_player, _ = self._find_game_player(seat)
-            if game_player is None:
-                return
-            if self.pending_joker_seat == seat:
-                self._clear_pending_joker()
-            if self.pending_hidden_take_seat == seat:
-                self._clear_pending_hidden_take()
-            if len(game.active_players) > 1:
-                game.active_players.remove_node(game_player)
-            self.players = [entry for entry in self.players if entry.seat != seat]
-            self._cancel_disconnect_timeout(seat)
-            self._promote_host_if_needed()
-            self.last_status_message = (
-                f"{player.display_name} disconnected and was removed before the game began."
-            )
-            if len(self.players) < 2 or len(game.active_players) < 2:
-                self._cancel_all_disconnect_timeouts()
-                self.game_manager = None
-                self._clear_pending_joker()
-                self._clear_pending_hidden_take()
-                self.status = SessionStatus.LOBBY
-                self._touch()
-                self._sync_reap_schedule()
-                self._persist()
-                await self.broadcast_full_state()
-                return
-            if game.all_players_chosen_public_card():
-                game.state = GameState.DURING_GAME
-            self._touch()
-            self._sync_status()
-            self._schedule_current_player_timeout_if_needed()
-            self._sync_reap_schedule()
-            self._persist()
-            await self.broadcast_full_state()
+        game_player, has_finished = self._find_game_player(seat)
+        if self.pending_joker_seat == seat:
+            self._clear_pending_joker()
+        if self.pending_hidden_take_seat == seat:
+            self._clear_pending_hidden_take()
+        if has_finished:
+            game.ranking = [player for player in game.ranking if player.id_ != seat]
             return
-
-        if game.state != GameState.DURING_GAME:
+        if game_player is None:
             return
+        if len(game.active_players) > 1:
+            game.active_players.remove_node(game_player)
+        if game.state != GameState.GAME_OVER and len(game.active_players) == 1:
+            game.check_for_game_over()
 
-        if game.get_player().id_ != seat:
-            if self.pending_joker_seat == seat:
-                self._clear_pending_joker()
+    def _remove_setup_player(self, seat: int, *, status_message: str):
+        player = self._get_player_entry(seat)
+        if player is None or self.game_manager is None:
             return
+        game = self.game_manager.game
+        self._remove_player_from_game(seat)
+        self._remove_player_record(seat)
+        self.last_status_message = status_message
+        if len(self.players) < 2 or len(game.active_players) < 2:
+            self._cancel_all_disconnect_timeouts()
+            self.game_manager = None
+            self._clear_pending_joker()
+            self._clear_pending_hidden_take()
+            self.status = SessionStatus.LOBBY
+            return
+        if game.all_players_chosen_public_card():
+            game.state = GameState.DURING_GAME
 
+    def _resolve_current_offline_turn(self, seat: int, *, set_status_message: bool = True) -> str | None:
+        player = self._get_player_entry(seat)
+        if player is None or self.game_manager is None:
+            return None
+        game = self.game_manager.game
+        if game.state != GameState.DURING_GAME or game.get_player().id_ != seat:
+            return None
+
+        summary = "missed their turn"
         if self.pending_joker_seat == seat:
             timed_out_player = game.get_player(seat)
             take_request = TakePlayPileRequest(timed_out_player)
             game.process_playrequest(take_request, allow_when_hidden_available=True)
             revealed_name = self._card_status_name(self.pending_joker_card)
             self._clear_pending_joker()
-            self.last_status_message = f"{player.display_name} disconnected after revealing {revealed_name} and took the play pile."
-            self._touch()
-            self._sync_status()
-            self._schedule_current_player_timeout_if_needed()
-            self._sync_reap_schedule()
-            self._persist()
-            await self.broadcast_full_state()
-            return
-
-        if self.pending_hidden_take_seat == seat:
+            if set_status_message:
+                self.last_status_message = (
+                    f"{player.display_name} disconnected after revealing {revealed_name} and took the play pile."
+                )
+            summary = f"took the play pile after revealing {revealed_name}"
+        elif self.pending_hidden_take_seat == seat:
             timed_out_player = game.get_player(seat)
             take_request = TakePlayPileRequest(timed_out_player)
             game.process_playrequest(take_request, allow_when_hidden_available=True)
             self._clear_pending_hidden_take()
-            self.last_status_message = f"{player.display_name} disconnected after revealing a hidden card and took the play pile."
-            self._touch()
-            self._sync_status()
-            self._schedule_current_player_timeout_if_needed()
-            self._sync_reap_schedule()
-            self._persist()
+            if set_status_message:
+                self.last_status_message = (
+                    f"{player.display_name} disconnected after revealing a hidden card and took the play pile."
+                )
+            summary = "took the play pile after revealing a hidden card"
+        else:
+            game.active_players.next()
+            if set_status_message:
+                self.last_status_message = f"{player.display_name} disconnected and missed their turn."
+        return summary
+
+    async def _apply_disconnect_timeout(
+        self,
+        seat: int,
+        expected_action: DisconnectAction | None = None,
+    ):
+        player = self._get_player_entry(seat)
+        if player is None or player.connected:
+            return
+
+        action = expected_action or self._infer_disconnect_action(seat)
+        if action is None:
+            return
+        if expected_action is not None and player.disconnect_action not in {None, expected_action}:
+            return
+        if (
+            expected_action is not None
+            and player.disconnect_action == expected_action
+            and player.disconnect_deadline_at is not None
+            and player.disconnect_deadline_at > _utc_now()
+        ):
+            return
+
+        if action == DisconnectAction.AUTO_REMOVE_SETUP:
+            self._remove_setup_player(
+                seat,
+                status_message=f"{player.display_name} disconnected and was removed before the game began.",
+            )
+            self._finalize_state_change()
             await self.broadcast_full_state()
             return
 
-        game.active_players.next()
-        self.last_status_message = f"{player.display_name} disconnected and missed their turn."
-        self._touch()
-        self._sync_status()
-        self._schedule_current_player_timeout_if_needed()
-        self._sync_reap_schedule()
-        self._persist()
+        if action != DisconnectAction.AUTO_PLAY_TURN:
+            return
+
+        resolution = self._resolve_current_offline_turn(seat)
+        if resolution is None:
+            self._sync_disconnect_policies()
+            self._persist()
+            return
+        self._finalize_state_change()
         await self.broadcast_full_state()
+
+    def kick_player(self, player_token: str, seat: int):
+        player = self.get_player_by_token(player_token)
+        if player.seat != self.host_seat:
+            raise ValueError("Only the host can remove players.")
+        if seat == self.host_seat:
+            raise ValueError("The host cannot remove themselves.")
+
+        target = self.get_player_by_seat(seat)
+        if target.connected:
+            raise ValueError("Only offline players can be removed.")
+
+        if self.game_manager is None:
+            self._remove_player_record(seat)
+            self.last_status_message = f"{target.display_name} was removed while offline."
+            self._finalize_state_change()
+            return
+
+        game = self.game_manager.game
+        if game.state == GameState.PLAYERS_CHOOSE_PUBLIC_CARDS:
+            self._remove_setup_player(
+                seat,
+                status_message=f"{target.display_name} was removed while offline before the game began.",
+            )
+            self._finalize_state_change()
+            return
+
+        turn_resolution = None
+        if game.state == GameState.DURING_GAME and game.get_player().id_ == seat:
+            turn_resolution = self._resolve_current_offline_turn(seat, set_status_message=False)
+
+        self._remove_player_from_game(seat)
+        self._remove_player_record(seat)
+        if turn_resolution is not None:
+            self.last_status_message = (
+                f"{target.display_name} was removed while offline after they {turn_resolution}."
+            )
+        else:
+            self.last_status_message = f"{target.display_name} was removed while offline."
+        self._finalize_state_change()
 
     def _top_rank_chain_count(self, cards: list) -> int:
         if not cards:
@@ -565,6 +675,13 @@ class GameSession:
                     display_name=player.display_name,
                     is_host=player.seat == self.host_seat,
                     is_connected=player.connected,
+                    last_seen_at=player.last_seen.isoformat(),
+                    disconnect_deadline_at=(
+                        player.disconnect_deadline_at.isoformat()
+                        if player.disconnect_deadline_at is not None
+                        else None
+                    ),
+                    disconnect_action=player.disconnect_action,
                     has_finished=has_finished,
                     finished_position=finished_positions.get(player.seat),
                     public_cards=public_cards,
@@ -726,19 +843,11 @@ class GameSession:
                         current_play_pile=current_play_pile,
                         played_card_count=played_card_count,
                     )
-                    self._touch()
-                    self._sync_status()
-                    self._schedule_current_player_timeout_if_needed()
-                    self._sync_reap_schedule()
-                    self._persist()
+                    self._finalize_state_change()
                     return
                 self.pending_hidden_take_seat = player.seat
                 self.last_status_message = f"{player.display_name} revealed {self._card_status_name(revealed_card)} and must take the pile."
-            self._touch()
-            self._sync_status()
-            self._schedule_current_player_timeout_if_needed()
-            self._sync_reap_schedule()
-            self._persist()
+            self._finalize_state_change()
             return
         else:
             if action.type == "take_play_pile":
@@ -777,20 +886,14 @@ class GameSession:
             current_play_pile=current_play_pile,
             played_card_count=played_card_count,
         )
-        self._touch()
-        self._sync_status()
-        self._schedule_current_player_timeout_if_needed()
-        self._sync_reap_schedule()
-        self._persist()
+        self._finalize_state_change()
 
     async def connect(self, player_token: str, websocket: WebSocket):
         player = self.get_player_by_token(player_token)
         self._cancel_disconnect_timeout(player.seat)
         await websocket.accept()
         player.mark_connected(websocket)
-        self._touch()
-        self._sync_reap_schedule()
-        self._persist()
+        self._finalize_state_change()
         await self.send_full_state(player)
         await self.broadcast_snapshot(exclude_seat=player.seat)
 
@@ -945,7 +1048,7 @@ class GameSessionManager:
                 else None
             ),
             "pending_hidden_take_seat": session.pending_hidden_take_seat,
-            "disconnect_timeout_seconds": session.disconnect_timeout_seconds,
+            "disconnect_timeout_seconds": session.active_turn_disconnect_grace_seconds,
             "last_activity_at": session.last_activity_at.isoformat(),
             "settings": {
                 "sort_hand_cards": session.settings.sort_hand_cards,
@@ -958,6 +1061,16 @@ class GameSessionManager:
                     "token": player.token,
                     "connected": player.connected,
                     "last_seen": player.last_seen.isoformat(),
+                    "disconnect_deadline_at": (
+                        player.disconnect_deadline_at.isoformat()
+                        if player.disconnect_deadline_at is not None
+                        else None
+                    ),
+                    "disconnect_action": (
+                        player.disconnect_action.value
+                        if player.disconnect_action is not None
+                        else None
+                    ),
                 }
                 for player in session.players
             ],
@@ -984,6 +1097,16 @@ class GameSessionManager:
                 token=player["token"],
                 connected=player["connected"],
                 last_seen=datetime.fromisoformat(player["last_seen"]),
+                disconnect_deadline_at=(
+                    datetime.fromisoformat(player["disconnect_deadline_at"])
+                    if player.get("disconnect_deadline_at")
+                    else None
+                ),
+                disconnect_action=(
+                    DisconnectAction(player["disconnect_action"])
+                    if player.get("disconnect_action")
+                    else None
+                ),
             )
             for player in record["players"]
         ]
@@ -998,7 +1121,9 @@ class GameSessionManager:
             else None
         )
         session.pending_hidden_take_seat = record["pending_hidden_take_seat"]
-        session.disconnect_timeout_seconds = record["disconnect_timeout_seconds"]
+        session.active_turn_disconnect_grace_seconds = record.get(
+            "disconnect_timeout_seconds", session.active_turn_disconnect_grace_seconds
+        )
         session.last_activity_at = datetime.fromisoformat(record["last_activity_at"])
         session.settings = SessionSettings(**record["settings"])
         session.game_manager = self._deserialize_game_state(record["game_state"])
@@ -1065,5 +1190,7 @@ class GameSessionManager:
                 self._reap_session(normalized_invite_code)
                 raise ValueError("Game not found.")
             self.sessions[normalized_invite_code] = session
+            session._sync_disconnect_policies()
+            self._save_session(session)
             session._sync_reap_schedule()
         return session

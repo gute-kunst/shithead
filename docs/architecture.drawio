@@ -16,7 +16,7 @@
         <mxCell id="player" value="Player&#xa;(terminal user)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
           <mxGeometry x="50" y="230" width="170" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="client" value="Python terminal client&#xa;client_py/shithead/client.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+        <mxCell id="client" value="Browser client&#xa;server/pyshithead/static/app.js" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
           <mxGeometry x="50" y="320" width="200" height="60" as="geometry" />
         </mxCell>
         <mxCell id="main" value="main.py&#xa;FastAPI app" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">

@@ -1,9 +1,23 @@
 [![Test Shithead Server](https://github.com/gute-kunst/shithead_browsergame/actions/workflows/server.yml/badge.svg)](https://github.com/gute-kunst/shithead_browsergame/actions/workflows/server.yml)
 # pyshithead
+
+Canonical project docs:
+
+- architecture: `../docs/architecture.md`
+- development commands: `../docs/dev.md`
+- GSD workflow: `../docs/gsd.md`
+
 ## Start Server
 ```uvicorn pyshithead.main:app```
 
 Persistent session state is now stored in SQLite by default so active tables can survive a short restart.
+
+Disconnect handling is mobile-friendly by default:
+- players are marked offline as soon as their WebSocket drops
+- lobby seats stay reserved until the host removes the offline player
+- setup-phase seats auto-remove only after 10 minutes
+- an offline active turn auto-resolves only after 5 minutes
+- the host can remove offline non-host players through the browser UI or `POST /api/games/{invite_code}/players/{seat}/kick`
 
 Optional configuration:
 - `DATABASE_URL`
@@ -15,6 +29,20 @@ Optional configuration:
 #### Start Development Server
 
 ```uvicorn pyshithead.main:app --reload```
+
+#### Install Dependencies And Browser Runtime
+
+```powershell
+poetry install
+poetry run python -m playwright install chromium
+```
+
+#### Canonical Verification
+
+```powershell
+poetry run python -m pytest tests/test_alpha_api.py -q
+poetry run python -m pytest tests_browser/test_debug_presets.py tests_browser/test_browser_smoke.py -q -o addopts=''
+```
 
 #### Start Debug Preset Server
 
