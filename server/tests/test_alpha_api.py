@@ -156,11 +156,13 @@ def test_lobby_shoutout_broadcasts_live_event_to_connected_players():
                 assert guest_event["data"]["preset"]["label"] == "HAHAHA"
 
 
-def test_shoutout_cooldown_blocks_rapid_repeats():
+def test_shoutout_cooldown_blocks_rapid_repeats(monkeypatch):
     session_manager.sessions.clear()
     with TestClient(app, base_url="http://localhost") as client:
         host = create_game(client, "Host")
         session = session_manager.get_session(host["invite_code"])
+        fixed_now = datetime(2026, 4, 3, 12, 0, 0, tzinfo=timezone.utc)
+        monkeypatch.setattr("pyshithead.models.session.manager._utc_now", lambda: fixed_now)
 
         first_event = session.apply_action(
             host["player_token"],
@@ -168,12 +170,36 @@ def test_shoutout_cooldown_blocks_rapid_repeats():
         )
         assert first_event is not None
         assert first_event.data.preset.key == "nice"
+        assert session.get_player_by_seat(0).last_shoutout_at == fixed_now
+        assert session.build_private_state(0).shoutout_next_available_at == fixed_now + timedelta(
+            seconds=4
+        )
 
         with pytest.raises(ValueError, match="Please wait before sending another shoutout."):
             session.apply_action(
                 host["player_token"],
                 ActionRequest(type="send_shoutout", shoutout_key="oof"),
             )
+
+
+def test_build_private_state_includes_shoutout_cooldown_for_lobby_player(monkeypatch):
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        session = session_manager.get_session(host["invite_code"])
+        fixed_now = datetime(2026, 4, 3, 12, 0, 0, tzinfo=timezone.utc)
+        monkeypatch.setattr("pyshithead.models.session.manager._utc_now", lambda: fixed_now)
+
+        player = session.get_player_by_seat(0)
+        player.last_shoutout_at = fixed_now - timedelta(seconds=1)
+        active_private_state = session.build_private_state(0)
+        assert active_private_state.shoutout_next_available_at == fixed_now + timedelta(
+            seconds=3
+        )
+
+        player.last_shoutout_at = fixed_now - timedelta(seconds=5)
+        idle_private_state = session.build_private_state(0)
+        assert idle_private_state.shoutout_next_available_at is None
 
 
 def test_start_game_and_reconnect_with_same_token():

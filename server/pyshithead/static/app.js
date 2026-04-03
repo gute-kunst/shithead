@@ -3,6 +3,7 @@ const playPilePreviewLimit = 6;
 const jokerRank = 15;
 const jokerAllowedRanks = [3, 4, 6, 7, 8, 9, 11, 13, 12, 14];
 const jokerSymbol = "★";
+const shoutoutCooldownMs = 4000;
 
 const state = {
   inviteCode: "",
@@ -38,6 +39,7 @@ const state = {
   kickSeatConfirmTimer: null,
   presenceTicker: null,
   presenceNow: Date.now(),
+  shoutoutUnlockTimer: null,
   rulesMenuOpen: false,
   shoutoutMenuOpen: false,
   animations: [],
@@ -143,6 +145,13 @@ function clearPresenceTicker() {
   }
 }
 
+function clearShoutoutUnlockTimer() {
+  if (state.shoutoutUnlockTimer !== null) {
+    window.clearTimeout(state.shoutoutUnlockTimer);
+    state.shoutoutUnlockTimer = null;
+  }
+}
+
 function resetLeaveConfirmation({ rerender = false } = {}) {
   clearLeaveConfirmTimer();
   state.leaveArmed = false;
@@ -213,6 +222,11 @@ function closeRulesMenu() {
 }
 
 function openShoutoutMenu() {
+  if (isShoutoutOnCooldown()) {
+    state.shoutoutMenuOpen = false;
+    render();
+    return;
+  }
   state.rulesMenuOpen = false;
   state.shoutoutMenuOpen = true;
   render();
@@ -381,6 +395,7 @@ function clearSession(errorMessage = "") {
   hideTurnNotice();
   clearRestoreRetryTimer();
   clearPresenceTicker();
+  clearShoutoutUnlockTimer();
   clearMotionState();
   resetLeaveConfirmation();
   resetKickSeatConfirmation();
@@ -407,6 +422,7 @@ function forgetSavedSession() {
   hideTurnNotice();
   clearRestoreRetryTimer();
   clearPresenceTicker();
+  clearShoutoutUnlockTimer();
   clearMotionState();
   resetLeaveConfirmation();
   resetKickSeatConfirmation();
@@ -757,6 +773,98 @@ function optionalTakeRuleEnabled(snapshot = state.snapshot?.data) {
 
 function shoutoutPresets(snapshot = state.snapshot?.data) {
   return snapshot?.shoutout_presets || [];
+}
+
+function shoutoutCooldownState(privateState = state.privateState?.data) {
+  const nextAvailableAt = privateState?.shoutout_next_available_at;
+  if (!nextAvailableAt) {
+    return null;
+  }
+  const dueAt = Date.parse(nextAvailableAt);
+  if (!Number.isFinite(dueAt)) {
+    return null;
+  }
+  const remainingMs = dueAt - Date.now();
+  if (remainingMs <= 0) {
+    return null;
+  }
+  return {
+    dueAt,
+    remainingMs,
+  };
+}
+
+function isShoutoutOnCooldown(privateState = state.privateState?.data) {
+  return shoutoutCooldownState(privateState) !== null;
+}
+
+function primeLocalShoutoutCooldown() {
+  const nextAvailableAt = new Date(Date.now() + shoutoutCooldownMs).toISOString();
+  if (state.privateState?.data) {
+    state.privateState = {
+      ...state.privateState,
+      data: {
+        ...state.privateState.data,
+        shoutout_next_available_at: nextAvailableAt,
+      },
+    };
+    return;
+  }
+  state.privateState = {
+    type: "private_state",
+    data: {
+      seat: Number.isInteger(state.seat) ? state.seat : 0,
+      private_cards: [],
+      shoutout_next_available_at: nextAvailableAt,
+    },
+  };
+}
+
+function privateStateChangedOnlyByShoutoutCooldown(previousState, nextState) {
+  if (!previousState) {
+    return false;
+  }
+  if (
+    Boolean(previousState.pending_joker_selection) !==
+    Boolean(nextState.pending_joker_selection)
+  ) {
+    return false;
+  }
+  if (
+    Boolean(previousState.pending_hidden_take) !==
+    Boolean(nextState.pending_hidden_take)
+  ) {
+    return false;
+  }
+  if ((previousState.private_cards || []).length !== (nextState.private_cards || []).length) {
+    return false;
+  }
+  for (let index = 0; index < (previousState.private_cards || []).length; index += 1) {
+    if (cardId(previousState.private_cards[index]) !== cardId(nextState.private_cards[index])) {
+      return false;
+    }
+  }
+  const previousJoker = previousState.pending_joker_card;
+  const nextJoker = nextState.pending_joker_card;
+  if (Boolean(previousJoker) !== Boolean(nextJoker)) {
+    return false;
+  }
+  if (previousJoker && cardId(previousJoker) !== cardId(nextJoker)) {
+    return false;
+  }
+  return true;
+}
+
+function syncShoutoutUnlockTimer() {
+  clearShoutoutUnlockTimer();
+  const cooldown = shoutoutCooldownState();
+  if (!cooldown) {
+    return;
+  }
+  state.shoutoutUnlockTimer = window.setTimeout(() => {
+    state.shoutoutUnlockTimer = null;
+    render();
+  }, Math.max(0, cooldown.remainingMs) + 30);
 }
 
 function canSendShoutouts(snapshot = state.snapshot?.data) {
@@ -1275,6 +1383,7 @@ function connectWebSocket() {
     } else if (payload.type === "private_state") {
       const previousPrivateCards =
         state.privateState?.data?.private_cards || [];
+      const previousPrivateState = state.privateState?.data || null;
       state.privateState = payload;
       if (
         state.pendingLocalPlay &&
@@ -1289,6 +1398,9 @@ function connectWebSocket() {
       }
       state.hiddenLocalHandCardIds = [];
       state.pendingLocalPlay = null;
+      if (isShoutoutOnCooldown(payload.data)) {
+        state.shoutoutMenuOpen = false;
+      }
       if (
         payload.data.pending_joker_selection ||
         payload.data.pending_hidden_take
@@ -1298,7 +1410,12 @@ function connectWebSocket() {
           payload.data.pending_joker_card?.effective_rank || null;
         state.highLowChoice = "";
       }
-      render();
+      const cooldownOnlyUpdate =
+        previousPrivateState !== null &&
+        privateStateChangedOnlyByShoutoutCooldown(previousPrivateState, payload.data);
+      if (!cooldownOnlyUpdate) {
+        render();
+      }
     } else if (payload.type === "shoutout") {
       queueAnimation({
         kind: "shoutout",
@@ -1501,6 +1618,8 @@ function submitShoutout(shoutoutKey) {
   if (!sent) {
     return;
   }
+  primeLocalShoutoutCooldown();
+  render();
 }
 
 function submitHiddenCard() {
@@ -3191,7 +3310,7 @@ function renderRulesMenu() {
 }
 
 function renderShoutoutMenu(snapshot) {
-  if (!state.shoutoutMenuOpen || !canSendShoutouts(snapshot)) {
+  if (!state.shoutoutMenuOpen || !canSendShoutouts(snapshot) || isShoutoutOnCooldown()) {
     return "";
   }
 
@@ -3274,7 +3393,10 @@ function renderTable(snapshot) {
   const showLobbyControls = snapshot.status === "LOBBY";
   const showShoutoutControls =
     snapshot.status === "LOBBY" || snapshot.status === "IN_GAME";
-  const shoutoutEnabled = showShoutoutControls && canSendShoutouts(snapshot);
+  const shoutoutReady = showShoutoutControls && canSendShoutouts(snapshot);
+  const shoutoutCooldown = shoutoutCooldownState();
+  const shoutoutLocked = shoutoutCooldown !== null;
+  const shoutoutEnabled = shoutoutReady && !shoutoutLocked;
   const showMobileLobbyLayout = isMobileLobbyLayout(snapshot);
   const sortedPlayers = [...snapshot.players].sort(
     (left, right) =>
@@ -3375,13 +3497,24 @@ function renderTable(snapshot) {
           showShoutoutControls
             ? `
           <button
-            class="table-shoutout-trigger ${shoutoutEnabled ? "" : "disabled"}"
+            class="table-shoutout-trigger ${shoutoutEnabled ? "" : "disabled"} ${shoutoutLocked ? "locked" : ""}"
             id="open-shoutout-menu"
             type="button"
             aria-label="Open shoutouts"
-            title="${shoutoutEnabled ? "Shoutouts" : "Connecting to the table"}"
+            title="${
+              !shoutoutReady
+                ? "Connecting to the table"
+                : shoutoutLocked
+                  ? `Shoutouts available in ${Math.max(
+                      1,
+                      Math.ceil(shoutoutCooldown.remainingMs / 1000),
+                    )}s`
+                  : "Shoutouts"
+            }"
+            style="--shoutout-fill-duration:${shoutoutLocked ? shoutoutCooldown.remainingMs : 0}ms;"
             ${shoutoutEnabled ? "" : "disabled"}
           >
+            <span class="shoutout-trigger-fill" aria-hidden="true"></span>
             <span class="shoutout-joker-emoji" aria-hidden="true">★</span>
           </button>
         `
@@ -3876,6 +4009,7 @@ function render() {
     isMobileActiveGameLayout() && state.snapshot?.data?.status !== "LOBBY",
   );
   syncPresenceTicker();
+  syncShoutoutUnlockTimer();
   app.innerHTML = renderApp();
   if (!state.snapshot && state.pendingLandingNameFocus) {
     const joinNameInput = document.getElementById("join-name");

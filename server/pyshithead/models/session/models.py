@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import StrEnum
 from typing import Literal
 
@@ -74,6 +75,7 @@ class PrivateState(BaseModel):
     pending_joker_card: CardModel | None = None
     pending_hidden_take: bool = False
     private_cards: list[CardModel] = Field(default_factory=list)
+    shoutout_next_available_at: datetime | None = None
 
 
 class ShoutoutEventData(BaseModel):

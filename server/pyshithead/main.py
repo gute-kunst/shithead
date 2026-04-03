@@ -190,6 +190,7 @@ def create_app(
                     shoutout_event = session.apply_action(token, action)
                     if shoutout_event is not None:
                         await session.broadcast_shoutout(shoutout_event)
+                        await session.send_private_state(session.get_player_by_token(token))
                     else:
                         await session.broadcast_full_state()
                 except (PyshitheadError, ValueError) as err:

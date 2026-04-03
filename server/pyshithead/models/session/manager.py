@@ -765,9 +765,19 @@ class GameSession:
         )
 
     def build_private_state(self, seat: int) -> PrivateState:
-        game_player, _ = self._find_game_player(seat)
-        if game_player is None:
+        player = self._get_player_entry(seat)
+        if player is None:
             return PrivateState(seat=seat, private_cards=[])
+
+        cooldown_due_at = None
+        if player.last_shoutout_at is not None:
+            next_available_at = player.last_shoutout_at + timedelta(
+                seconds=self.SHOUTOUT_COOLDOWN_SECONDS
+            )
+            if _utc_now() < next_available_at:
+                cooldown_due_at = next_available_at
+
+        game_player, _ = self._find_game_player(seat)
         return PrivateState(
             seat=seat,
             pending_joker_selection=self.pending_joker_seat == seat
@@ -781,7 +791,10 @@ class GameSession:
             private_cards=[
                 self._serialize_card(card)
                 for card in self._sort_private_cards(game_player.private_cards.cards)
-            ],
+            ]
+            if game_player is not None
+            else [],
+            shoutout_next_available_at=cooldown_due_at,
         )
 
     def auth_response(self, player: SessionPlayer) -> SessionAuthResponse:
@@ -977,6 +990,11 @@ class GameSession:
         if not await self._safe_send(player.websocket, snapshot_event):
             self._handle_player_disconnect(player)
             return
+        if not await self._safe_send(player.websocket, private_state_event):
+            self._handle_player_disconnect(player)
+
+    async def send_private_state(self, player: SessionPlayer):
+        private_state_event = PrivateStateEvent(data=self.build_private_state(player.seat)).dict()
         if not await self._safe_send(player.websocket, private_state_event):
             self._handle_player_disconnect(player)
 
