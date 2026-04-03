@@ -18,6 +18,7 @@ Disconnect handling is mobile-friendly by default:
 - setup-phase seats auto-remove only after 10 minutes
 - an offline active turn auto-resolves only after 5 minutes
 - the host can remove offline non-host players through the browser UI or `POST /api/games/{invite_code}/players/{seat}/kick`
+- Browser coverage is Chromium and WebKit on desktop and mobile profiles, with Firefox covered on desktop only because Playwright Firefox does not support mobile emulation.
 
 Optional configuration:
 - `DATABASE_URL`
@@ -34,7 +35,7 @@ Optional configuration:
 
 ```powershell
 poetry install
-poetry run python -m playwright install chromium
+poetry run python -m playwright install chromium firefox webkit
 ```
 
 #### Canonical Verification
@@ -57,6 +58,7 @@ Available presets:
 - `host-turn-15`
 - `hidden-reveal`
 - `hidden-take`
+- `hidden-seven-take`
 - `revealed-joker`
 - `revealed-seven`
 - `game-over`

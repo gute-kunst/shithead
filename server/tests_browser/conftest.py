@@ -5,9 +5,55 @@ import time
 import httpx
 import pytest
 import uvicorn
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import sync_playwright
 
 from pyshithead.main import app, session_manager
+
+BROWSER_TYPES = ("chromium", "firefox", "webkit")
+BROWSER_PROFILES = {
+    "desktop": {
+        "viewport": {"width": 1440, "height": 900},
+        "is_mobile": False,
+        "has_touch": False,
+        "device_scale_factor": 1,
+    },
+    "mobile_portrait": {
+        "viewport": {"width": 390, "height": 844},
+        "is_mobile": True,
+        "has_touch": True,
+        "device_scale_factor": 2,
+    },
+    "mobile_landscape": {
+        "viewport": {"width": 844, "height": 390},
+        "is_mobile": True,
+        "has_touch": True,
+        "device_scale_factor": 2,
+    },
+}
+
+BROWSER_PROFILES_BY_BROWSER = {
+    "chromium": set(BROWSER_PROFILES),
+    "webkit": set(BROWSER_PROFILES),
+    "firefox": {"desktop"},
+}
+
+
+def _browser_launch(browser_type, *, browser_name: str):
+    try:
+        return getattr(browser_type, browser_name).launch(headless=True)
+    except PlaywrightError as err:
+        if "Executable doesn't exist" in str(err) or "browser has not been installed" in str(err):
+            pytest.skip(f"Playwright browser '{browser_name}' is not installed.")
+        raise
+
+
+def _create_browser_context(browser, *, profile_name: str):
+    context = browser.new_context(
+        service_workers="allow",
+        **BROWSER_PROFILES[profile_name],
+    )
+    return context
 
 
 def _find_free_port() -> int:
@@ -84,29 +130,59 @@ def live_app_server_factory():
 
 @pytest.fixture(scope="session")
 def playwright_instance():
-    with sync_playwright() as playwright:
+    manager = sync_playwright()
+    try:
+        playwright = manager.__enter__()
+    except PermissionError as err:
+        try:
+            manager.__exit__(PermissionError, err, err.__traceback__)
+        finally:
+            pytest.skip(f"Playwright could not start in this environment: {err}")
+    try:
         yield playwright
+    finally:
+        manager.__exit__(None, None, None)
+
+
+@pytest.fixture(scope="session", params=BROWSER_TYPES, ids=BROWSER_TYPES)
+def browser_name(request):
+    return request.param
 
 
 @pytest.fixture(scope="session")
-def browser(playwright_instance):
-    browser = playwright_instance.chromium.launch(headless=True)
+def browser(playwright_instance, browser_name):
+    browser = _browser_launch(playwright_instance, browser_name=browser_name)
     yield browser
     browser.close()
 
 
-@pytest.fixture
-def browser_factory(browser):
+@pytest.fixture(params=tuple(BROWSER_PROFILES), ids=tuple(BROWSER_PROFILES))
+def browser_profile_name(request):
+    return request.param
+
+
+@pytest.fixture(autouse=True)
+def skip_unsupported_browser_profile(browser_name, browser_profile_name):
+    if browser_profile_name not in BROWSER_PROFILES_BY_BROWSER[browser_name]:
+        pytest.skip(
+            f"Playwright browser '{browser_name}' does not support the '{browser_profile_name}' profile."
+        )
+
+
+def _context_factory(browser, *, profile_name: str):
     contexts = []
 
     def factory():
-        context = browser.new_context(
-            service_workers="allow",
-            viewport={"width": 430, "height": 932},
-        )
+        context = _create_browser_context(browser, profile_name=profile_name)
         contexts.append(context)
         return context
 
+    return factory, contexts
+
+
+@pytest.fixture
+def browser_factory(browser, browser_profile_name):
+    factory, contexts = _context_factory(browser, profile_name=browser_profile_name)
     yield factory
 
     for context in contexts:
@@ -114,20 +190,34 @@ def browser_factory(browser):
 
 
 @pytest.fixture
-def touch_browser_factory(browser):
-    contexts = []
+def desktop_browser_factory(browser):
+    factory, contexts = _context_factory(browser, profile_name="desktop")
+    yield factory
 
-    def factory():
-        context = browser.new_context(
-            service_workers="allow",
-            viewport={"width": 375, "height": 812},
-            is_mobile=True,
-            has_touch=True,
-            device_scale_factor=2,
+    for context in contexts:
+        context.close()
+
+
+@pytest.fixture
+def touch_browser_factory(browser, browser_name):
+    if "mobile_portrait" not in BROWSER_PROFILES_BY_BROWSER[browser_name]:
+        pytest.skip(
+            f"Playwright browser '{browser_name}' does not support the 'mobile_portrait' profile."
         )
-        contexts.append(context)
-        return context
+    factory, contexts = _context_factory(browser, profile_name="mobile_portrait")
+    yield factory
 
+    for context in contexts:
+        context.close()
+
+
+@pytest.fixture
+def mobile_landscape_browser_factory(browser, browser_name):
+    if "mobile_landscape" not in BROWSER_PROFILES_BY_BROWSER[browser_name]:
+        pytest.skip(
+            f"Playwright browser '{browser_name}' does not support the 'mobile_landscape' profile."
+        )
+    factory, contexts = _context_factory(browser, profile_name="mobile_landscape")
     yield factory
 
     for context in contexts:

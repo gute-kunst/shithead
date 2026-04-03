@@ -5,6 +5,7 @@
 - The browser alpha under `server/pyshithead/static` is the supported product surface.
 - The session and reconnect logic live in `server/pyshithead/models/session`.
 - The rules engine lives in `server/pyshithead/models/game`.
+- Browser coverage is Chromium and WebKit on desktop and mobile profiles, with Firefox covered on desktop only because Playwright Firefox does not support mobile emulation.
 
 ## Bootstrap
 
@@ -13,7 +14,7 @@ From the repo root:
 ```powershell
 cd server
 poetry install
-poetry run python -m playwright install chromium
+poetry run python -m playwright install chromium firefox webkit
 ```
 
 ## Run
@@ -42,6 +43,7 @@ Useful presets:
 - `host-turn-15`
 - `hidden-reveal`
 - `hidden-take`
+- `hidden-seven-take`
 - `revealed-joker`
 - `revealed-seven`
 - `game-over`
@@ -55,7 +57,7 @@ cd server
 poetry run python -m pytest tests/test_alpha_api.py -q
 ```
 
-Canonical browser smoke pass:
+Canonical browser matrix pass:
 
 ```powershell
 cd server

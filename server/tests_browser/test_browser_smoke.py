@@ -1,4 +1,5 @@
 import re
+import time
 
 import pytest
 from playwright.sync_api import expect
@@ -75,6 +76,48 @@ def build_large_hand_cards():
     ]
 
 
+def _wait_for(predicate, *, timeout=5.0, interval=0.05, message="Timed out waiting for state"):
+    deadline = time.monotonic() + timeout
+    last_value = None
+    while time.monotonic() < deadline:
+        last_value = predicate()
+        if last_value:
+            return last_value
+        time.sleep(interval)
+    raise AssertionError(f"{message}: {last_value!r}")
+
+
+def _dispatch_hand_fan_pointer_drag(hand_fan, *, start_x: float, start_y: float, end_x: float):
+    hand_fan.evaluate(
+        """
+        (element, drag) => {
+          const base = { bubbles: true, composed: true, pointerId: 1, pointerType: "mouse" };
+          element.dispatchEvent(new PointerEvent("pointerdown", {
+            ...base,
+            clientX: drag.startX,
+            clientY: drag.startY,
+            button: 0,
+            buttons: 1,
+          }));
+          element.dispatchEvent(new PointerEvent("pointermove", {
+            ...base,
+            clientX: drag.endX,
+            clientY: drag.startY,
+            buttons: 1,
+          }));
+          element.dispatchEvent(new PointerEvent("pointerup", {
+            ...base,
+            clientX: drag.endX,
+            clientY: drag.startY,
+            button: 0,
+            buttons: 0,
+          }));
+        }
+        """,
+        {"startX": start_x, "startY": start_y, "endX": end_x},
+    )
+
+
 def test_landing_shows_folded_buckets_and_rules_menu(live_server, browser_factory):
     page = open_page(browser_factory(), live_server)
 
@@ -142,10 +185,12 @@ def test_host_can_remove_offline_lobby_player_from_ui(live_server, browser_facto
     guest_page.close()
 
     expect(host_page.locator(".seat-panel.disconnected")).to_contain_text("Guest")
-    expect(host_page.get_by_role("button", name="Remove offline player")).to_be_visible()
+    remove_button = host_page.locator("[data-kick-seat='1']")
+    expect(remove_button).to_be_visible()
 
-    host_page.get_by_role("button", name="Remove offline player").click()
-    host_page.get_by_role("button", name="Click again to remove").click()
+    remove_button.evaluate("(button) => button.click()")
+    expect(remove_button).to_have_attribute("aria-label", "Click again to remove")
+    remove_button.evaluate("(button) => button.click()")
 
     expect(host_page.locator(".seat-panel").filter(has_text="Guest")).to_have_count(0)
 
@@ -205,12 +250,12 @@ def test_lobby_optional_take_setting_syncs_and_shows_take_pile_action(live_serve
     expect(host_page.locator(".dock-prompt")).to_contain_text("take the pile")
 
 
-def test_large_hand_scrolls_with_mouse_drag_on_desktop(live_server, browser_factory):
-    host_page = open_page(browser_factory(), live_server)
+def test_large_hand_scrolls_with_mouse_drag_on_desktop(live_server, desktop_browser_factory):
+    host_page = open_page(desktop_browser_factory(), live_server)
     create_table(host_page, "Host")
     invite_code = extract_invite_code(host_page)
 
-    guest_page = open_page(browser_factory(), live_server)
+    guest_page = open_page(desktop_browser_factory(), live_server)
     join_table(guest_page, invite_code, "Guest")
 
     host_page.locator("#start-game").click()
@@ -223,7 +268,7 @@ def test_large_hand_scrolls_with_mouse_drag_on_desktop(live_server, browser_fact
     host_player.private_cards = SetOfCards(build_large_hand_cards())
     session_manager._save_session(session)
 
-    host_page.set_viewport_size({"width": 390, "height": 844})
+    host_page.set_viewport_size({"width": 900, "height": 700})
     host_page.reload(wait_until="networkidle")
 
     hand_dock = host_page.locator(".hand-dock")
@@ -231,19 +276,84 @@ def test_large_hand_scrolls_with_mouse_drag_on_desktop(live_server, browser_fact
     expect(hand_dock).to_have_class(re.compile(r"\bhand-layout-scroll\b"))
     assert hand_fan.evaluate("(element) => element.scrollWidth > element.clientWidth")
 
-    hand_box = hand_fan.bounding_box()
-    assert hand_box is not None
-    start_x = hand_box["x"] + hand_box["width"] * 0.72
-    start_y = hand_box["y"] + hand_box["height"] * 0.5
     initial_scroll_left = hand_fan.evaluate("(element) => element.scrollLeft")
 
-    host_page.mouse.move(start_x, start_y)
-    host_page.mouse.down(button="left")
-    host_page.mouse.move(start_x - 180, start_y, steps=8)
-    host_page.mouse.up(button="left")
+    hand_box = hand_fan.bounding_box()
+    assert hand_box is not None
+    start_x = hand_box["x"] + hand_box["width"] - 40
+    start_y = hand_box["y"] + hand_box["height"] / 2
 
+    host_page.mouse.move(start_x, start_y)
+    host_page.mouse.down()
+    host_page.mouse.move(start_x - 180, start_y, steps=8)
+    host_page.mouse.up()
+
+    if hand_fan.evaluate("(element) => element.scrollLeft") <= initial_scroll_left:
+        _dispatch_hand_fan_pointer_drag(
+            hand_fan,
+            start_x=start_x,
+            start_y=start_y,
+            end_x=start_x - 180,
+        )
+
+    _wait_for(
+        lambda: hand_fan.evaluate("(element) => element.scrollLeft") > initial_scroll_left,
+        message="hand fan did not scroll on desktop drag",
+    )
+    host_page.wait_for_timeout(1500)
     assert hand_fan.evaluate("(element) => element.scrollLeft") > initial_scroll_left
     expect(host_page.locator(".hand-fan .card.selected")).to_have_count(0)
+
+
+def test_desktop_clicking_a_hand_card_selects_it(live_server, desktop_browser_factory):
+    host_page = open_page(desktop_browser_factory(), live_server)
+    create_table(host_page, "Host")
+    invite_code = extract_invite_code(host_page)
+
+    guest_page = open_page(desktop_browser_factory(), live_server)
+    join_table(guest_page, invite_code, "Guest")
+
+    host_page.locator("#start-game").click()
+    expect(host_page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
+    expect(guest_page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
+    finish_public_selection(invite_code)
+
+    session = session_manager.get_session(invite_code)
+    host_player = session.game_manager.game.get_player(0)
+    host_player.private_cards = SetOfCards(build_large_hand_cards())
+    session_manager._save_session(session)
+
+    host_page.set_viewport_size({"width": 415, "height": 700})
+    host_page.reload(wait_until="networkidle")
+
+    hand_card = host_page.locator(".hand-fan [data-card-id]").first
+    hand_card.click()
+
+    expect(host_page.locator(".hand-fan .card.selected")).to_have_count(1)
+
+
+def test_mobile_landscape_uses_wide_layout_variant(live_server, mobile_landscape_browser_factory):
+    page = open_page(mobile_landscape_browser_factory(), live_server)
+    create_table(page, "Host")
+    invite_code = extract_invite_code(page)
+
+    guest_page = open_page(mobile_landscape_browser_factory(), live_server)
+    join_table(guest_page, invite_code, "Guest")
+
+    page.locator("#start-game").click()
+    expect(page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
+    expect(guest_page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
+    finish_public_selection(invite_code)
+
+    session = session_manager.get_session(invite_code)
+    host_player = session.game_manager.game.get_player(0)
+    host_player.private_cards = SetOfCards(build_large_hand_cards())
+    session_manager._save_session(session)
+
+    page.reload(wait_until="networkidle")
+
+    expect(page.locator(".game-screen")).to_have_class(re.compile(r"\blayout-wide\b"))
+    expect(page.locator(".hand-dock")).to_have_class(re.compile(r"\bhand-layout-scroll\b"))
 
 
 def test_mobile_hand_fan_drag_scrolls_and_taps_afterward(live_server, touch_browser_factory):

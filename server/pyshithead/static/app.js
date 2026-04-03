@@ -53,6 +53,7 @@ const state = {
   pendingLocalDrawAnimation: null,
   hiddenLocalHandCardIds: [],
   localPlaySendTimer: null,
+  handFanScrollLeft: 0,
 };
 
 const app = document.getElementById("app");
@@ -316,7 +317,9 @@ function markTurnArrival(seat) {
   state.turnArrivalTimer = window.setTimeout(() => {
     state.turnArrivalTimer = null;
     state.turnArrivalSeat = null;
-    render();
+    document.querySelectorAll(".seat-panel.turn-arrival, .hand-dock.turn-arrival").forEach((element) => {
+      element.classList.remove("turn-arrival");
+    });
   }, prefersReducedMotion() ? 220 : 1100);
 }
 
@@ -745,6 +748,27 @@ function mustTakePile(snapshot = state.snapshot?.data) {
 
 function privateCards() {
   return state.privateState?.data?.private_cards || [];
+}
+
+function currentHandScrollKey() {
+  return privateCards().map((card) => cardId(card)).join("|");
+}
+
+function captureHandFanScroll() {
+  const handFan = app.querySelector(".hand-fan");
+  if (!handFan) {
+    return;
+  }
+  state.handFanScrollLeft = handFan.scrollLeft;
+}
+
+function restoreHandFanScroll() {
+  const handFan = app.querySelector(".hand-fan");
+  if (!handFan || state.handFanScrollLeft <= 0) {
+    return;
+  }
+  const maxScrollLeft = Math.max(0, handFan.scrollWidth - handFan.clientWidth);
+  handFan.scrollLeft = Math.min(maxScrollLeft, Math.max(0, state.handFanScrollLeft));
 }
 
 function isLocalHandCardHidden(card) {
@@ -1436,7 +1460,7 @@ function renderCard(card, selected, clickable = true, hidden = false) {
   }
   const disabled = clickable ? "" : "disabled";
   return `
-    <button class="${classes.join(" ")}" data-card-id="${cardId(card)}" ${disabled}>
+    <button type="button" class="${classes.join(" ")}" data-card-id="${cardId(card)}" ${disabled}>
       ${renderCardBody(card)}
     </button>
   `;
@@ -3130,6 +3154,10 @@ function wireHandFanInteractions(handFan) {
     state.suppressCardTapUntil = Date.now() + tapSuppressMs;
   };
 
+  handFan.addEventListener("scroll", () => {
+    state.handFanScrollLeft = handFan.scrollLeft;
+  }, { passive: true });
+
   const beginDrag = (inputId, x, y) => {
     activeInputId = inputId;
     startX = x;
@@ -3152,6 +3180,9 @@ function wireHandFanInteractions(handFan) {
       }
       dragging = true;
       handFan.classList.add("is-dragging");
+      try {
+        handFan.setPointerCapture(inputId);
+      } catch (error) {}
     }
 
     handFan.scrollLeft = startScrollLeft - deltaX;
@@ -3182,9 +3213,6 @@ function wireHandFanInteractions(handFan) {
         return;
       }
       beginDrag(event.pointerId, event.clientX, event.clientY);
-      try {
-        handFan.setPointerCapture(event.pointerId);
-      } catch (error) {}
     }, { passive: true });
 
     handFan.addEventListener("pointermove", (event) => {
@@ -3449,6 +3477,7 @@ function wireEvents() {
 }
 
 function render() {
+  captureHandFanScroll();
   document.body.classList.toggle("game-active-mobile", !state.snapshot || isMobileActiveGameLayout());
   document.body.classList.toggle(
     "game-started-mobile",
@@ -3466,6 +3495,10 @@ function render() {
   wireEvents();
   window.requestAnimationFrame(() => {
     syncMobileGameLayout();
+    restoreHandFanScroll();
+    window.requestAnimationFrame(() => {
+      restoreHandFanScroll();
+    });
     const anchorsChanged = measureMotionAnchors();
     const queuedLocalMotion = flushPendingLocalMotions();
     if (queuedLocalMotion) {

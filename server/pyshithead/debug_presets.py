@@ -26,6 +26,7 @@ DEBUG_PRESET_NAMES = (
     "host-turn-15",
     "hidden-reveal",
     "hidden-take",
+    "hidden-seven-take",
     "revealed-joker",
     "revealed-seven",
     "game-over",
@@ -78,13 +79,17 @@ def _set_player_cards(
     *,
     private: list[Card] | None = None,
     public: list[Card] | None = None,
+    public_selected: bool | None = None,
     hidden: list[Card] | None = None,
 ):
     player = session.game_manager.game.get_player(seat)
     if private is not None:
         player.private_cards = SetOfCards(private)
     if public is not None:
-        player.public_cards = SetOfCards(public)
+        player._public_cards = SetOfCards(public)
+        player.public_cards_were_selected = (
+            public_selected if public_selected is not None else True
+        )
     if hidden is not None:
         player.hidden_cards = SetOfCards(hidden)
     return player
@@ -180,6 +185,7 @@ def _build_host_specials_lock(manager: GameSessionManager) -> GameSession:
             Card(JOKER_RANK, Suit.JOKER_RED),
         ],
         public=[],
+        public_selected=False,
         hidden=[Card(4, Suit.TILES), Card(11, Suit.HEART), Card(13, Suit.CLOVERS)],
     )
     _set_player_cards(
@@ -187,9 +193,12 @@ def _build_host_specials_lock(manager: GameSessionManager) -> GameSession:
         1,
         private=[Card(9, Suit.HEART), Card(12, Suit.CLOVERS), Card(14, Suit.PIKES)],
         public=[],
+        public_selected=False,
         hidden=[Card(6, Suit.TILES), Card(8, Suit.HEART), Card(13, Suit.PIKES)],
     )
-    session.last_status_message = "Host must lock public cards from a debug hand with all special ranks."
+    session.last_status_message = (
+        "Host must lock public cards from a debug hand with all special ranks."
+    )
     return session
 
 
@@ -278,6 +287,30 @@ def _build_hidden_take(manager: GameSessionManager) -> GameSession:
     return session
 
 
+def _build_hidden_seven_take(manager: GameSessionManager) -> GameSession:
+    session = _base_started_session(manager, ("Host", "Guest"))
+    game = _prepare_during_game(session)
+    game.play_pile = PileOfCards([Card(SpecialRank.HIGHLOW, Suit.HEART), Card(9, Suit.CLOVERS)])
+    game.valid_ranks = {10, 11, 12}
+    _set_player_cards(
+        session,
+        0,
+        private=[],
+        public=[],
+        hidden=[Card(SpecialRank.HIGHLOW, Suit.HEART)],
+    )
+    _set_player_cards(
+        session,
+        1,
+        private=[Card(12, Suit.HEART), Card(3, Suit.CLOVERS)],
+        public=[],
+        hidden=[Card(6, Suit.TILES), Card(8, Suit.HEART), Card(13, Suit.PIKES)],
+    )
+    session.pending_hidden_take_seat = 0
+    session.last_status_message = "Host revealed 7 and must take the pile."
+    return session
+
+
 def _build_revealed_joker(manager: GameSessionManager) -> GameSession:
     session = _base_started_session(manager, ("Host", "Guest"))
     game = _prepare_during_game(session)
@@ -340,6 +373,7 @@ PRESET_BUILDERS = {
     "host-turn-15": _build_host_turn_15,
     "hidden-reveal": _build_hidden_reveal,
     "hidden-take": _build_hidden_take,
+    "hidden-seven-take": _build_hidden_seven_take,
     "revealed-joker": _build_revealed_joker,
     "revealed-seven": _build_revealed_seven,
     "game-over": _build_game_over,
