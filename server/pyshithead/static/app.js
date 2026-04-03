@@ -39,6 +39,7 @@ const state = {
   presenceTicker: null,
   presenceNow: Date.now(),
   rulesMenuOpen: false,
+  shoutoutMenuOpen: false,
   animations: [],
   localMotionAnimations: [],
   animationCounter: 0,
@@ -197,6 +198,7 @@ function handleKickSeatClick(seat) {
 }
 
 function openRulesMenu() {
+  state.shoutoutMenuOpen = false;
   state.rulesMenuOpen = true;
   render();
 }
@@ -207,6 +209,28 @@ function closeRulesMenu() {
   }
   state.rulesMenuOpen = false;
   render();
+}
+
+function openShoutoutMenu() {
+  state.rulesMenuOpen = false;
+  state.shoutoutMenuOpen = true;
+  render();
+}
+
+function closeShoutoutMenu() {
+  if (!state.shoutoutMenuOpen) {
+    return;
+  }
+  state.shoutoutMenuOpen = false;
+  render();
+}
+
+function toggleShoutoutMenu() {
+  if (state.shoutoutMenuOpen) {
+    closeShoutoutMenu();
+    return;
+  }
+  openShoutoutMenu();
 }
 
 function clearTurnNoticeTimer() {
@@ -324,6 +348,7 @@ function closeWebSocket({ allowReconnect = false } = {}) {
   clearReconnectTimer();
   state.shouldReconnect = allowReconnect;
   state.wsReady = false;
+  state.shoutoutMenuOpen = false;
   const websocket = state.ws;
   state.ws = null;
   if (websocket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(websocket.readyState)) {
@@ -340,6 +365,7 @@ function clearSession(errorMessage = "") {
   resetLeaveConfirmation();
   resetKickSeatConfirmation();
   state.rulesMenuOpen = false;
+  state.shoutoutMenuOpen = false;
   state.inviteCode = "";
   state.playerToken = "";
   state.seat = null;
@@ -365,6 +391,7 @@ function forgetSavedSession() {
   resetLeaveConfirmation();
   resetKickSeatConfirmation();
   state.rulesMenuOpen = false;
+  state.shoutoutMenuOpen = false;
   state.inviteCode = "";
   state.playerToken = "";
   state.seat = null;
@@ -678,6 +705,18 @@ function hasPendingHiddenTake() {
 
 function optionalTakeRuleEnabled(snapshot = state.snapshot?.data) {
   return Boolean(snapshot?.rules?.allow_optional_take_pile);
+}
+
+function shoutoutPresets(snapshot = state.snapshot?.data) {
+  return snapshot?.shoutout_presets || [];
+}
+
+function canSendShoutouts(snapshot = state.snapshot?.data) {
+  return Boolean(
+    snapshot
+    && state.wsReady
+    && (snapshot.status === "LOBBY" || snapshot.status === "IN_GAME"),
+  );
 }
 
 function canOptionallyTakePile(snapshot = state.snapshot?.data) {
@@ -1130,6 +1169,14 @@ function connectWebSocket() {
         state.highLowChoice = "";
       }
       render();
+    } else if (payload.type === "shoutout") {
+      queueAnimation({
+        kind: "shoutout",
+        seat: payload.data.seat,
+        preset: payload.data.preset,
+        duration: prefersReducedMotion() ? 320 : 1500,
+      });
+      render();
     } else if (payload.type === "action_error") {
       clearPendingLocalPlay();
       state.pendingLocalDrawAnimation = null;
@@ -1300,6 +1347,18 @@ function submitTakePile() {
   sendAction({ type: "take_play_pile" });
 }
 
+function submitShoutout(shoutoutKey) {
+  if (!shoutoutKey) {
+    return;
+  }
+  closeShoutoutMenu();
+  state.error = "";
+  const sent = sendAction({ type: "send_shoutout", shoutout_key: shoutoutKey });
+  if (!sent) {
+    return;
+  }
+}
+
 function submitHiddenCard() {
   sendAction({ type: "play_hidden_card" });
 }
@@ -1399,6 +1458,32 @@ function seatPositionClass(snapshot, player) {
     4: ["seat-bottom", "seat-top-left", "seat-top", "seat-top-right"],
   };
   return layouts[snapshot.players.length]?.[relativeIndex] || "seat-top";
+}
+
+function shoutoutOffsetForSeat(snapshot, player) {
+  const position = seatPositionClass(snapshot, player);
+  if (position === "seat-bottom") {
+    return { dx: 0, dy: -94 };
+  }
+  if (position === "seat-top") {
+    return { dx: 0, dy: 92 };
+  }
+  if (position === "seat-top-left") {
+    return { dx: 74, dy: 74 };
+  }
+  if (position === "seat-top-right") {
+    return { dx: -74, dy: 74 };
+  }
+  if (position === "seat-left") {
+    return { dx: 96, dy: 0 };
+  }
+  if (position === "seat-right") {
+    return { dx: -96, dy: 0 };
+  }
+  if (position === "seat-bottom-left") {
+    return { dx: 74, dy: -74 };
+  }
+  return { dx: 0, dy: -84 };
 }
 
 function playerMap(snapshot) {
@@ -2572,6 +2657,41 @@ function renderLocalMotionCard(animation) {
   `;
 }
 
+function renderShoutoutBubble(animation, snapshot) {
+  const player = snapshot?.players?.find((entry) => entry.seat === animation.seat);
+  const anchor = resolveMotionAnchor(
+    motionAnchorKeyForSeat(animation.seat, "seat"),
+    `seat-seat-${animation.seat}`,
+  );
+  if (!player || !anchor) {
+    return "";
+  }
+
+  const offset = shoutoutOffsetForSeat(snapshot, player);
+  const preset = animation.preset || {};
+  return `
+    <span
+      class="motion-shoutout motion-shoutout-${escapeHtml(preset.key || "default")}"
+      data-shoutout-key="${escapeHtml(preset.key || "")}"
+      style="
+        left:${Math.round(anchor.x)}px;
+        top:${Math.round(anchor.y)}px;
+        --shoutout-dx:${Math.round(offset.dx)}px;
+        --shoutout-dy:${Math.round(offset.dy)}px;
+        --shoutout-dx-soft:${Math.round(offset.dx * 0.72)}px;
+        --shoutout-dy-soft:${Math.round(offset.dy * 0.72)}px;
+        --shoutout-accent:${escapeHtml(preset.color || "#f4b942")};
+      "
+      aria-hidden="true"
+    >
+      <span class="motion-shoutout-body">
+        <span class="motion-shoutout-emoji">${escapeHtml(preset.emoji || "✨")}</span>
+        <span class="motion-shoutout-label">${escapeHtml(preset.label || "Shoutout")}</span>
+      </span>
+    </span>
+  `;
+}
+
 function renderMotionLayer(snapshot) {
   if (!snapshot || (state.animations.length === 0 && state.localMotionAnimations.length === 0)) {
     return "";
@@ -2623,6 +2743,10 @@ function renderMotionLayer(snapshot) {
       const from = resolveMotionAnchor(sourceKeys);
       return Array.from({ length: animation.count || 1 }, (_, index) =>
         renderMotionGhost("play", from, resolveMotionAnchor("pile"), index)).join("");
+    }
+
+    if (animation.kind === "shoutout") {
+      return renderShoutoutBubble(animation, snapshot);
     }
 
     if (animation.kind === "draw-self") {
@@ -2737,6 +2861,50 @@ function renderRulesMenu() {
   `;
 }
 
+function renderShoutoutMenu(snapshot) {
+  if (!state.shoutoutMenuOpen || !canSendShoutouts(snapshot)) {
+    return "";
+  }
+
+  const presets = shoutoutPresets(snapshot);
+  return `
+    <div class="shoutout-menu-layer">
+      <button
+        class="shoutout-menu-backdrop"
+        id="close-shoutout-menu-backdrop"
+        type="button"
+        aria-label="Close shoutout menu"
+      ></button>
+      <section class="shoutout-menu" aria-label="Table shoutouts">
+        <div class="shoutout-menu-header">
+          <div>
+            <p class="section-title">Shoutouts</p>
+            <strong>Drop a reaction</strong>
+          </div>
+          <button class="button secondary button-inline" id="close-shoutout-menu" type="button">Close</button>
+        </div>
+        <div class="shoutout-menu-copy">
+          <p class="muted">Pick a vibe for the whole table. Reactions are live only.</p>
+        </div>
+        <div class="shoutout-grid">
+          ${presets.map((preset) => `
+            <button
+              class="shoutout-chip"
+              type="button"
+              data-shoutout-key="${escapeHtml(preset.key)}"
+              style="--shoutout-accent:${escapeHtml(preset.color)};"
+              title="${escapeHtml(preset.label)}"
+            >
+              <span class="shoutout-chip-emoji">${escapeHtml(preset.emoji)}</span>
+              <span class="shoutout-chip-label">${escapeHtml(preset.label)}</span>
+            </button>
+          `).join("")}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
 function renderLobbySettings(snapshot, isHost) {
   const enabled = snapshot.rules.allow_optional_take_pile;
   return `
@@ -2771,6 +2939,8 @@ function renderTable(snapshot) {
   const self = me();
   const isHost = self && self.is_host;
   const showLobbyControls = snapshot.status === "LOBBY";
+  const showShoutoutControls = snapshot.status === "LOBBY" || snapshot.status === "IN_GAME";
+  const shoutoutEnabled = showShoutoutControls && canSendShoutouts(snapshot);
   const showMobileLobbyLayout = isMobileLobbyLayout(snapshot);
   const sortedPlayers = [...snapshot.players].sort(
     (left, right) => relativeSeatIndex(snapshot, left) - relativeSeatIndex(snapshot, right),
@@ -2850,7 +3020,26 @@ function renderTable(snapshot) {
             </div>
           </div>
         </div>
+        ${showShoutoutControls ? `
+          <button
+            class="table-shoutout-trigger ${shoutoutEnabled ? "" : "disabled"}"
+            id="open-shoutout-menu"
+            type="button"
+            aria-label="Open shoutouts"
+            title="${shoutoutEnabled ? "Shoutouts" : "Connecting to the table"}"
+            ${shoutoutEnabled ? "" : "disabled"}
+          >
+            <span class="shoutout-face" aria-hidden="true">
+              <span class="shoutout-face-eyes">
+                <span class="shoutout-eye shoutout-eye-left"></span>
+                <span class="shoutout-eye shoutout-eye-right"></span>
+              </span>
+              <span class="shoutout-mouth"></span>
+            </span>
+          </button>
+        ` : ""}
         <button class="table-help-trigger" id="open-rules-menu" type="button" aria-label="Open rules" title="Rules">?</button>
+        ${showShoutoutControls ? renderShoutoutMenu(snapshot) : ""}
         ${renderRulesMenu()}
       </div>
       ${snapshot.status === "LOBBY" && isHost ? `
@@ -3120,6 +3309,11 @@ function wireEvents() {
     openRulesMenuButton.addEventListener("click", openRulesMenu);
   }
 
+  const openShoutoutMenuButton = document.getElementById("open-shoutout-menu");
+  if (openShoutoutMenuButton) {
+    openShoutoutMenuButton.addEventListener("click", toggleShoutoutMenu);
+  }
+
   const closeRulesMenuButton = document.getElementById("close-rules-menu");
   if (closeRulesMenuButton) {
     closeRulesMenuButton.addEventListener("click", closeRulesMenu);
@@ -3129,6 +3323,22 @@ function wireEvents() {
   if (closeRulesMenuBackdrop) {
     closeRulesMenuBackdrop.addEventListener("click", closeRulesMenu);
   }
+
+  const closeShoutoutMenuButton = document.getElementById("close-shoutout-menu");
+  if (closeShoutoutMenuButton) {
+    closeShoutoutMenuButton.addEventListener("click", closeShoutoutMenu);
+  }
+
+  const closeShoutoutMenuBackdrop = document.getElementById("close-shoutout-menu-backdrop");
+  if (closeShoutoutMenuBackdrop) {
+    closeShoutoutMenuBackdrop.addEventListener("click", closeShoutoutMenu);
+  }
+
+  app.querySelectorAll("[data-shoutout-key]").forEach((button) => {
+    button.addEventListener("click", () => {
+      submitShoutout(button.dataset.shoutoutKey || "");
+    });
+  });
 
   const leaveButton = document.getElementById("leave-game");
   if (leaveButton) {
@@ -3207,7 +3417,9 @@ document.addEventListener("visibilitychange", () => {
 });
 
 window.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && state.rulesMenuOpen) {
+  if (event.key === "Escape" && state.shoutoutMenuOpen) {
+    closeShoutoutMenu();
+  } else if (event.key === "Escape" && state.rulesMenuOpen) {
     closeRulesMenu();
   }
 });

@@ -44,6 +44,13 @@ class RulesSnapshot(BaseModel):
     allow_optional_take_pile: bool = False
 
 
+class ShoutoutPreset(BaseModel):
+    key: str
+    label: str
+    emoji: str
+    color: str
+
+
 class SessionSnapshot(BaseModel):
     invite_code: str
     status: SessionStatus
@@ -57,6 +64,7 @@ class SessionSnapshot(BaseModel):
     cards_in_deck: int = 0
     play_pile: list[CardModel] = Field(default_factory=list)
     players: list[PlayerSnapshot] = Field(default_factory=list)
+    shoutout_presets: list[ShoutoutPreset] = Field(default_factory=list)
     rules: RulesSnapshot = Field(default_factory=RulesSnapshot)
 
 
@@ -68,9 +76,20 @@ class PrivateState(BaseModel):
     private_cards: list[CardModel] = Field(default_factory=list)
 
 
+class ShoutoutEventData(BaseModel):
+    seat: int
+    display_name: str
+    preset: ShoutoutPreset
+
+
 class SessionSnapshotEvent(BaseModel):
     type: Literal["session_snapshot"] = "session_snapshot"
     data: SessionSnapshot
+
+
+class ShoutoutEvent(BaseModel):
+    type: Literal["shoutout"] = "shoutout"
+    data: ShoutoutEventData
 
 
 class PrivateStateEvent(BaseModel):
@@ -115,10 +134,12 @@ class ActionRequest(BaseModel):
         "play_hidden_card",
         "resolve_joker",
         "take_play_pile",
+        "send_shoutout",
     ]
     cards: list[CardModel] = Field(default_factory=list)
     choice: str = ""
     joker_rank: int | None = None
+    shoutout_key: str = ""
 
 
 class SessionAuthResponse(BaseModel):

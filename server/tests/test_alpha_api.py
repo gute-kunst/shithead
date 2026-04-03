@@ -117,6 +117,65 @@ def test_create_and_join_alpha_lobby():
         assert snapshot["status"] == "LOBBY"
         assert [player["display_name"] for player in snapshot["players"]] == ["Host", "Guest"]
         assert snapshot["rules"]["allow_optional_take_pile"] is False
+        assert [preset["key"] for preset in snapshot["shoutout_presets"]] == [
+            "hahaha",
+            "great-move",
+            "wtf",
+            "shit",
+            "nice",
+            "oof",
+        ]
+
+
+def test_lobby_shoutout_broadcasts_live_event_to_connected_players():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        guest = join_game(client, host["invite_code"], "Guest")
+
+        host_path = f"/api/games/{host['invite_code']}/ws?token={host['player_token']}"
+        guest_path = f"/api/games/{host['invite_code']}/ws?token={guest['player_token']}"
+
+        with client.websocket_connect(host_path) as host_ws:
+            receive_until_types(host_ws, {"session_snapshot", "private_state"})
+
+            with client.websocket_connect(guest_path) as guest_ws:
+                receive_until_types(guest_ws, {"session_snapshot", "private_state"})
+                host_join_notice = host_ws.receive_json()
+                assert host_join_notice["type"] == "session_snapshot"
+                assert host_join_notice["data"]["players"][1]["is_connected"] is True
+
+                host_ws.send_json(
+                    {"type": "send_shoutout", "shoutout_key": "hahaha"}
+                )
+
+                host_event = host_ws.receive_json()
+                guest_event = guest_ws.receive_json()
+                assert host_event["type"] == "shoutout"
+                assert guest_event["type"] == "shoutout"
+                assert host_event["data"]["seat"] == 0
+                assert host_event["data"]["preset"]["key"] == "hahaha"
+                assert guest_event["data"]["preset"]["label"] == "Hahaha"
+
+
+def test_shoutout_cooldown_blocks_rapid_repeats():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        session = session_manager.get_session(host["invite_code"])
+
+        first_event = session.apply_action(
+            host["player_token"],
+            ActionRequest(type="send_shoutout", shoutout_key="nice"),
+        )
+        assert first_event is not None
+        assert first_event.data.preset.key == "nice"
+
+        with pytest.raises(ValueError, match="Please wait before sending another shoutout."):
+            session.apply_action(
+                host["player_token"],
+                ActionRequest(type="send_shoutout", shoutout_key="oof"),
+            )
 
 
 def test_start_game_and_reconnect_with_same_token():
@@ -904,6 +963,50 @@ def test_hidden_seven_requires_high_low_choice_after_being_revealed():
         resolved_snapshot = session.build_snapshot()
         assert resolved_snapshot.current_turn_seat == 1
         assert resolved_snapshot.status_message == "7 or lower!"
+
+
+def test_unplayable_hidden_seven_requires_taking_the_pile_not_high_low_choice():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        game = session.game_manager.game
+        game.state = GameState.DURING_GAME
+        game.deck = PileOfCards()
+        game.play_pile = PileOfCards([Card(9, Suit.HEART)])
+        game.valid_ranks = {10, 11, 12}
+
+        host_player = game.get_player(0)
+        guest_player = game.get_player(1)
+        host_player.private_cards = SetOfCards()
+        host_player.public_cards = SetOfCards()
+        host_player.hidden_cards = SetOfCards([Card(SpecialRank.HIGHLOW, Suit.HEART)])
+        guest_player.private_cards = SetOfCards([Card(12, Suit.HEART)])
+        guest_player.public_cards = SetOfCards()
+
+        session.apply_action(host["player_token"], ActionRequest(type="play_hidden_card"))
+
+        pending_snapshot = session.build_snapshot()
+        pending_private_state = session.build_private_state(0)
+        assert pending_snapshot.current_turn_seat == 0
+        assert pending_snapshot.play_pile[0].rank == SpecialRank.HIGHLOW
+        assert pending_snapshot.pending_joker_selection is False
+        assert pending_private_state.pending_joker_selection is False
+        assert pending_private_state.pending_hidden_take is True
+        assert pending_snapshot.status_message == "Host revealed 7 and must take the pile."
+
+        session.apply_action(host["player_token"], ActionRequest(type="take_play_pile"))
+
+        resolved_snapshot = session.build_snapshot()
+        resolved_private_state = session.build_private_state(0)
+        assert resolved_snapshot.current_turn_seat == 1
+        assert resolved_snapshot.play_pile == []
+        assert resolved_snapshot.status_message == "Host took the play pile."
+        assert resolved_private_state.pending_hidden_take is False
+        assert any(card.rank == SpecialRank.HIGHLOW for card in resolved_private_state.private_cards)
 
 
 def test_unplayable_hidden_card_stays_visible_and_requires_taking_the_pile():

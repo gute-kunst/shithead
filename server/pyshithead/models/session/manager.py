@@ -37,6 +37,9 @@ from pyshithead.models.session.models import (
     PlayerSnapshot,
     PrivateState,
     PrivateStateEvent,
+    ShoutoutEvent,
+    ShoutoutEventData,
+    ShoutoutPreset,
     RulesSnapshot,
     SessionAuthResponse,
     SessionSnapshot,
@@ -59,6 +62,16 @@ def _normalize_display_name(display_name: str) -> str:
     return cleaned
 
 
+SHOUTOUT_PRESET_DATA = (
+    {"key": "hahaha", "label": "Hahaha", "emoji": "😂", "color": "#f4b942"},
+    {"key": "great-move", "label": "Great move", "emoji": "✨", "color": "#7cc9ff"},
+    {"key": "wtf", "label": "WTF", "emoji": "😵", "color": "#ff5ca8"},
+    {"key": "shit", "label": "Shit", "emoji": "💥", "color": "#ff8b3d"},
+    {"key": "nice", "label": "Nice", "emoji": "😎", "color": "#8fd37a"},
+    {"key": "oof", "label": "Oof", "emoji": "😬", "color": "#f0a35b"},
+)
+
+
 @dataclass
 class SessionPlayer:
     seat: int
@@ -67,6 +80,7 @@ class SessionPlayer:
     websocket: Optional[WebSocket] = None
     connected: bool = False
     last_seen: datetime = field(default_factory=_utc_now)
+    last_shoutout_at: datetime | None = None
     disconnect_deadline_at: datetime | None = None
     disconnect_action: DisconnectAction | None = None
 
@@ -104,6 +118,7 @@ class GameSession:
     SETUP_DISCONNECT_GRACE_SECONDS = 600
     LOBBY_REAP_AFTER = timedelta(hours=2)
     ACTIVE_REAP_AFTER = timedelta(minutes=30)
+    SHOUTOUT_COOLDOWN_SECONDS = 4
 
     def __init__(
         self,
@@ -239,6 +254,15 @@ class GameSession:
             allow_optional_take_pile=self.settings.allow_optional_take_pile,
         )
 
+    def _shoutout_presets(self) -> list[ShoutoutPreset]:
+        return [ShoutoutPreset(**preset) for preset in SHOUTOUT_PRESET_DATA]
+
+    def _get_shoutout_preset(self, shoutout_key: str) -> ShoutoutPreset:
+        for preset in SHOUTOUT_PRESET_DATA:
+            if preset["key"] == shoutout_key:
+                return ShoutoutPreset(**preset)
+        raise ValueError("Unknown shoutout preset.")
+
     def _effective_rank(self, card: Card) -> int:
         return card.effective_rank if card.effective_rank is not None else int(card.rank)
 
@@ -248,6 +272,23 @@ class GameSession:
 
     def _clear_pending_hidden_take(self):
         self.pending_hidden_take_seat = None
+
+    def _build_shoutout_event(self, player: SessionPlayer, shoutout_key: str) -> ShoutoutEvent:
+        preset = self._get_shoutout_preset(shoutout_key)
+        now = _utc_now()
+        if (
+            player.last_shoutout_at is not None
+            and now - player.last_shoutout_at < timedelta(seconds=self.SHOUTOUT_COOLDOWN_SECONDS)
+        ):
+            raise ValueError("Please wait before sending another shoutout.")
+        player.last_shoutout_at = now
+        return ShoutoutEvent(
+            data=ShoutoutEventData(
+                seat=player.seat,
+                display_name=player.display_name,
+                preset=preset,
+            )
+        )
 
     def _get_player_entry(self, seat: int) -> SessionPlayer | None:
         return next((entry for entry in self.players if entry.seat == seat), None)
@@ -697,6 +738,7 @@ class GameSession:
                 host_seat=self.host_seat,
                 status_message=self.last_status_message,
                 players=players,
+                shoutout_presets=self._shoutout_presets(),
                 rules=self._rules_snapshot(),
             )
 
@@ -717,6 +759,7 @@ class GameSession:
                 self._serialize_card(card) for card in self.game_manager.game.play_pile.cards
             ],
             players=players,
+            shoutout_presets=self._shoutout_presets(),
             rules=self._rules_snapshot(),
         )
 
@@ -772,13 +815,22 @@ class GameSession:
             return request_models.TakePlayPileRequest(player_id=player.seat)
         raise ValueError("Unsupported action type.")
 
-    def apply_action(self, player_token: str, action: ActionRequest):
+    def apply_action(self, player_token: str, action: ActionRequest) -> ShoutoutEvent | None:
+        player = self.get_player_by_token(player_token)
+        self._cancel_disconnect_timeout(player.seat)
+
+        if action.type == "send_shoutout":
+            self._sync_status()
+            if self.status not in {SessionStatus.LOBBY, SessionStatus.IN_GAME}:
+                raise ValueError("Shoutouts are only available in the lobby or during a game.")
+            shoutout_event = self._build_shoutout_event(player, action.shoutout_key)
+            self._finalize_state_change()
+            return shoutout_event
+
         if self.game_manager is None:
             raise ValueError("Game has not started yet.")
 
-        player = self.get_player_by_token(player_token)
         game = self.game_manager.game
-        self._cancel_disconnect_timeout(player.seat)
         previous_play_pile = list(game.play_pile.cards)
         played_rank = None
         played_card_count = 0
@@ -814,18 +866,27 @@ class GameSession:
         elif action.type == "play_hidden_card":
             hidden_request = HiddenCardRequest(game.get_player(player.seat))
             revealed_card = game.process_hidden_card(hidden_request)
-            if revealed_card.is_joker or int(revealed_card.rank) == int(SpecialRank.HIGHLOW):
+            if revealed_card.is_joker:
                 game.play_pile.put([revealed_card])
                 self.pending_joker_seat = player.seat
                 self.pending_joker_card = revealed_card
-                if revealed_card.is_joker:
-                    self.last_status_message = f"{player.display_name} revealed a joker."
-                else:
-                    self.last_status_message = (
-                        f"{player.display_name} revealed {self._card_status_name(revealed_card)}."
-                    )
+                self.last_status_message = f"{player.display_name} revealed a joker."
             else:
                 game.play_pile.put([revealed_card])
+                if int(revealed_card.rank) == int(SpecialRank.HIGHLOW):
+                    if int(revealed_card.rank) in game.valid_ranks:
+                        self.pending_joker_seat = player.seat
+                        self.pending_joker_card = revealed_card
+                        self.last_status_message = (
+                            f"{player.display_name} revealed {self._card_status_name(revealed_card)}."
+                        )
+                    else:
+                        self.pending_hidden_take_seat = player.seat
+                        self.last_status_message = (
+                            f"{player.display_name} revealed {self._card_status_name(revealed_card)} and must take the pile."
+                        )
+                    self._finalize_state_change()
+                    return
                 if int(revealed_card.rank) in game.valid_ranks:
                     request = RevealedCardsRequest(
                         player=game.get_player(player.seat), cards=[revealed_card]
@@ -936,6 +997,14 @@ class GameSession:
         for player in self.players:
             if player.websocket is not None:
                 await self.send_full_state(player)
+
+    async def broadcast_shoutout(self, shoutout_event: ShoutoutEvent):
+        payload = shoutout_event.dict()
+        for player in self.players:
+            if player.websocket is not None:
+                sent = await self._safe_send(player.websocket, payload)
+                if not sent:
+                    self._handle_player_disconnect(player)
 
     async def send_error(self, player_token: str, message: str):
         player = self.get_player_by_token(player_token)

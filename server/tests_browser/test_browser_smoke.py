@@ -200,6 +200,25 @@ def test_lobby_optional_take_setting_syncs_and_shows_take_pile_action(live_serve
     expect(host_page.locator(".dock-prompt")).to_contain_text("take the pile")
 
 
+def test_lobby_shoutouts_open_menu_and_broadcast_animation(live_server, browser_factory):
+    host_page = open_page(browser_factory(), live_server)
+    create_table(host_page, "Host")
+    invite_code = extract_invite_code(host_page)
+
+    guest_page = open_page(browser_factory(), live_server)
+    join_table(guest_page, invite_code, "Guest")
+
+    expect(host_page.locator("#open-shoutout-menu")).to_be_visible()
+    host_page.locator("#open-shoutout-menu").click()
+    expect(host_page.locator(".shoutout-menu")).to_be_visible()
+
+    host_page.locator("[data-shoutout-key='hahaha']").click()
+
+    expect(host_page.locator(".motion-shoutout")).to_be_visible()
+    expect(guest_page.locator(".motion-shoutout")).to_be_visible()
+    expect(guest_page.locator(".motion-shoutout")).to_contain_text("Hahaha")
+
+
 def test_service_worker_registers_and_reload_keeps_app_usable(live_server, browser_factory):
     page = open_page(browser_factory(), live_server)
 

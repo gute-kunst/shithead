@@ -187,8 +187,11 @@ def create_app(
                 data = await websocket.receive_json()
                 action = ActionRequest(**data)
                 try:
-                    session.apply_action(token, action)
-                    await session.broadcast_full_state()
+                    shoutout_event = session.apply_action(token, action)
+                    if shoutout_event is not None:
+                        await session.broadcast_shoutout(shoutout_event)
+                    else:
+                        await session.broadcast_full_state()
                 except (PyshitheadError, ValueError) as err:
                     message = getattr(err, "message", str(err))
                     await session.send_error(token, message)

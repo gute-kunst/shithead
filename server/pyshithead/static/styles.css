@@ -1071,6 +1071,73 @@ button {
   box-shadow: 0 14px 24px rgba(11, 39, 31, 0.22);
 }
 
+.table-shoutout-trigger {
+  position: absolute;
+  left: 0.7rem;
+  bottom: 0.7rem;
+  z-index: 6;
+  height: 2.35rem;
+  width: 2.35rem;
+  min-width: 2.35rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid #111;
+  background: rgba(255, 252, 246, 0.92);
+  color: #111;
+  box-shadow: 0 14px 24px rgba(11, 39, 31, 0.18);
+  overflow: hidden;
+}
+
+.table-shoutout-trigger.disabled {
+  opacity: 0.5;
+}
+
+.shoutout-face {
+  position: relative;
+  width: 1.55rem;
+  height: 1.55rem;
+  display: block;
+}
+
+.shoutout-face::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 2px solid #111;
+  box-sizing: border-box;
+}
+
+.shoutout-face-eyes {
+  position: absolute;
+  inset: 0.48rem 0.42rem auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.shoutout-eye {
+  width: 0.2rem;
+  height: 0.2rem;
+  border-radius: 999px;
+  background: #111;
+  display: block;
+}
+
+.shoutout-mouth {
+  position: absolute;
+  left: 50%;
+  bottom: 0.28rem;
+  width: 0.72rem;
+  height: 0.34rem;
+  transform: translateX(-50%);
+  border-bottom: 2px solid #111;
+  border-radius: 0 0 999px 999px;
+}
+
 .rules-menu-layer {
   position: absolute;
   inset: 0;
@@ -1099,6 +1166,109 @@ button {
   box-shadow: 0 24px 50px rgba(11, 39, 31, 0.28);
   padding: 1rem;
   color: var(--ink);
+}
+
+.shoutout-menu-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.shoutout-menu-backdrop {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.shoutout-menu {
+  position: absolute;
+  left: 0.85rem;
+  bottom: 3.55rem;
+  width: min(24rem, calc(100% - 1.7rem));
+  max-height: min(30rem, calc(100% - 2rem));
+  overflow: auto;
+  pointer-events: auto;
+  border-radius: 22px;
+  border: 1px solid rgba(16, 38, 31, 0.1);
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.98) 0%, rgba(244, 236, 223, 0.98) 100%);
+  box-shadow: 0 24px 50px rgba(11, 39, 31, 0.28);
+  padding: 1rem;
+  color: var(--ink);
+}
+
+.shoutout-menu-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.shoutout-menu-copy {
+  margin-top: 0.7rem;
+}
+
+.shoutout-menu-copy p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.shoutout-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.shoutout-chip {
+  --shoutout-accent: #d85b32;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.72rem 0.78rem;
+  border-radius: 18px;
+  border: 1px solid rgba(16, 38, 31, 0.1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 239, 225, 0.95) 100%);
+  color: var(--ink);
+  text-align: left;
+  box-shadow: 0 10px 18px rgba(11, 39, 31, 0.08);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    border-color 140ms ease;
+}
+
+.shoutout-chip:hover,
+.shoutout-chip:focus-visible {
+  transform: translateY(-1px);
+  border-color: var(--shoutout-accent);
+  box-shadow: 0 12px 22px rgba(11, 39, 31, 0.12);
+}
+
+.shoutout-chip-emoji {
+  width: 1.85rem;
+  height: 1.85rem;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--shoutout-accent);
+  color: #fffaf3;
+  font-size: 1.05rem;
+  box-shadow: 0 10px 18px rgba(11, 39, 31, 0.14);
+}
+
+.shoutout-chip-label {
+  min-width: 0;
+  font-size: 0.84rem;
+  font-weight: 900;
+  line-height: 1.2;
 }
 
 .rules-menu-header {
@@ -1383,6 +1553,56 @@ button {
   z-index: 18;
   pointer-events: none;
   overflow: hidden;
+}
+
+.motion-shoutout {
+  position: absolute;
+  left: 0;
+  top: 0;
+  min-width: 7.6rem;
+  max-width: 10rem;
+  padding: 0.58rem 0.78rem;
+  border-radius: 999px;
+  border: 1px solid var(--shoutout-accent, rgba(216, 91, 50, 0.34));
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.92), transparent 54%),
+    linear-gradient(180deg, rgba(255, 252, 246, 0.98) 0%, rgba(247, 239, 225, 0.98) 100%);
+  color: var(--shoutout-accent, var(--accent));
+  box-shadow:
+    0 18px 32px rgba(8, 23, 19, 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.35) inset;
+  opacity: 0;
+  transform: translate3d(calc(-50% + 0px), calc(-50% + 0px), 0) scale(0.76) rotate(-6deg);
+  animation: shoutoutFloat 1500ms cubic-bezier(0.2, 0.85, 0.32, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.motion-shoutout-body {
+  display: flex;
+  align-items: center;
+  gap: 0.52rem;
+}
+
+.motion-shoutout-emoji {
+  width: 1.9rem;
+  height: 1.9rem;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--shoutout-accent, var(--accent));
+  color: #fffaf3;
+  font-size: 1.05rem;
+  box-shadow: 0 10px 18px rgba(11, 39, 31, 0.14);
+}
+
+.motion-shoutout-label {
+  min-width: 0;
+  font-size: 0.86rem;
+  line-height: 1.12;
+  font-weight: 900;
+  color: var(--ink);
 }
 
 .motion-card {
@@ -2295,6 +2515,14 @@ body.game-active-mobile .table-help-trigger {
   font-size: 1.05rem;
 }
 
+body.game-active-mobile .table-shoutout-trigger {
+  left: 0.55rem;
+  bottom: 0.55rem;
+  height: 2.2rem;
+  width: 2.2rem;
+  min-width: 2.2rem;
+}
+
 body.game-active-mobile .rules-menu-backdrop {
   background: rgba(11, 39, 31, 0.34);
 }
@@ -2307,6 +2535,29 @@ body.game-active-mobile .rules-menu {
   max-height: min(24rem, calc(100% - 1rem));
   border-radius: 24px 24px 18px 18px;
   padding: 0.95rem 0.95rem calc(1rem + env(safe-area-inset-bottom));
+}
+
+body.game-active-mobile .shoutout-menu {
+  left: 0.45rem;
+  right: 0.45rem;
+  bottom: 3.25rem;
+  width: auto;
+  max-height: min(24rem, calc(100% - 1rem));
+  border-radius: 24px 24px 18px 18px;
+  padding: 0.95rem 0.95rem calc(1rem + env(safe-area-inset-bottom));
+}
+
+body.game-active-mobile .shoutout-grid {
+  gap: 0.45rem;
+}
+
+body.game-active-mobile .shoutout-chip {
+  padding: 0.64rem 0.68rem;
+  border-radius: 16px;
+}
+
+body.game-active-mobile .shoutout-chip-label {
+  font-size: 0.78rem;
 }
 
 body.game-active-mobile .hand-dock {
@@ -2531,6 +2782,35 @@ body.game-active-mobile .hand-layout-scroll .hand-fan {
   }
 }
 
+@keyframes shoutoutFloat {
+  0% {
+    opacity: 0;
+    transform: translate3d(calc(-50% + 0px), calc(-50% + 0px), 0) scale(0.76) rotate(-6deg);
+  }
+
+  16% {
+    opacity: 1;
+  }
+
+  72% {
+    opacity: 1;
+    transform: translate3d(
+      calc(-50% + var(--shoutout-dx-soft, 0px)),
+      calc(-50% + var(--shoutout-dy-soft, 0px)),
+      0
+    ) scale(1.04) rotate(2deg);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(
+      calc(-50% + var(--shoutout-dx, 0px)),
+      calc(-50% + var(--shoutout-dy, 0px)),
+      0
+    ) scale(0.98) rotate(6deg);
+  }
+}
+
 @keyframes deckDealPulse {
   0%,
   100% {
@@ -2746,6 +3026,7 @@ body.game-active-mobile .hand-layout-scroll .hand-fan {
   .pile-preview.settling,
   .pile-preview.taking,
   .pile-preview.burning,
+  .motion-shoutout,
   .turn-toast {
     animation-duration: 1ms;
   }
