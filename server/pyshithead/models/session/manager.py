@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import secrets
 import string
 from dataclasses import dataclass, field
@@ -48,6 +49,9 @@ from pyshithead.models.session.models import (
     ShoutoutPreset,
 )
 from pyshithead.models.session.store import SQLiteSessionStore
+
+
+logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> datetime:
@@ -1052,6 +1056,100 @@ class GameSessionManager:
         self.sessions = SessionCache(self._clear_all_sessions)
         self.store.mark_all_players_disconnected()
 
+    def _record_metric(self, label: str, callback: Callable, *args, **kwargs):
+        try:
+            callback(*args, **kwargs)
+        except Exception:
+            logger.exception("Failed to record %s.", label)
+
+    def note_user_seen(self, user_id: str | None, seen_at: datetime | None = None):
+        if not user_id:
+            return
+        self._record_metric(
+            "user activity metric",
+            self.store.ensure_user_seen,
+            user_id,
+            seen_at or _utc_now(),
+        )
+
+    def note_lobby_created(
+        self,
+        invite_code: str,
+        creator_user_id: str | None = None,
+        created_at: datetime | None = None,
+    ):
+        self._record_metric(
+            "lobby creation metric",
+            self.store.record_lobby_created,
+            invite_code,
+            created_at or _utc_now(),
+            creator_user_id,
+        )
+
+    def note_game_started(
+        self,
+        game_id: int,
+        invite_code: str,
+        player_count: int,
+        started_at: datetime | None = None,
+    ):
+        self._record_metric(
+            "game start metric",
+            self.store.record_game_started,
+            game_id,
+            invite_code,
+            started_at or _utc_now(),
+            player_count,
+        )
+
+    def note_game_completed(
+        self,
+        game_id: int,
+        invite_code: str,
+        player_count: int,
+        completed_at: datetime | None = None,
+    ):
+        self._record_metric(
+            "game completion metric",
+            self.store.record_game_completed,
+            game_id,
+            invite_code,
+            completed_at or _utc_now(),
+            player_count,
+        )
+
+    def note_game_abandoned(
+        self,
+        game_id: int,
+        invite_code: str,
+        player_count: int,
+        abandoned_at: datetime | None = None,
+    ):
+        self._record_metric(
+            "game abandonment metric",
+            self.store.record_game_abandoned,
+            game_id,
+            invite_code,
+            abandoned_at or _utc_now(),
+            player_count,
+        )
+
+    def _record_session_metrics(self, session: "GameSession"):
+        if session.game_manager is None:
+            return
+
+        game = session.game_manager.game
+        if game.state == GameState.DURING_GAME:
+            self.note_game_started(game.game_id, session.invite_code, len(session.players))
+            return
+
+        if game.state == GameState.GAME_OVER:
+            self.note_game_started(game.game_id, session.invite_code, len(session.players))
+            self.note_game_completed(game.game_id, session.invite_code, len(session.players))
+
+    def get_stats(self, days: int = 30) -> dict:
+        return self.store.build_stats(days=days)
+
     def _clear_all_sessions(self):
         for session in list(self.sessions.values()):
             session.shutdown()
@@ -1232,18 +1330,27 @@ class GameSessionManager:
 
     def _save_session(self, session: GameSession):
         self.store.save_session_record(self._serialize_session_record(session))
+        self._record_session_metrics(session)
 
-    def _reap_session(self, invite_code: str):
-        session = self.sessions.pop(invite_code, None)
+    def _reap_session(self, invite_code: str, session: GameSession | None = None):
+        cached_session = self.sessions.pop(invite_code, None)
+        session = session or cached_session
         if session is not None:
+            self._record_session_metrics(session)
+            if session.game_manager is not None and session.game_manager.game.state == GameState.DURING_GAME:
+                self.note_game_abandoned(
+                    session.game_manager.game.game_id,
+                    session.invite_code,
+                    len(session.players),
+                )
             session.shutdown()
         self.store.delete_session(invite_code)
 
     def reap_expired_sessions(self):
-        expired_codes = []
+        expired_sessions: dict[str, GameSession | None] = {}
         for invite_code, session in self.sessions.items():
             if session.is_expired():
-                expired_codes.append(invite_code)
+                expired_sessions[invite_code] = session
         for record in self.store.list_session_records():
             invite_code = record["invite_code"]
             if invite_code in self.sessions:
@@ -1251,12 +1358,12 @@ class GameSessionManager:
             try:
                 session = self._deserialize_session_record(record)
             except ValueError:
-                expired_codes.append(invite_code)
+                expired_sessions[invite_code] = None
                 continue
             if session.is_expired():
-                expired_codes.append(invite_code)
-        for invite_code in expired_codes:
-            self._reap_session(invite_code)
+                expired_sessions[invite_code] = session
+        for invite_code, session in expired_sessions.items():
+            self._reap_session(invite_code, session)
 
     def _generate_invite_code(self) -> str:
         alphabet = string.ascii_uppercase + string.digits
@@ -1265,7 +1372,7 @@ class GameSessionManager:
             if code not in self.sessions and not self.store.invite_code_exists(code):
                 return code
 
-    def create_session(self, display_name: str) -> GameSession:
+    def create_session(self, display_name: str, creator_user_id: str | None = None) -> GameSession:
         self.reap_expired_sessions()
         session = GameSession(
             invite_code=self._generate_invite_code(),
@@ -1276,6 +1383,8 @@ class GameSessionManager:
         self.sessions[session.invite_code] = session
         session._sync_reap_schedule()
         self._save_session(session)
+        self.note_user_seen(creator_user_id)
+        self.note_lobby_created(session.invite_code, creator_user_id=creator_user_id)
         return session
 
     def get_session(self, invite_code: str) -> GameSession:

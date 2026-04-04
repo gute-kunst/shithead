@@ -135,6 +135,95 @@ def test_create_and_join_alpha_lobby():
         ]
 
 
+def test_stats_endpoint_reports_public_rollups_and_zero_fills(monkeypatch):
+    session_manager.sessions.clear()
+    day_1 = datetime(2026, 4, 1, 12, 0, 0, tzinfo=timezone.utc)
+    day_3 = datetime(2026, 4, 3, 12, 0, 0, tzinfo=timezone.utc)
+    fixed_now = day_1
+
+    monkeypatch.setattr("pyshithead.models.session.manager._utc_now", lambda: fixed_now)
+    monkeypatch.setattr("pyshithead.models.session.store._utc_now", lambda: fixed_now)
+
+    with TestClient(app, base_url="http://localhost") as host_client, TestClient(
+        app, base_url="http://localhost"
+    ) as guest_client:
+        host = create_game(host_client, "Host")
+        join_game(guest_client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        session.game_manager.game.state = GameState.DURING_GAME
+        session._finalize_state_change()
+        session.game_manager.game.state = GameState.GAME_OVER
+        session._finalize_state_change()
+
+        fixed_now = day_3
+
+        host_2 = create_game(host_client, "Host Two")
+        join_game(guest_client, host_2["invite_code"], "Guest Two")
+
+        session_2 = session_manager.get_session(host_2["invite_code"])
+        session_2.start(host_2["player_token"])
+        session_2.game_manager.game.state = GameState.DURING_GAME
+        session_2._finalize_state_change()
+        session_manager._reap_session(host_2["invite_code"])
+
+        response = host_client.get("/stats?days=7")
+        assert response.status_code == 200
+        stats = response.json()
+
+        assert stats["totals"] == {
+            "total_played_games": 1,
+            "total_users": 2,
+            "total_lobbies_created": 2,
+            "total_games_started": 2,
+            "total_games_completed": 1,
+            "total_games_abandoned": 1,
+        }
+        assert stats["conversion"] == {
+            "lobby_to_game_start_rate": 1.0,
+            "game_completion_rate": 0.5,
+        }
+        assert stats["activity"]["range_days"] == 7
+        assert [entry["count"] for entry in stats["activity"]["daily_games_completed"]] == [
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+        ]
+        assert [entry["count"] for entry in stats["activity"]["daily_lobbies_created"]] == [
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            1,
+        ]
+        assert [entry["count"] for entry in stats["activity"]["daily_games_started"]] == [
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            1,
+        ]
+        assert [entry["count"] for entry in stats["activity"]["daily_new_users"]] == [
+            0,
+            0,
+            0,
+            0,
+            2,
+            0,
+            0,
+        ]
+        assert stats["activity"]["daily_games_played"] == stats["activity"]["daily_games_completed"]
+
+
 def test_lobby_shoutout_broadcasts_live_event_to_connected_players():
     session_manager.sessions.clear()
     with TestClient(app, base_url="http://localhost") as client:

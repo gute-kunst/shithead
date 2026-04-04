@@ -45,8 +45,18 @@ class Game:
         self.state: GameState = state
 
     @classmethod
-    def initialize(cls, players: list[Player], ranks=ALL_RANKS, suits=STANDARD_SUITS) -> Game:
-        game = cls(players=players, deck=Dealer.provide_shuffled_deck(ranks, suits))
+    def initialize(
+        cls,
+        players: list[Player],
+        ranks=ALL_RANKS,
+        suits=STANDARD_SUITS,
+        game_id: int = 1,
+    ) -> Game:
+        game = cls(
+            players=players,
+            deck=Dealer.provide_shuffled_deck(ranks, suits),
+            game_id=game_id,
+        )
         Dealer.deal_cards_to_players(game.deck, game.active_players)
         game.state = GameState.PLAYERS_CHOOSE_PUBLIC_CARDS
         return game

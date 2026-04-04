@@ -1,3 +1,4 @@
+import secrets
 import logging
 from typing import Optional
 
@@ -15,10 +16,10 @@ logger = logging.getLogger(__name__)
 
 
 class GameManager:
-    def __init__(self, player_ids: list[int]):
+    def __init__(self, player_ids: list[int], game_id: int | None = None):
         players = [Player(id) for id in player_ids]
         # self.game: Game = Game.initialize(players, ranks=list(range(2, 8)))
-        self.game = Game.initialize(players)
+        self.game = Game.initialize(players, game_id=game_id or secrets.randbits(63))
         logger.info("Initialized game for seats %s", player_ids)
 
     def get_private_infos(self, player_id: Optional[int] = None):
