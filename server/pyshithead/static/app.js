@@ -4,6 +4,8 @@ const jokerRank = 15;
 const jokerAllowedRanks = [3, 4, 6, 7, 8, 9, 11, 13, 12, 14];
 const jokerSymbol = "★";
 const shoutoutCooldownMs = 4000;
+const cardTapSuppressMs = 350;
+const handDragThreshold = 14;
 
 const state = {
   inviteCode: "",
@@ -56,6 +58,13 @@ const state = {
   hiddenLocalHandCardIds: [],
   localPlaySendTimer: null,
   handFanScrollLeft: 0,
+  seenShoutoutEvents: [],
+  handDragActiveInputId: null,
+  handDragStartX: 0,
+  handDragStartY: 0,
+  handDragStartScrollLeft: 0,
+  handDragDragging: false,
+  handDragQueuedRender: false,
 };
 
 const app = document.getElementById("app");
@@ -149,6 +158,114 @@ function clearShoutoutUnlockTimer() {
   if (state.shoutoutUnlockTimer !== null) {
     window.clearTimeout(state.shoutoutUnlockTimer);
     state.shoutoutUnlockTimer = null;
+  }
+}
+
+function pruneSeenShoutoutEvents(now = Date.now()) {
+  state.seenShoutoutEvents = state.seenShoutoutEvents.filter(
+    (entry) => now - entry.seenAt <= shoutoutCooldownMs * 3,
+  );
+}
+
+function rememberShoutoutEvent(eventId) {
+  if (!eventId) {
+    return true;
+  }
+  const now = Date.now();
+  pruneSeenShoutoutEvents(now);
+  if (state.seenShoutoutEvents.some((entry) => entry.eventId === eventId)) {
+    return false;
+  }
+  state.seenShoutoutEvents = [
+    ...state.seenShoutoutEvents,
+    { eventId, seenAt: now },
+  ].slice(-24);
+  return true;
+}
+
+function clearHandFanDraggingClasses() {
+  app.querySelectorAll(".hand-fan.is-dragging").forEach((element) => {
+    element.classList.remove("is-dragging");
+  });
+}
+
+function resetHandFanDragState() {
+  state.handDragActiveInputId = null;
+  state.handDragStartX = 0;
+  state.handDragStartY = 0;
+  state.handDragStartScrollLeft = 0;
+  state.handDragDragging = false;
+  state.handDragQueuedRender = false;
+  clearHandFanDraggingClasses();
+}
+
+function isHandDragActive() {
+  return state.handDragActiveInputId !== null;
+}
+
+function suppressCardTap() {
+  state.suppressCardTapUntil = Date.now() + cardTapSuppressMs;
+}
+
+function beginHandFanDrag(inputId, x, y, handFan) {
+  state.handDragActiveInputId = inputId;
+  state.handDragStartX = x;
+  state.handDragStartY = y;
+  state.handDragStartScrollLeft = handFan.scrollLeft;
+  state.handDragDragging = false;
+  handFan.classList.remove("is-dragging");
+}
+
+function updateHandFanDrag(inputId, x, y, handFan) {
+  if (state.handDragActiveInputId !== inputId) {
+    return false;
+  }
+
+  const deltaX = x - state.handDragStartX;
+  const deltaY = y - state.handDragStartY;
+  if (!state.handDragDragging) {
+    if (
+      Math.abs(deltaX) < handDragThreshold ||
+      Math.abs(deltaX) <= Math.abs(deltaY)
+    ) {
+      return false;
+    }
+    state.handDragDragging = true;
+    handFan.classList.add("is-dragging");
+    try {
+      handFan.setPointerCapture(inputId);
+    } catch (error) {}
+  }
+
+  handFan.scrollLeft = state.handDragStartScrollLeft - deltaX;
+  state.handFanScrollLeft = handFan.scrollLeft;
+  suppressCardTap();
+  return true;
+}
+
+function finishHandFanDrag(inputId, handFan = app.querySelector(".hand-fan")) {
+  if (state.handDragActiveInputId !== inputId) {
+    return;
+  }
+
+  if (state.handDragDragging) {
+    suppressCardTap();
+  }
+
+  state.handDragActiveInputId = null;
+  state.handDragStartX = 0;
+  state.handDragStartY = 0;
+  state.handDragStartScrollLeft = 0;
+  state.handDragDragging = false;
+  if (handFan) {
+    handFan.classList.remove("is-dragging");
+  }
+  clearHandFanDraggingClasses();
+
+  const queuedRender = state.handDragQueuedRender;
+  state.handDragQueuedRender = false;
+  if (queuedRender) {
+    render({ force: true });
   }
 }
 
@@ -289,6 +406,7 @@ function clearMotionState() {
   clearTurnArrivalTimer();
   clearLocalPlaySendTimer();
   state.animations = [];
+  state.seenShoutoutEvents = [];
   state.localMotionAnimations = [];
   state.turnArrivalSeat = null;
   state.motionAnchors = {};
@@ -297,6 +415,7 @@ function clearMotionState() {
   state.pendingLocalPlay = null;
   state.pendingLocalDrawAnimation = null;
   state.hiddenLocalHandCardIds = [];
+  resetHandFanDragState();
 }
 
 function queueAnimation(animation) {
@@ -414,7 +533,7 @@ function clearSession(errorMessage = "") {
   state.lastTurnNoticeKey = "";
   state.restoreRetryCount = 0;
   persistSession();
-  render();
+  render({ force: true });
 }
 
 function forgetSavedSession() {
@@ -441,7 +560,7 @@ function forgetSavedSession() {
   state.lastTurnNoticeKey = "";
   state.restoreRetryCount = 0;
   persistSession();
-  render();
+  render({ force: true });
 }
 
 function cardId(card) {
@@ -788,8 +907,15 @@ function shoutoutCooldownState(privateState = state.privateState?.data) {
   if (remainingMs <= 0) {
     return null;
   }
+  const durationMs = shoutoutCooldownMs;
+  const elapsedMs = Math.min(
+    durationMs,
+    Math.max(0, durationMs - remainingMs),
+  );
   return {
     dueAt,
+    durationMs,
+    elapsedMs,
     remainingMs,
   };
 }
@@ -1417,6 +1543,9 @@ function connectWebSocket() {
         render();
       }
     } else if (payload.type === "shoutout") {
+      if (!rememberShoutoutEvent(payload.data?.event_id || "")) {
+        return;
+      }
       queueAnimation({
         kind: "shoutout",
         seat: payload.data.seat,
@@ -3397,6 +3526,14 @@ function renderTable(snapshot) {
   const shoutoutCooldown = shoutoutCooldownState();
   const shoutoutLocked = shoutoutCooldown !== null;
   const shoutoutEnabled = shoutoutReady && !shoutoutLocked;
+  const shoutoutFillStyle = [
+    `--shoutout-fill-duration:${shoutoutCooldownMs}ms`,
+    `--shoutout-fill-delay:${
+      shoutoutLocked
+        ? `-${Math.min(shoutoutCooldown.elapsedMs, shoutoutCooldown.durationMs)}ms`
+        : "0ms"
+    }`,
+  ].join(";");
   const showMobileLobbyLayout = isMobileLobbyLayout(snapshot);
   const sortedPlayers = [...snapshot.players].sort(
     (left, right) =>
@@ -3511,7 +3648,7 @@ function renderTable(snapshot) {
                     )}s`
                   : "Shoutouts"
             }"
-            style="--shoutout-fill-duration:${shoutoutLocked ? shoutoutCooldown.remainingMs : 0}ms;"
+            style="${shoutoutFillStyle};"
             ${shoutoutEnabled ? "" : "disabled"}
           >
             <span class="shoutout-trigger-fill" aria-hidden="true"></span>
@@ -3619,18 +3756,6 @@ function syncMobileGameLayout() {
 }
 
 function wireHandFanInteractions(handFan) {
-  const dragThreshold = 14;
-  const tapSuppressMs = 350;
-  let activeInputId = null;
-  let startX = 0;
-  let startY = 0;
-  let startScrollLeft = 0;
-  let dragging = false;
-
-  const suppressTap = () => {
-    state.suppressCardTapUntil = Date.now() + tapSuppressMs;
-  };
-
   handFan.addEventListener(
     "scroll",
     () => {
@@ -3639,58 +3764,6 @@ function wireHandFanInteractions(handFan) {
     { passive: true },
   );
 
-  const beginDrag = (inputId, x, y) => {
-    activeInputId = inputId;
-    startX = x;
-    startY = y;
-    startScrollLeft = handFan.scrollLeft;
-    dragging = false;
-    handFan.classList.remove("is-dragging");
-  };
-
-  const updateDrag = (inputId, x, y) => {
-    if (activeInputId !== inputId) {
-      return false;
-    }
-
-    const deltaX = x - startX;
-    const deltaY = y - startY;
-    if (!dragging) {
-      if (
-        Math.abs(deltaX) < dragThreshold ||
-        Math.abs(deltaX) <= Math.abs(deltaY)
-      ) {
-        return false;
-      }
-      dragging = true;
-      handFan.classList.add("is-dragging");
-      try {
-        handFan.setPointerCapture(inputId);
-      } catch (error) {}
-    }
-
-    handFan.scrollLeft = startScrollLeft - deltaX;
-    suppressTap();
-    return true;
-  };
-
-  const endDrag = (inputId) => {
-    if (activeInputId !== inputId) {
-      return;
-    }
-
-    if (dragging) {
-      suppressTap();
-    }
-
-    activeInputId = null;
-    startX = 0;
-    startY = 0;
-    startScrollLeft = 0;
-    dragging = false;
-    handFan.classList.remove("is-dragging");
-  };
-
   if (window.PointerEvent) {
     handFan.addEventListener(
       "pointerdown",
@@ -3698,7 +3771,7 @@ function wireHandFanInteractions(handFan) {
         if (event.button !== 0) {
           return;
         }
-        beginDrag(event.pointerId, event.clientX, event.clientY);
+        beginHandFanDrag(event.pointerId, event.clientX, event.clientY, handFan);
       },
       { passive: true },
     );
@@ -3706,19 +3779,19 @@ function wireHandFanInteractions(handFan) {
     handFan.addEventListener(
       "pointermove",
       (event) => {
-        if (activeInputId !== event.pointerId) {
+        if (state.handDragActiveInputId !== event.pointerId) {
           return;
         }
-        updateDrag(event.pointerId, event.clientX, event.clientY);
+        updateHandFanDrag(event.pointerId, event.clientX, event.clientY, handFan);
       },
       { passive: true },
     );
 
     const finishPointerDrag = (event) => {
-      if (activeInputId !== event.pointerId) {
+      if (state.handDragActiveInputId !== event.pointerId) {
         return;
       }
-      endDrag(event.pointerId);
+      finishHandFanDrag(event.pointerId, handFan);
       try {
         handFan.releasePointerCapture(event.pointerId);
       } catch (error) {}
@@ -3726,6 +3799,9 @@ function wireHandFanInteractions(handFan) {
 
     handFan.addEventListener("pointerup", finishPointerDrag, { passive: true });
     handFan.addEventListener("pointercancel", finishPointerDrag, {
+      passive: true,
+    });
+    handFan.addEventListener("lostpointercapture", finishPointerDrag, {
       passive: true,
     });
     return;
@@ -3738,7 +3814,7 @@ function wireHandFanInteractions(handFan) {
       if (!touch) {
         return;
       }
-      beginDrag(touch.identifier, touch.clientX, touch.clientY);
+      beginHandFanDrag(touch.identifier, touch.clientX, touch.clientY, handFan);
     },
     { passive: true },
   );
@@ -3748,12 +3824,12 @@ function wireHandFanInteractions(handFan) {
     (event) => {
       const touch =
         [...event.touches].find(
-          (entry) => entry.identifier === activeInputId,
+          (entry) => entry.identifier === state.handDragActiveInputId,
         ) || event.touches[0];
-      if (!touch || activeInputId === null) {
+      if (!touch || state.handDragActiveInputId === null) {
         return;
       }
-      if (updateDrag(touch.identifier, touch.clientX, touch.clientY)) {
+      if (updateHandFanDrag(touch.identifier, touch.clientX, touch.clientY, handFan)) {
         event.preventDefault();
       }
     },
@@ -3761,16 +3837,16 @@ function wireHandFanInteractions(handFan) {
   );
 
   const finishTouchDrag = (event) => {
-    if (activeInputId === null) {
+    if (state.handDragActiveInputId === null) {
       return;
     }
     const touch = [...event.changedTouches].find(
-      (entry) => entry.identifier === activeInputId,
+      (entry) => entry.identifier === state.handDragActiveInputId,
     );
     if (!touch) {
       return;
     }
-    endDrag(touch.identifier);
+    finishHandFanDrag(touch.identifier, handFan);
   };
 
   handFan.addEventListener("touchend", finishTouchDrag, { passive: true });
@@ -3998,7 +4074,12 @@ function wireEvents() {
   }
 }
 
-function render() {
+function render({ force = false } = {}) {
+  if (!force && isHandDragActive()) {
+    state.handDragQueuedRender = true;
+    return;
+  }
+  state.handDragQueuedRender = false;
   captureHandFanScroll();
   document.body.classList.toggle(
     "game-active-mobile",
