@@ -50,7 +50,6 @@ from pyshithead.models.session.models import (
 )
 from pyshithead.models.session.store import SQLiteSessionStore
 
-
 logger = logging.getLogger(__name__)
 
 

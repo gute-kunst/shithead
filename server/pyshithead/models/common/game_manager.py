@@ -1,5 +1,5 @@
-import secrets
 import logging
+import secrets
 from typing import Optional
 
 from pyshithead.models.common import request_models

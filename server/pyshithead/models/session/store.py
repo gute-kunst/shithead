@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections import Counter
 import json
 import os
 import sqlite3
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from statistics import median

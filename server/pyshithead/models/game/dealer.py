@@ -1,14 +1,14 @@
 from pyshithead.models.game import (
     ALL_RANKS,
+    JOKER_RANK,
+    JOKER_SUITS,
     NBR_HIDDEN_CARDS,
+    STANDARD_SUITS,
     Card,
     CircularDoublyLinkedList,
-    JOKER_RANK,
     PileOfCards,
     Player,
     SetOfCards,
-    JOKER_SUITS,
-    STANDARD_SUITS,
 )
 
 

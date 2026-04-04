@@ -1,8 +1,8 @@
 import re
 import time
-from playwright.sync_api import expect
 
 import pytest
+from playwright.sync_api import expect
 
 from pyshithead.debug_server import create_debug_app
 from pyshithead.main import session_manager
