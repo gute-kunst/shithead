@@ -159,11 +159,18 @@ def test_debug_bootstrap_link_opens_revealed_seven_preset_and_resolves_choice(
     assert resolved_snapshot.current_turn_seat == 1
 
 
-@pytest.mark.skip(reason="TODO: debug hidden-seven-take bootstrap reconnect issue")
 def test_debug_bootstrap_link_opens_hidden_seven_take_preset(
     live_app_server_factory, browser_factory
 ):
-    page, seed = _open_debug_session(live_app_server_factory, browser_factory, "hidden-seven-take")
+    debug_app, seed = create_debug_app("hidden-seven-take")
+    base_url = live_app_server_factory(debug_app)
+    player = seed.session.get_player_by_seat(0)
+    page = browser_factory().new_page()
+
+    page.goto(
+        f"{base_url}/debug/session?invite={seed.session.invite_code}&token={player.token}",
+        wait_until="networkidle",
+    )
 
     expect(page.locator(".dock-prompt")).to_contain_text("Take the pile")
     expect(page.locator(".pile-preview")).to_contain_text("7")
