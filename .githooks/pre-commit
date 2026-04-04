@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root/server"
+
+poetry run python -m black --check pyshithead/main.py pyshithead/models/common/game_manager.py pyshithead/models/game/game.py pyshithead/models/session/manager.py tests/test_alpha_api.py tests_browser
+poetry run python -m isort --check-only pyshithead/main.py pyshithead/models/common/game_manager.py pyshithead/models/game/game.py pyshithead/models/session/manager.py tests/test_alpha_api.py tests_browser
