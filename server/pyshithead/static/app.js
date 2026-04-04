@@ -2612,9 +2612,16 @@ function renderSeat(snapshot, player) {
 }
 
 function renderMiniCard(card, attributes = "") {
+  const highLowArrow =
+    card.high_low_choice === "HIGHER"
+      ? "\u25B2"
+      : card.high_low_choice === "LOWER"
+        ? "\u25BC"
+        : "";
+  const rankMarkup = isJokerCard(card) ? jokerSymbol : rankLabel(card.rank);
   return `
     <div class="mini-card ${isRedSuit(card.suit) ? "red" : ""} ${isJokerCard(card) ? "joker" : ""}" ${attributes}>
-      <span>${isJokerCard(card) ? jokerSymbol : rankLabel(card.rank)}</span>
+      <span class="mini-card-rank-line">${rankMarkup}${highLowArrow ? `<span class="mini-card-arrow" aria-hidden="true">${highLowArrow}</span>` : ""}</span>
       <span>${isJokerCard(card) ? (card.effective_rank ? `as ${rankLabel(card.effective_rank)}` : "wild") : suitLabel(card.suit)}</span>
     </div>
   `;
@@ -2661,6 +2668,10 @@ function playPileCaption(playPile) {
     return `+${hiddenCount} card${hiddenCount === 1 ? "" : "s"}`;
   }
   return "";
+}
+
+function shouldShowStatusMessage(message) {
+  return message && !/^7 or (higher|lower)!$/.test(message);
 }
 
 function displayedDeckCount(snapshot) {
@@ -3666,7 +3677,7 @@ function renderTable(snapshot) {
               : ""
           }
           ${
-            snapshot.status_message
+            shouldShowStatusMessage(snapshot.status_message)
               ? `
             <div class="event-box">
               <span>${escapeHtml(snapshot.status_message)}</span>
@@ -4212,7 +4223,7 @@ function render({ force = false } = {}) {
   );
   document.body.classList.toggle(
     "game-started-mobile",
-    isMobileActiveGameLayout() && state.snapshot?.data?.status !== "LOBBY",
+    Boolean(state.snapshot) && state.snapshot.data.status !== "LOBBY",
   );
   syncPresenceTicker();
   syncShoutoutUnlockTimer();

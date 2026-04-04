@@ -1028,7 +1028,18 @@ button {
   font-weight: 700;
 }
 
-.mini-card span:last-child {
+.mini-card-rank-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.04rem;
+}
+
+.mini-card-arrow {
+  font-size: 0.72em;
+  line-height: 1;
+}
+
+.mini-card > span:nth-child(2) {
   justify-self: end;
   line-height: 0.82;
   text-align: left;
@@ -1278,6 +1289,7 @@ button {
   font-size: 0.84rem;
   font-weight: 900;
   line-height: 1.2;
+  white-space: pre-line;
 }
 
 .rules-menu-header {
@@ -1612,6 +1624,7 @@ button {
   line-height: 1.12;
   font-weight: 900;
   color: var(--ink);
+  white-space: pre-line;
 }
 
 .motion-card {
@@ -1854,6 +1867,9 @@ body.game-active-mobile .app-root {
   grid-template-rows: auto minmax(0, 1fr);
   align-items: stretch;
   padding-top: 0.05rem;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .game-topbar {
@@ -1875,6 +1891,10 @@ body.game-started-mobile .app-root {
   grid-template-rows: auto minmax(0, 1fr);
   align-items: stretch;
   padding-top: 0.05rem;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .game-topbar-title {

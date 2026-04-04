@@ -12,6 +12,7 @@ class CardModel(BaseModel):
     suit: int
     effective_rank: int | None = None
     is_joker: bool = False
+    high_low_choice: str | None = None
 
 
 class PlayerPublicInfo(BaseModel):

@@ -151,6 +151,8 @@ def test_debug_bootstrap_link_opens_revealed_seven_preset_and_resolves_choice(
     _wait_for(lambda: seed.session.build_snapshot().status_message == "7 or lower!")
     expect(page.locator(".dock-error")).to_have_count(0)
     expect(page.locator(".dock-prompt")).to_contain_text("Waiting for Guest to play.")
+    expect(page.locator(".pile-preview")).to_contain_text("▼")
+    expect(page.locator(".table-center")).not_to_contain_text("7 or lower!")
     resolved_private_state = seed.session.build_private_state(0)
     resolved_snapshot = seed.session.build_snapshot()
     assert resolved_private_state.pending_joker_selection is False

@@ -72,7 +72,7 @@ SHOUTOUT_PRESET_DATA = (
     {"key": "wtf", "label": "Eat the pile, loser!", "emoji": "🗑️", "color": "#56606B"},
     {"key": "shit", "label": "That escalated quickly.", "emoji": "⚡", "color": "#3656A8"},
     {"key": "nice", "label": "Burrrrn!", "emoji": "🔥", "color": "#C2410C"},
-    {"key": "oof", "label": "♠ ♥ Well played ♦ ♣", "emoji": "🤝", "color": "#8A5A2B"},
+    {"key": "oof", "label": "Well played \n ♦ ♣ ♠ ♥", "emoji": "🤝", "color": "#8A5A2B"},
 )
 
 
@@ -254,6 +254,7 @@ class GameSession:
             suit=int(card.suit),
             effective_rank=card.effective_rank,
             is_joker=card.is_joker,
+            high_low_choice=card.high_low_choice,
         )
 
     def _sort_private_cards(self, cards) -> list[Card]:
@@ -388,9 +389,9 @@ class GameSession:
 
     def _sync_disconnect_policies(self):
         inferred_current_action = {
-            player.seat: self._infer_disconnect_action(player.seat)
-            if not player.connected
-            else None
+            player.seat: (
+                self._infer_disconnect_action(player.seat) if not player.connected else None
+            )
             for player in self.players
         }
         for player in self.players:
@@ -808,12 +809,14 @@ class GameSession:
                 else None
             ),
             pending_hidden_take=self.pending_hidden_take_seat == seat,
-            private_cards=[
-                self._serialize_card(card)
-                for card in self._sort_private_cards(game_player.private_cards.cards)
-            ]
-            if game_player is not None
-            else [],
+            private_cards=(
+                [
+                    self._serialize_card(card)
+                    for card in self._sort_private_cards(game_player.private_cards.cards)
+                ]
+                if game_player is not None
+                else []
+            ),
             shoutout_next_available_at=cooldown_due_at,
         )
 
@@ -1159,6 +1162,7 @@ class GameSessionManager:
             "rank": int(card.rank),
             "suit": int(card.suit),
             "effective_rank": card.effective_rank,
+            "high_low_choice": card.high_low_choice,
         }
 
     def _deserialize_card(self, data: dict) -> Card:
@@ -1166,6 +1170,7 @@ class GameSessionManager:
             rank=data["rank"],
             suit=data["suit"],
             effective_rank=data.get("effective_rank"),
+            high_low_choice=data.get("high_low_choice"),
         )
 
     def _serialize_game_state(self, session: GameSession) -> dict | None:

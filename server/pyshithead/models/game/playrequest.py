@@ -248,9 +248,20 @@ class PrivateCardsRequest(CardsRequest):
         events = self.get_play_events()
         played_cards = self.player.private_cards.take(self.cards.cards)
         effective_rank = self.get_effective_rank()
+        high_low_choice = self.choice if effective_rank == SpecialRank.HIGHLOW else None
         if effective_rank is not None:
             played_cards = {
-                card.with_effective_rank(effective_rank) if card.is_joker else card
+                card.with_effective_rank(
+                    effective_rank,
+                    high_low_choice=high_low_choice,
+                )
+                if card.is_joker
+                else card.with_effective_rank(
+                    effective_rank,
+                    high_low_choice=high_low_choice,
+                )
+                if high_low_choice is not None
+                else card
                 for card in played_cards
             }
         play_pile.put(played_cards)
@@ -287,10 +298,21 @@ class RevealedCardsRequest(CardsRequest):
 
     def _resolved_cards(self) -> set[Card]:
         effective_rank = self.get_effective_rank()
+        high_low_choice = self.choice if effective_rank == SpecialRank.HIGHLOW else None
         if effective_rank is None:
             return set(self.cards.cards)
         return {
-            card.with_effective_rank(effective_rank) if card.is_joker else card
+            card.with_effective_rank(
+                effective_rank,
+                high_low_choice=high_low_choice,
+            )
+            if card.is_joker
+            else card.with_effective_rank(
+                effective_rank,
+                high_low_choice=high_low_choice,
+            )
+            if high_low_choice is not None
+            else card
             for card in self.cards.cards
         }
 

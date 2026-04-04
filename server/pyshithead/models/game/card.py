@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum
 
 from pyshithead.models.game import JOKER_RANK
@@ -32,6 +32,7 @@ class Card:
     rank: int
     suit: Suit
     effective_rank: int | None = None
+    high_low_choice: str | None = field(default=None, compare=False)
 
     @property
     def is_joker(self) -> bool:
@@ -43,8 +44,15 @@ class Card:
             return self.effective_rank
         return self.rank
 
-    def with_effective_rank(self, effective_rank: int) -> "Card":
-        return Card(rank=self.rank, suit=self.suit, effective_rank=effective_rank)
+    def with_effective_rank(
+        self, effective_rank: int, *, high_low_choice: str | None = None
+    ) -> "Card":
+        return Card(
+            rank=self.rank,
+            suit=self.suit,
+            effective_rank=effective_rank,
+            high_low_choice=high_low_choice,
+        )
 
     def __hash__(self):
         return hash(str(self.rank) + str(self.suit))

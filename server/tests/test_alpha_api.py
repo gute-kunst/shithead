@@ -1010,6 +1010,7 @@ def test_snapshot_exposes_high_low_constraint_after_playing_seven():
         snapshot = session.build_snapshot()
         assert snapshot.current_turn_seat == 1
         assert snapshot.status_message == "7 or lower!"
+        assert snapshot.play_pile[0].high_low_choice == "LOWER"
 
 
 def test_snapshot_exposes_player_name_when_pile_is_taken():
@@ -1120,6 +1121,7 @@ def test_hidden_seven_requires_high_low_choice_after_being_revealed():
         resolved_snapshot = session.build_snapshot()
         assert resolved_snapshot.current_turn_seat == 1
         assert resolved_snapshot.status_message == "7 or lower!"
+        assert resolved_snapshot.play_pile[0].high_low_choice == "LOWER"
 
 
 def test_revealed_seven_accepts_nullable_joker_rank_when_resolved():
