@@ -537,6 +537,19 @@ function clearSession(errorMessage = "") {
   render({ force: true });
 }
 
+function clearGameStateForLobby() {
+  clearMotionState();
+  clearPendingLocalPlay();
+  resetSelection();
+  state.privateState = null;
+  state.error = "";
+  state.handFanScrollLeft = 0;
+  resetLeaveConfirmation();
+  resetKickSeatConfirmation();
+  state.rulesMenuOpen = false;
+  state.shoutoutMenuOpen = false;
+}
+
 function forgetSavedSession() {
   closeWebSocket();
   hideTurnNotice();
@@ -765,29 +778,6 @@ function renderOfflinePresence(player) {
     <div class="seat-presence">
       ${lines.map((line) => `<span class="seat-presence-line">${escapeHtml(line)}</span>`).join("")}
       ${removeButton ? `<div class="seat-actions">${removeButton}</div>` : ""}
-    </div>
-  `;
-}
-
-function renderOfflineSummary(snapshot) {
-  const offlinePlayers = snapshot.players.filter(
-    (player) => !player.is_connected,
-  );
-  if (offlinePlayers.length === 0) {
-    return "";
-  }
-  const self = me();
-  const hasCountdown = offlinePlayers.some((player) =>
-    Boolean(player.disconnect_deadline_at),
-  );
-  const copy = self?.is_host
-    ? hasCountdown
-      ? "Offline players can reconnect. Setup fallback waits up to 10 minutes and an offline turn waits up to 5 minutes. You can remove offline players sooner."
-      : "Offline players can reconnect. In the lobby they stay offline until they return or the host removes them."
-    : "Offline players can reconnect when they return.";
-  return `
-    <div class="event-box event-box-muted">
-      <span>${escapeHtml(copy)}</span>
     </div>
   `;
 }
@@ -1468,6 +1458,9 @@ function connectWebSocket() {
       }
       syncKickSeatConfirmation(payload.data);
       syncTurnNotice(payload.data);
+      if (payload.data.status === "LOBBY" && previousSnapshot?.status === "GAME_OVER") {
+        clearGameStateForLobby();
+      }
       if (payload.data.status === "GAME_OVER" || !isMyTurn()) {
         resetSelection();
       }
@@ -1550,6 +1543,25 @@ async function startGame() {
     detectAnimationEvents(previousSnapshot, response.data);
     state.error = "";
     syncTurnNotice(response.data);
+    render();
+  } catch (error) {
+    state.error = error.message;
+    render();
+  }
+}
+
+async function rematchGame() {
+  try {
+    const response = await api(`/api/games/${state.inviteCode}/rematch`, {
+      method: "POST",
+      body: JSON.stringify({
+        player_token: state.playerToken,
+      }),
+    });
+    clearGameStateForLobby();
+    state.snapshot = response;
+    state.error = "";
+    syncTurnNotice(response.data, { suppress: true });
     render();
   } catch (error) {
     state.error = error.message;
@@ -2865,6 +2877,7 @@ function renderStandings(snapshot) {
   const placedPlayers = snapshot.players
     .filter((player) => player.finished_position !== null)
     .sort((left, right) => left.finished_position - right.finished_position);
+  const isHost = me()?.is_host;
 
   if (placedPlayers.length === 0) {
     return "";
@@ -2885,6 +2898,17 @@ function renderStandings(snapshot) {
           )
           .join("")}
       </div>
+      ${
+        isHost
+          ? `
+        <div class="primary-action-row">
+          <button class="button accent full-width" id="rematch-game" type="button">Rematch</button>
+        </div>
+      `
+          : `
+        <p class="muted tiny">Waiting for the host to start a rematch.</p>
+      `
+      }
     </section>
   `;
 }
@@ -3588,7 +3612,6 @@ function renderTable(snapshot) {
           `
               : ""
           }
-          ${renderOfflineSummary(snapshot)}
           <div class="table-resources">
             <div class="deck-orb">
               <span class="resource-label">Deck</span>
@@ -3967,6 +3990,11 @@ function wireEvents() {
     startButton.addEventListener("click", startGame);
   }
 
+  const rematchButton = document.getElementById("rematch-game");
+  if (rematchButton) {
+    rematchButton.addEventListener("click", rematchGame);
+  }
+
   const copyInviteCodeButton = document.getElementById("copy-invite-code");
   if (copyInviteCodeButton) {
     copyInviteCodeButton.addEventListener("click", async () => {
@@ -4203,7 +4231,7 @@ window.addEventListener("orientationchange", () => {
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker
-    .register("/static/sw.js?v=20260403a")
+    .register("/static/sw.js?v=20260404c")
     .then(() => {
       if (navigator.serviceWorker.controller) {
         navigator.serviceWorker.addEventListener("controllerchange", () => {

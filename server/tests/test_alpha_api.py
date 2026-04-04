@@ -56,6 +56,14 @@ def start_game(client: TestClient, invite_code: str, player_token: str):
     return response.json()
 
 
+def rematch_game(client: TestClient, invite_code: str, player_token: str):
+    response = client.post(
+        f"/api/games/{invite_code}/rematch",
+        json={"player_token": player_token},
+    )
+    return response
+
+
 def restore_session(client: TestClient, invite_code: str, player_token: str):
     return client.post(
         f"/api/games/{invite_code}/restore",
@@ -258,6 +266,40 @@ def test_start_game_and_reconnect_with_same_token():
                 assert reconnect_notice["type"] == "session_snapshot"
                 guest_after_reconnect = reconnect_notice["data"]["players"][1]
                 assert guest_after_reconnect["is_connected"] is True
+
+
+def test_rematch_returns_game_over_session_to_lobby():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+        start_payload = start_game(client, host["invite_code"], host["player_token"])
+        assert start_payload["data"]["status"] == "IN_GAME"
+
+        session = session_manager.get_session(host["invite_code"])
+        game = session.game_manager.game
+        winner = game.get_player(0)
+        game.active_players.remove_node(winner)
+        game.check_for_game_over()
+
+        assert session.build_snapshot().status == "GAME_OVER"
+
+        response = rematch_game(client, host["invite_code"], host["player_token"])
+        assert response.status_code == 200
+
+        payload = response.json()["data"]
+        assert payload["status"] == "LOBBY"
+        assert payload["invite_code"] == host["invite_code"]
+        assert [player["display_name"] for player in payload["players"]] == [
+            "Host",
+            "Guest",
+        ]
+        assert payload["host_seat"] == 0
+
+        reset_session = session_manager.get_session(host["invite_code"])
+        assert reset_session.game_manager is None
+        assert reset_session.status == "LOBBY"
+        assert reset_session.last_status_message is None
 
 
 def test_snapshot_exposes_disconnect_metadata_for_setup_player():

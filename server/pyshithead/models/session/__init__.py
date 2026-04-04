@@ -9,6 +9,7 @@ from .models import (
     SessionAuthResponse,
     ShoutoutPreset,
     SessionSnapshotEvent,
+    RematchRequest,
     StartGameRequest,
     UpdateSettingsRequest,
 )

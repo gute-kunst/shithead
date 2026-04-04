@@ -230,6 +230,21 @@ class GameSession:
         self.settings.allow_optional_take_pile = allow_optional_take_pile
         self._finalize_state_change()
 
+    def rematch(self, player_token: str):
+        player = self.get_player_by_token(player_token)
+        if player.seat != self.host_seat:
+            raise ValueError("Only the host can start a rematch.")
+        self._sync_status()
+        if self.status != SessionStatus.GAME_OVER:
+            raise ValueError("Game is not over.")
+
+        self._cancel_all_disconnect_timeouts()
+        self.game_manager = None
+        self.last_status_message = None
+        self._clear_pending_joker()
+        self._clear_pending_hidden_take()
+        self._finalize_state_change()
+
     def _serialize_card(self, card: Card) -> CardModel:
         return CardModel(
             rank=int(card.rank),

@@ -4,6 +4,7 @@ import time
 import pytest
 from playwright.sync_api import expect
 
+from pyshithead.debug_server import create_debug_app
 from pyshithead.main import session_manager
 from pyshithead.models.game import Card, GameState, PileOfCards, SetOfCards, Suit
 from pyshithead.models.session.models import ActionRequest
@@ -483,6 +484,29 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
     assert second_host_event_id
     assert second_host_event_id == second_guest_event_id
     assert second_host_event_id != first_host_event_id
+
+
+def test_game_over_score_page_can_rematch_back_to_lobby(
+    live_app_server_factory, browser_factory
+):
+    debug_app, seed = create_debug_app("game-over")
+    base_url = live_app_server_factory(debug_app)
+    host = seed.session.get_player_by_seat(0)
+    page = browser_factory().new_page()
+
+    page.goto(
+        f"{base_url}/debug/session?invite={seed.session.invite_code}&token={host.token}",
+        wait_until="networkidle",
+    )
+
+    expect(page.get_by_role("button", name="Rematch")).to_be_visible()
+    expect(page.locator(".standings")).to_contain_text("Host")
+    page.get_by_role("button", name="Rematch").click()
+
+    expect(page.locator("#copy-invite-code")).to_be_visible()
+    expect(page.locator("#start-game")).to_be_visible()
+    expect(page.locator(".standings")).to_have_count(0)
+    expect(page.get_by_role("button", name="Rematch")).to_have_count(0)
 
 
 def test_service_worker_registers_and_reload_keeps_app_usable(live_server, browser_factory):

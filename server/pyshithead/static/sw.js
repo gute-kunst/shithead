@@ -1,12 +1,12 @@
-const CACHE_NAME = "shithead-alpha-v30";
+const CACHE_NAME = "shithead-alpha-v31";
 const APP_SHELL = [
   "/",
-  "/static/styles.css?v=20260404b",
-  "/static/app.js?v=20260404b",
-  "/static/manifest.webmanifest?v=20260404b",
-  "/static/icons/icon-180.png?v=20260404b",
-  "/static/icons/icon-192.png?v=20260404b",
-  "/static/icons/icon-512.png?v=20260404b",
+  "/static/styles.css?v=20260404c",
+  "/static/app.js?v=20260404c",
+  "/static/manifest.webmanifest?v=20260404c",
+  "/static/icons/icon-180.png?v=20260404c",
+  "/static/icons/icon-192.png?v=20260404c",
+  "/static/icons/icon-512.png?v=20260404c",
 ];
 
 function isSameOrigin(url) {

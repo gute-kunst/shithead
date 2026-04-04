@@ -117,6 +117,10 @@ class StartGameRequest(BaseModel):
     player_token: str
 
 
+class RematchRequest(BaseModel):
+    player_token: str
+
+
 class UpdateSettingsRequest(BaseModel):
     player_token: str
     allow_optional_take_pile: bool

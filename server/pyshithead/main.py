@@ -19,6 +19,7 @@ from pyshithead.models.session import (
     GameSessionManager,
     JoinGameRequest,
     KickPlayerRequest,
+    RematchRequest,
     RestoreSessionRequest,
     SessionAuthResponse,
     SessionSnapshotEvent,
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 SESSION_STORAGE_KEY = "shithead.alpha.session"
-STATIC_ASSET_VERSION = "20260404b"
+STATIC_ASSET_VERSION = "20260404c"
 
 
 def _http_error(err: ValueError) -> HTTPException:
@@ -122,6 +123,16 @@ def create_app(
         try:
             session = managed_sessions.get_session(invite_code)
             session.start(payload.player_token)
+        except ValueError as err:
+            raise _http_error(err) from err
+        await session.broadcast_full_state()
+        return SessionSnapshotEvent(data=session.build_snapshot())
+
+    @app.post("/api/games/{invite_code}/rematch", response_model=SessionSnapshotEvent)
+    async def rematch_game(invite_code: str, payload: RematchRequest):
+        try:
+            session = managed_sessions.get_session(invite_code)
+            session.rematch(payload.player_token)
         except ValueError as err:
             raise _http_error(err) from err
         await session.broadcast_full_state()
