@@ -6,6 +6,7 @@ const jokerSymbol = "★";
 const shoutoutCooldownMs = 4000;
 const cardTapSuppressMs = 350;
 const handDragThreshold = 14;
+const mouseDragInputId = -1;
 
 const state = {
   inviteCode: "",
@@ -2629,14 +2630,12 @@ function handLayout(snapshot) {
       (compactViewport && cardCount >= 5) ||
       (narrowViewport && cardCount >= 4));
   const cardWidth = shouldScroll
-    ? compactViewport
-      ? narrowViewport
-        ? 35
-        : 38
-      : 56
+    ? narrowViewport
+      ? 35
+      : 64
     : Math.max(minWidth, Math.min(maxWidth, fitWidth || maxWidth));
   const overlap = Math.round(
-    cardWidth * (shouldScroll ? 0.26 : 1 - stepFactor),
+    cardWidth * (shouldScroll ? (narrowViewport ? 0.26 : 0.1) : 1 - stepFactor),
   );
   const cardHeight = Math.round(cardWidth * 1.42);
   const lift = Math.max(6, Math.round(cardHeight * 0.13));
@@ -3729,7 +3728,7 @@ function wireHandFanInteractions(handFan) {
     handFan.addEventListener(
       "pointerdown",
       (event) => {
-        if (event.button !== 0) {
+        if (event.button !== 0 || state.handDragActiveInputId !== null) {
           return;
         }
         beginHandFanDrag(event.pointerId, event.clientX, event.clientY, handFan);
@@ -3765,12 +3764,39 @@ function wireHandFanInteractions(handFan) {
     handFan.addEventListener("lostpointercapture", finishPointerDrag, {
       passive: true,
     });
+
+    handFan.addEventListener("mousedown", (event) => {
+      if (event.button !== 0 || state.handDragActiveInputId !== null) {
+        return;
+      }
+      beginHandFanDrag(mouseDragInputId, event.clientX, event.clientY, handFan);
+    });
+
+    handFan.addEventListener("mousemove", (event) => {
+      if (state.handDragActiveInputId !== mouseDragInputId) {
+        return;
+      }
+      updateHandFanDrag(mouseDragInputId, event.clientX, event.clientY, handFan);
+    });
+
+    const finishMouseDrag = () => {
+      if (state.handDragActiveInputId !== mouseDragInputId) {
+        return;
+      }
+      finishHandFanDrag(mouseDragInputId, handFan);
+    };
+
+    handFan.addEventListener("mouseup", finishMouseDrag);
+    handFan.addEventListener("mouseleave", finishMouseDrag);
     return;
   }
 
   handFan.addEventListener(
     "touchstart",
     (event) => {
+      if (state.handDragActiveInputId !== null) {
+        return;
+      }
       const touch = event.touches[0];
       if (!touch) {
         return;
@@ -3812,6 +3838,30 @@ function wireHandFanInteractions(handFan) {
 
   handFan.addEventListener("touchend", finishTouchDrag, { passive: true });
   handFan.addEventListener("touchcancel", finishTouchDrag, { passive: true });
+
+  handFan.addEventListener("mousedown", (event) => {
+    if (event.button !== 0 || state.handDragActiveInputId !== null) {
+      return;
+    }
+    beginHandFanDrag(mouseDragInputId, event.clientX, event.clientY, handFan);
+  });
+
+  handFan.addEventListener("mousemove", (event) => {
+    if (state.handDragActiveInputId !== mouseDragInputId) {
+      return;
+    }
+    updateHandFanDrag(mouseDragInputId, event.clientX, event.clientY, handFan);
+  });
+
+  const finishMouseDrag = () => {
+    if (state.handDragActiveInputId !== mouseDragInputId) {
+      return;
+    }
+    finishHandFanDrag(mouseDragInputId, handFan);
+  };
+
+  handFan.addEventListener("mouseup", finishMouseDrag);
+  handFan.addEventListener("mouseleave", finishMouseDrag);
 }
 
 function wireEvents() {
