@@ -283,6 +283,7 @@ class GameSession:
         player.last_shoutout_at = now
         return ShoutoutEvent(
             data=ShoutoutEventData(
+                event_id=secrets.token_urlsafe(8),
                 seat=player.seat,
                 display_name=player.display_name,
                 preset=preset,

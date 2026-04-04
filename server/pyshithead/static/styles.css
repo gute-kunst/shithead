@@ -1124,7 +1124,11 @@ button {
 }
 
 .table-shoutout-trigger.locked .shoutout-trigger-fill {
-  animation: shoutoutRecover var(--shoutout-fill-duration, 0ms) linear forwards;
+  animation-name: shoutoutRecover;
+  animation-duration: var(--shoutout-fill-duration, 4000ms);
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+  animation-delay: var(--shoutout-fill-delay, 0ms);
 }
 
 .shoutout-joker-emoji {

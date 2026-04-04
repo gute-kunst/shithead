@@ -285,7 +285,10 @@ def test_large_hand_scrolls_with_mouse_drag_on_desktop(live_server, desktop_brow
 
     host_page.mouse.move(start_x, start_y)
     host_page.mouse.down()
-    host_page.mouse.move(start_x - 180, start_y, steps=8)
+    host_page.mouse.move(start_x - 80, start_y, steps=4)
+    scroll_after_partial_drag = hand_fan.evaluate("(element) => element.scrollLeft")
+    host_page.evaluate("() => window.dispatchEvent(new Event('resize'))")
+    host_page.mouse.move(start_x - 180, start_y, steps=6)
     host_page.mouse.up()
 
     if hand_fan.evaluate("(element) => element.scrollLeft") <= initial_scroll_left:
@@ -302,7 +305,12 @@ def test_large_hand_scrolls_with_mouse_drag_on_desktop(live_server, desktop_brow
     )
     host_page.wait_for_timeout(1500)
     assert hand_fan.evaluate("(element) => element.scrollLeft") > initial_scroll_left
+    assert hand_fan.evaluate("(element) => element.scrollLeft") >= scroll_after_partial_drag
     expect(host_page.locator(".hand-fan .card.selected")).to_have_count(0)
+
+    host_page.wait_for_timeout(400)
+    host_page.locator(".hand-fan [data-card-id]").first.click()
+    expect(host_page.locator(".hand-fan .card.selected")).to_have_count(1)
 
 
 def test_desktop_clicking_a_hand_card_selects_it(live_server, desktop_browser_factory):
@@ -419,8 +427,8 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
 
     host_page.locator("[data-shoutout-key='hahaha']").click()
 
-    expect(host_page.locator(".motion-shoutout")).to_be_visible()
-    expect(guest_page.locator(".motion-shoutout")).to_be_visible()
+    expect(host_page.locator(".motion-shoutout")).to_have_count(1)
+    expect(guest_page.locator(".motion-shoutout")).to_have_count(1)
     expect(guest_page.locator(".motion-shoutout")).to_contain_text("HAHAHA")
     expect(host_page.locator(".shoutout-trigger-fill")).to_be_visible()
     expect(host_page.locator("#open-shoutout-menu")).to_be_disabled()
@@ -433,6 +441,17 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
     expect(host_page.locator("#open-shoutout-menu")).to_have_attribute(
         "title", re.compile(r"Shoutouts available in \d+s")
     )
+    host_page.wait_for_timeout(1400)
+    fill_before_rerender = host_page.locator(".shoutout-trigger-fill").evaluate(
+        "(element) => element.getBoundingClientRect().height"
+    )
+    host_page.evaluate("() => window.dispatchEvent(new Event('resize'))")
+    host_page.wait_for_timeout(120)
+    fill_after_rerender = host_page.locator(".shoutout-trigger-fill").evaluate(
+        "(element) => element.getBoundingClientRect().height"
+    )
+    assert fill_before_rerender > 0
+    assert fill_after_rerender >= fill_before_rerender * 0.6
     host_page.locator("#open-shoutout-menu").evaluate("(button) => button.click()")
     expect(host_page.locator(".shoutout-menu")).to_have_count(0)
 

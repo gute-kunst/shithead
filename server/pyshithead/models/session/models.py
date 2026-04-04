@@ -79,6 +79,7 @@ class PrivateState(BaseModel):
 
 
 class ShoutoutEventData(BaseModel):
+    event_id: str
     seat: int
     display_name: str
     preset: ShoutoutPreset

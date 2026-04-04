@@ -151,6 +151,9 @@ def test_lobby_shoutout_broadcasts_live_event_to_connected_players():
                 guest_event = guest_ws.receive_json()
                 assert host_event["type"] == "shoutout"
                 assert guest_event["type"] == "shoutout"
+                assert isinstance(host_event["data"]["event_id"], str)
+                assert host_event["data"]["event_id"] != ""
+                assert guest_event["data"]["event_id"] == host_event["data"]["event_id"]
                 assert host_event["data"]["seat"] == 0
                 assert host_event["data"]["preset"]["key"] == "hahaha"
                 assert guest_event["data"]["preset"]["label"] == "HAHAHA"
@@ -169,6 +172,7 @@ def test_shoutout_cooldown_blocks_rapid_repeats(monkeypatch):
             ActionRequest(type="send_shoutout", shoutout_key="nice"),
         )
         assert first_event is not None
+        assert first_event.data.event_id
         assert first_event.data.preset.key == "nice"
         assert session.get_player_by_seat(0).last_shoutout_at == fixed_now
         assert session.build_private_state(0).shoutout_next_available_at == fixed_now + timedelta(
