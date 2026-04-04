@@ -1337,7 +1337,10 @@ class GameSessionManager:
         session = session or cached_session
         if session is not None:
             self._record_session_metrics(session)
-            if session.game_manager is not None and session.game_manager.game.state == GameState.DURING_GAME:
+            if (
+                session.game_manager is not None
+                and session.game_manager.game.state == GameState.DURING_GAME
+            ):
                 self.note_game_abandoned(
                     session.game_manager.game.game_id,
                     session.invite_code,
