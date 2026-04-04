@@ -450,16 +450,16 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
         "title", re.compile(r"Shoutouts available in \d+s")
     )
     host_page.wait_for_timeout(1400)
-    fill_before_rerender = host_page.locator(".shoutout-trigger-fill").evaluate(
-        "(element) => element.getBoundingClientRect().height"
-    )
     host_page.evaluate("() => window.dispatchEvent(new Event('resize'))")
     host_page.wait_for_timeout(120)
-    fill_after_rerender = host_page.locator(".shoutout-trigger-fill").evaluate(
-        "(element) => element.getBoundingClientRect().height"
+    expect(host_page.locator("#open-shoutout-menu")).to_be_disabled()
+    expect(host_page.locator("#open-shoutout-menu")).to_have_class(
+        re.compile(r"\btable-shoutout-trigger\b.*\blocked\b")
     )
-    assert fill_before_rerender > 0
-    assert fill_after_rerender >= fill_before_rerender * 0.6
+    expect(host_page.locator(".shoutout-trigger-fill")).to_have_count(1)
+    expect(host_page.locator("#open-shoutout-menu")).to_have_attribute(
+        "title", re.compile(r"Shoutouts available in \d+s")
+    )
     host_page.locator("#open-shoutout-menu").evaluate("(button) => button.click()")
     expect(host_page.locator(".shoutout-menu")).to_have_count(0)
 
