@@ -1,8 +1,8 @@
 import re
 import time
+from playwright.sync_api import expect
 
 import pytest
-from playwright.sync_api import expect
 
 from pyshithead.debug_server import create_debug_app
 from pyshithead.main import session_manager
@@ -116,6 +116,59 @@ def _dispatch_hand_fan_pointer_drag(hand_fan, *, start_x: float, start_y: float,
         }
         """,
         {"startX": start_x, "startY": start_y, "endX": end_x},
+    )
+
+
+def _dispatch_hand_fan_touch_drag(page, *, start_x: float, start_y: float, end_x: float):
+    cdp = page.context.new_cdp_session(page)
+
+    def dispatch(event_type: str, x: float):
+        touch_points = (
+            []
+            if event_type == "touchEnd"
+            else [
+                {
+                    "id": 1,
+                    "x": x,
+                    "y": start_y,
+                    "radiusX": 2,
+                    "radiusY": 2,
+                    "force": 1,
+                }
+            ]
+        )
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {
+                "type": event_type,
+                "touchPoints": touch_points,
+            },
+        )
+
+    dispatch("touchStart", start_x)
+    for index in range(1, 5):
+        next_x = start_x + (end_x - start_x) * index / 4
+        dispatch("touchMove", next_x)
+    dispatch("touchEnd", end_x)
+
+
+def _visible_hand_card_index(hand_fan) -> int:
+    return hand_fan.evaluate(
+        """
+        (element) => {
+          const cards = [...element.querySelectorAll("[data-card-id]")];
+          let visibleIndex = -1;
+          cards.forEach((card, index) => {
+            const rect = card.getBoundingClientRect();
+            const fanRect = element.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            if (centerX >= fanRect.left && centerX <= fanRect.right) {
+              visibleIndex = index;
+            }
+          });
+          return visibleIndex;
+        }
+        """
     )
 
 
@@ -365,7 +418,7 @@ def test_mobile_landscape_uses_wide_layout_variant(live_server, mobile_landscape
     expect(page.locator(".hand-dock")).to_have_class(re.compile(r"\bhand-layout-scroll\b"))
 
 
-def test_mobile_hand_fan_drag_scrolls_and_taps_afterward(live_server, touch_browser_factory):
+def test_mobile_tapping_a_hand_card_selects_it(live_server, touch_browser_factory):
     host_page = open_page(touch_browser_factory(), live_server)
     create_table(host_page, "Host")
     invite_code = extract_invite_code(host_page)
@@ -390,28 +443,220 @@ def test_mobile_hand_fan_drag_scrolls_and_taps_afterward(live_server, touch_brow
     hand_fan = host_page.locator(".hand-fan")
     expect(hand_dock).to_have_class(re.compile(r"\bhand-layout-scroll\b"))
     assert hand_fan.evaluate("(element) => element.scrollWidth > element.clientWidth")
-
-    initial_scroll_left = hand_fan.evaluate("(element) => element.scrollLeft")
-    hand_fan.dispatch_event(
-        "pointerdown",
-        {"pointerId": 1, "pointerType": "touch", "clientX": 260, "clientY": 36, "buttons": 1},
-    )
-    hand_fan.dispatch_event(
-        "pointermove",
-        {"pointerId": 1, "pointerType": "touch", "clientX": 120, "clientY": 40, "buttons": 1},
-    )
-    hand_fan.dispatch_event(
-        "pointerup",
-        {"pointerId": 1, "pointerType": "touch", "clientX": 120, "clientY": 40, "buttons": 0},
-    )
-
-    assert hand_fan.evaluate("(element) => element.scrollLeft") > initial_scroll_left
-    expect(host_page.locator(".hand-fan .card.selected")).to_have_count(0)
-
-    host_page.wait_for_timeout(400)
     host_page.locator(".hand-fan [data-card-id]").first.tap()
-
     expect(host_page.locator(".hand-fan .card.selected")).to_have_count(1)
+
+
+def test_chromium_mobile_hand_fan_real_touch_scrolls_three_cards_and_still_allows_selection(
+    live_server, browser_name, playwright_instance
+):
+    if browser_name != "chromium":
+        pytest.skip("Chromium-only mobile touch regression.")
+
+    browser = playwright_instance.chromium.launch(headless=True)
+    host_context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        is_mobile=True,
+        has_touch=True,
+        device_scale_factor=2,
+        service_workers="allow",
+    )
+    guest_context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        is_mobile=True,
+        has_touch=True,
+        device_scale_factor=2,
+        service_workers="allow",
+    )
+    try:
+        host_page = open_page(host_context, live_server)
+        create_table(host_page, "Host")
+        invite_code = extract_invite_code(host_page)
+
+        guest_page = open_page(guest_context, live_server)
+        join_table(guest_page, invite_code, "Guest")
+
+        host_page.locator("#start-game").click()
+        expect(host_page.locator(".dock-prompt")).to_contain_text(
+            "Pick 3 public cards for the table."
+        )
+        expect(guest_page.locator(".dock-prompt")).to_contain_text(
+            "Pick 3 public cards for the table."
+        )
+        finish_public_selection(invite_code)
+
+        session = session_manager.get_session(invite_code)
+        host_player = session.game_manager.game.get_player(0)
+        host_player.private_cards = SetOfCards(build_large_hand_cards())
+        session_manager._save_session(session)
+
+        host_page.reload(wait_until="networkidle")
+
+        hand_dock = host_page.locator(".hand-dock")
+        hand_fan = host_page.locator(".hand-fan")
+        expect(hand_dock).to_have_class(re.compile(r"\bhand-layout-scroll\b"))
+        assert hand_fan.evaluate("(element) => element.scrollWidth > element.clientWidth")
+
+        first_card_box = hand_fan.locator(".card").first.bounding_box()
+        second_card_box = hand_fan.locator(".card").nth(1).bounding_box()
+        drag_card_box = hand_fan.locator(".card").nth(2).bounding_box()
+        assert first_card_box is not None
+        assert second_card_box is not None
+        assert drag_card_box is not None
+        card_step = second_card_box["x"] - first_card_box["x"]
+        assert card_step > 0
+
+        initial_scroll_left = hand_fan.evaluate("(element) => element.scrollLeft")
+        start_x = drag_card_box["x"] + drag_card_box["width"] / 2
+        start_y = drag_card_box["y"] + drag_card_box["height"] / 2
+        end_x = start_x - (card_step * 4)
+
+        _dispatch_hand_fan_touch_drag(
+            host_page,
+            start_x=start_x,
+            start_y=start_y,
+            end_x=end_x,
+        )
+
+        _wait_for(
+            lambda: hand_fan.evaluate("(element) => element.scrollLeft")
+            >= initial_scroll_left + (card_step * 3),
+            message="hand fan did not scroll by at least three cards on Chromium touch drag",
+        )
+        assert hand_fan.evaluate("(element) => element.scrollLeft") >= initial_scroll_left + (
+            card_step * 3
+        )
+        expect(host_page.locator(".hand-fan .card.selected")).to_have_count(0)
+
+        host_page.wait_for_timeout(700)
+        visible_card_index = _visible_hand_card_index(hand_fan)
+        assert visible_card_index >= 0
+        visible_card = host_page.locator(".hand-fan [data-card-id]").nth(visible_card_index)
+        visible_card.evaluate("(button) => button.click()")
+        expect(host_page.locator(".hand-fan .card.selected")).to_have_count(1)
+    finally:
+        guest_context.close()
+        host_context.close()
+        browser.close()
+
+
+def test_chromium_mobile_hand_fan_long_touch_resize_keeps_scroll_position_and_allows_selection(
+    live_server, browser_name, playwright_instance
+):
+    if browser_name != "chromium":
+        pytest.skip("Chromium-only mobile touch regression.")
+
+    browser = playwright_instance.chromium.launch(headless=True)
+    host_context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        is_mobile=True,
+        has_touch=True,
+        device_scale_factor=2,
+        service_workers="allow",
+    )
+    guest_context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        is_mobile=True,
+        has_touch=True,
+        device_scale_factor=2,
+        service_workers="allow",
+    )
+    try:
+        host_page = open_page(host_context, live_server)
+        create_table(host_page, "Host")
+        invite_code = extract_invite_code(host_page)
+
+        guest_page = open_page(guest_context, live_server)
+        join_table(guest_page, invite_code, "Guest")
+
+        host_page.locator("#start-game").click()
+        expect(host_page.locator(".dock-prompt")).to_contain_text(
+            "Pick 3 public cards for the table."
+        )
+        expect(guest_page.locator(".dock-prompt")).to_contain_text(
+            "Pick 3 public cards for the table."
+        )
+        finish_public_selection(invite_code)
+
+        session = session_manager.get_session(invite_code)
+        host_player = session.game_manager.game.get_player(0)
+        host_player.private_cards = SetOfCards(build_large_hand_cards())
+        session_manager._save_session(session)
+
+        host_page.reload(wait_until="networkidle")
+
+        hand_dock = host_page.locator(".hand-dock")
+        hand_fan = host_page.locator(".hand-fan")
+        expect(hand_dock).to_have_class(re.compile(r"\bhand-layout-scroll\b"))
+        assert hand_fan.evaluate("(element) => element.scrollWidth > element.clientWidth")
+
+        first_card_box = hand_fan.locator(".card").first.bounding_box()
+        second_card_box = hand_fan.locator(".card").nth(1).bounding_box()
+        drag_card_box = hand_fan.locator(".card").nth(2).bounding_box()
+        assert first_card_box is not None
+        assert second_card_box is not None
+        assert drag_card_box is not None
+        card_step = second_card_box["x"] - first_card_box["x"]
+        assert card_step > 0
+
+        initial_scroll_left = hand_fan.evaluate("(element) => element.scrollLeft")
+        start_x = drag_card_box["x"] + drag_card_box["width"] / 2
+        start_y = drag_card_box["y"] + drag_card_box["height"] / 2
+
+        cdp = host_page.context.new_cdp_session(host_page)
+
+        def dispatch(event_type: str, x: float):
+            touch_points = (
+                []
+                if event_type == "touchEnd"
+                else [
+                    {
+                        "id": 1,
+                        "x": x,
+                        "y": start_y,
+                        "radiusX": 2,
+                        "radiusY": 2,
+                        "force": 1,
+                    }
+                ]
+            )
+            cdp.send(
+                "Input.dispatchTouchEvent",
+                {
+                    "type": event_type,
+                    "touchPoints": touch_points,
+                },
+            )
+
+        dispatch("touchStart", start_x)
+        dispatch("touchMove", start_x - (card_step * 2.5))
+        host_page.wait_for_timeout(700)
+        host_page.evaluate("() => window.dispatchEvent(new Event('resize'))")
+        host_page.wait_for_timeout(150)
+        dispatch("touchMove", start_x - (card_step * 4))
+        dispatch("touchEnd", start_x - (card_step * 4))
+
+        _wait_for(
+            lambda: hand_fan.evaluate("(element) => element.scrollLeft")
+            >= initial_scroll_left + (card_step * 3),
+            message="hand fan did not keep its scroll position after long touch resize",
+        )
+        host_page.wait_for_timeout(500)
+        assert hand_fan.evaluate("(element) => element.scrollLeft") >= initial_scroll_left + (
+            card_step * 3
+        )
+        expect(host_page.locator(".hand-fan .card.selected")).to_have_count(0)
+
+        host_page.wait_for_timeout(700)
+        visible_card_index = _visible_hand_card_index(hand_fan)
+        assert visible_card_index >= 0
+        visible_card = host_page.locator(".hand-fan [data-card-id]").nth(visible_card_index)
+        visible_card.evaluate("(button) => button.click()")
+        expect(host_page.locator(".hand-fan .card.selected")).to_have_count(1)
+    finally:
+        guest_context.close()
+        host_context.close()
+        browser.close()
 
 
 def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_factory):

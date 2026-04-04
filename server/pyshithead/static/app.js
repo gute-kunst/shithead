@@ -66,6 +66,12 @@ const state = {
   handDragStartScrollLeft: 0,
   handDragDragging: false,
   handDragQueuedRender: false,
+  handTouchActiveId: null,
+  handTouchStartX: 0,
+  handTouchStartY: 0,
+  handTouchStartScrollLeft: 0,
+  handTouchStartAt: 0,
+  handTouchMoved: false,
 };
 
 const app = document.getElementById("app");
@@ -190,6 +196,15 @@ function clearHandFanDraggingClasses() {
   });
 }
 
+function resetHandFanTouchState() {
+  state.handTouchActiveId = null;
+  state.handTouchStartX = 0;
+  state.handTouchStartY = 0;
+  state.handTouchStartScrollLeft = 0;
+  state.handTouchStartAt = 0;
+  state.handTouchMoved = false;
+}
+
 function resetHandFanDragState() {
   state.handDragActiveInputId = null;
   state.handDragStartX = 0;
@@ -197,6 +212,7 @@ function resetHandFanDragState() {
   state.handDragStartScrollLeft = 0;
   state.handDragDragging = false;
   state.handDragQueuedRender = false;
+  resetHandFanTouchState();
   clearHandFanDraggingClasses();
 }
 
@@ -204,8 +220,62 @@ function isHandDragActive() {
   return state.handDragActiveInputId !== null;
 }
 
+function isHandInteractionActive() {
+  return isHandDragActive() || state.handTouchActiveId !== null;
+}
+
 function suppressCardTap() {
   state.suppressCardTapUntil = Date.now() + cardTapSuppressMs;
+}
+
+function beginHandFanTouch(inputId, x, y, handFan) {
+  state.handTouchActiveId = inputId;
+  state.handTouchStartX = x;
+  state.handTouchStartY = y;
+  state.handTouchStartScrollLeft = handFan.scrollLeft;
+  state.handTouchStartAt = Date.now();
+  state.handTouchMoved = false;
+}
+
+function updateHandFanTouch(inputId, x, y, handFan) {
+  if (state.handTouchActiveId !== inputId) {
+    return;
+  }
+  state.handFanScrollLeft = handFan.scrollLeft;
+  const deltaX = Math.abs(x - state.handTouchStartX);
+  const deltaY = Math.abs(y - state.handTouchStartY);
+  const scrollDelta = Math.abs(handFan.scrollLeft - state.handTouchStartScrollLeft);
+  if (
+    deltaX >= handDragThreshold ||
+    deltaY >= handDragThreshold ||
+    scrollDelta >= Math.max(6, handDragThreshold / 2)
+  ) {
+    state.handTouchMoved = true;
+  }
+}
+
+function finishHandFanTouch(inputId, handFan = app.querySelector(".hand-fan")) {
+  if (state.handTouchActiveId !== inputId) {
+    return;
+  }
+  const touchDuration = Date.now() - state.handTouchStartAt;
+  const currentScrollLeft = handFan ? handFan.scrollLeft : state.handFanScrollLeft;
+  state.handFanScrollLeft = currentScrollLeft;
+  const scrollDelta = Math.abs(currentScrollLeft - state.handTouchStartScrollLeft);
+  if (
+    state.handTouchMoved ||
+    scrollDelta >= Math.max(6, handDragThreshold / 2) ||
+    (scrollDelta > 0 && touchDuration > cardTapSuppressMs)
+  ) {
+    suppressCardTap();
+  }
+  resetHandFanTouchState();
+
+  const queuedRender = state.handDragQueuedRender;
+  state.handDragQueuedRender = false;
+  if (queuedRender) {
+    render({ force: true });
+  }
 }
 
 function beginHandFanDrag(inputId, x, y, handFan) {
@@ -992,14 +1062,6 @@ function currentHandScrollKey() {
   return privateCards()
     .map((card) => cardId(card))
     .join("|");
-}
-
-function captureHandFanScroll() {
-  const handFan = app.querySelector(".hand-fan");
-  if (!handFan) {
-    return;
-  }
-  state.handFanScrollLeft = handFan.scrollLeft;
 }
 
 function restoreHandFanScroll() {
@@ -3761,11 +3823,64 @@ function wireHandFanInteractions(handFan) {
     { passive: true },
   );
 
+  handFan.addEventListener(
+    "touchstart",
+    (event) => {
+      if (state.handTouchActiveId !== null) {
+        return;
+      }
+      const touch = event.touches[0];
+      if (!touch) {
+        return;
+      }
+      beginHandFanTouch(touch.identifier, touch.clientX, touch.clientY, handFan);
+    },
+    { passive: true },
+  );
+
+  handFan.addEventListener(
+    "touchmove",
+    (event) => {
+      const touch =
+        [...event.touches].find(
+          (entry) => entry.identifier === state.handTouchActiveId,
+        ) || event.touches[0];
+      if (!touch || state.handTouchActiveId === null) {
+        return;
+      }
+      updateHandFanTouch(touch.identifier, touch.clientX, touch.clientY, handFan);
+    },
+    { passive: true },
+  );
+
+  const finishTouchDrag = (event) => {
+    if (state.handTouchActiveId === null) {
+      return;
+    }
+    const touch = [...event.changedTouches].find(
+      (entry) => entry.identifier === state.handTouchActiveId,
+    );
+    if (!touch) {
+      if (event.type === "touchcancel" || event.touches.length === 0) {
+        resetHandFanTouchState();
+      }
+      return;
+    }
+    finishHandFanTouch(touch.identifier, handFan);
+  };
+
+  handFan.addEventListener("touchend", finishTouchDrag, { passive: true });
+  handFan.addEventListener("touchcancel", finishTouchDrag, { passive: true });
+
   if (window.PointerEvent) {
     handFan.addEventListener(
       "pointerdown",
       (event) => {
-        if (event.button !== 0 || state.handDragActiveInputId !== null) {
+        if (
+          event.pointerType === "touch" ||
+          event.button !== 0 ||
+          state.handDragActiveInputId !== null
+        ) {
           return;
         }
         beginHandFanDrag(event.pointerId, event.clientX, event.clientY, handFan);
@@ -3776,7 +3891,10 @@ function wireHandFanInteractions(handFan) {
     handFan.addEventListener(
       "pointermove",
       (event) => {
-        if (state.handDragActiveInputId !== event.pointerId) {
+        if (
+          event.pointerType === "touch" ||
+          state.handDragActiveInputId !== event.pointerId
+        ) {
           return;
         }
         updateHandFanDrag(event.pointerId, event.clientX, event.clientY, handFan);
@@ -3785,7 +3903,10 @@ function wireHandFanInteractions(handFan) {
     );
 
     const finishPointerDrag = (event) => {
-      if (state.handDragActiveInputId !== event.pointerId) {
+      if (
+        event.pointerType === "touch" ||
+        state.handDragActiveInputId !== event.pointerId
+      ) {
         return;
       }
       finishHandFanDrag(event.pointerId, handFan);
@@ -3827,54 +3948,6 @@ function wireHandFanInteractions(handFan) {
     handFan.addEventListener("mouseleave", finishMouseDrag);
     return;
   }
-
-  handFan.addEventListener(
-    "touchstart",
-    (event) => {
-      if (state.handDragActiveInputId !== null) {
-        return;
-      }
-      const touch = event.touches[0];
-      if (!touch) {
-        return;
-      }
-      beginHandFanDrag(touch.identifier, touch.clientX, touch.clientY, handFan);
-    },
-    { passive: true },
-  );
-
-  handFan.addEventListener(
-    "touchmove",
-    (event) => {
-      const touch =
-        [...event.touches].find(
-          (entry) => entry.identifier === state.handDragActiveInputId,
-        ) || event.touches[0];
-      if (!touch || state.handDragActiveInputId === null) {
-        return;
-      }
-      if (updateHandFanDrag(touch.identifier, touch.clientX, touch.clientY, handFan)) {
-        event.preventDefault();
-      }
-    },
-    { passive: false },
-  );
-
-  const finishTouchDrag = (event) => {
-    if (state.handDragActiveInputId === null) {
-      return;
-    }
-    const touch = [...event.changedTouches].find(
-      (entry) => entry.identifier === state.handDragActiveInputId,
-    );
-    if (!touch) {
-      return;
-    }
-    finishHandFanDrag(touch.identifier, handFan);
-  };
-
-  handFan.addEventListener("touchend", finishTouchDrag, { passive: true });
-  handFan.addEventListener("touchcancel", finishTouchDrag, { passive: true });
 
   handFan.addEventListener("mousedown", (event) => {
     if (event.button !== 0 || state.handDragActiveInputId !== null) {
@@ -4128,12 +4201,11 @@ function wireEvents() {
 }
 
 function render({ force = false } = {}) {
-  if (!force && isHandDragActive()) {
+  if (!force && isHandInteractionActive()) {
     state.handDragQueuedRender = true;
     return;
   }
   state.handDragQueuedRender = false;
-  captureHandFanScroll();
   document.body.classList.toggle(
     "game-active-mobile",
     !state.snapshot || isMobileActiveGameLayout(),
