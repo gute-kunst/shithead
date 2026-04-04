@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 SESSION_STORAGE_KEY = "shithead.alpha.session"
-STATIC_ASSET_VERSION = "20260403a"
+STATIC_ASSET_VERSION = "20260404b"
 
 
 def _http_error(err: ValueError) -> HTTPException:
@@ -82,8 +82,8 @@ def create_app(
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#11231f" />
     <title>Shithead Debug</title>
-    <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png" />
-    <link rel="apple-touch-icon" href="/static/icons/icon-180.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png?v={STATIC_ASSET_VERSION}" />
+    <link rel="apple-touch-icon" href="/static/icons/icon-180.png?v={STATIC_ASSET_VERSION}" />
     <link rel="manifest" href="/static/manifest.webmanifest?v={STATIC_ASSET_VERSION}" />
     <link rel="stylesheet" href="/static/styles.css?v={STATIC_ASSET_VERSION}" />
   </head>
