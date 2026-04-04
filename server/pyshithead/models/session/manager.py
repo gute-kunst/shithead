@@ -38,14 +38,14 @@ from pyshithead.models.session.models import (
     PlayerSnapshot,
     PrivateState,
     PrivateStateEvent,
-    ShoutoutEvent,
-    ShoutoutEventData,
-    ShoutoutPreset,
     RulesSnapshot,
     SessionAuthResponse,
     SessionSnapshot,
     SessionSnapshotEvent,
     SessionStatus,
+    ShoutoutEvent,
+    ShoutoutEventData,
+    ShoutoutPreset,
 )
 from pyshithead.models.session.store import SQLiteSessionStore
 

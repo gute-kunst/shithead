@@ -197,9 +197,7 @@ def test_build_private_state_includes_shoutout_cooldown_for_lobby_player(monkeyp
         player = session.get_player_by_seat(0)
         player.last_shoutout_at = fixed_now - timedelta(seconds=1)
         active_private_state = session.build_private_state(0)
-        assert active_private_state.shoutout_next_available_at == fixed_now + timedelta(
-            seconds=3
-        )
+        assert active_private_state.shoutout_next_available_at == fixed_now + timedelta(seconds=3)
 
         player.last_shoutout_at = fixed_now - timedelta(seconds=5)
         idle_private_state = session.build_private_state(0)

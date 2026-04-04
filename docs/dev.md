@@ -64,6 +64,16 @@ cd server
 poetry run python -m pytest tests_browser/test_debug_presets.py tests_browser/test_browser_smoke.py -q -o addopts=''
 ```
 
+## Pre-Commit Hook
+
+Enable the repo hook path once from the repo root:
+
+```powershell
+git config core.hooksPath .githooks
+```
+
+After that, every `git commit` runs the same black/isort checks as CI before the commit is created.
+
 ## Repo Notes
 
 - Session state is persisted in SQLite by default via `DATABASE_URL`, defaulting to `sqlite:///./shithead.db`.
