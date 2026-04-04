@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable, Optional
 
 from fastapi import WebSocket
+from fastapi.encoders import jsonable_encoder
 from starlette.websockets import WebSocketState
 
 from pyshithead.models.common import GameManager, request_models
@@ -980,7 +981,7 @@ class GameSession:
         if websocket.application_state == WebSocketState.DISCONNECTED:
             return False
         try:
-            await websocket.send_json(payload)
+            await websocket.send_json(jsonable_encoder(payload))
             return True
         except Exception:
             return False

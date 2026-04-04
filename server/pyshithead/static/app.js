@@ -946,41 +946,6 @@ function primeLocalShoutoutCooldown() {
   };
 }
 
-function privateStateChangedOnlyByShoutoutCooldown(previousState, nextState) {
-  if (!previousState) {
-    return false;
-  }
-  if (
-    Boolean(previousState.pending_joker_selection) !==
-    Boolean(nextState.pending_joker_selection)
-  ) {
-    return false;
-  }
-  if (
-    Boolean(previousState.pending_hidden_take) !==
-    Boolean(nextState.pending_hidden_take)
-  ) {
-    return false;
-  }
-  if ((previousState.private_cards || []).length !== (nextState.private_cards || []).length) {
-    return false;
-  }
-  for (let index = 0; index < (previousState.private_cards || []).length; index += 1) {
-    if (cardId(previousState.private_cards[index]) !== cardId(nextState.private_cards[index])) {
-      return false;
-    }
-  }
-  const previousJoker = previousState.pending_joker_card;
-  const nextJoker = nextState.pending_joker_card;
-  if (Boolean(previousJoker) !== Boolean(nextJoker)) {
-    return false;
-  }
-  if (previousJoker && cardId(previousJoker) !== cardId(nextJoker)) {
-    return false;
-  }
-  return true;
-}
-
 function syncShoutoutUnlockTimer() {
   clearShoutoutUnlockTimer();
   const cooldown = shoutoutCooldownState();
@@ -1509,7 +1474,6 @@ function connectWebSocket() {
     } else if (payload.type === "private_state") {
       const previousPrivateCards =
         state.privateState?.data?.private_cards || [];
-      const previousPrivateState = state.privateState?.data || null;
       state.privateState = payload;
       if (
         state.pendingLocalPlay &&
@@ -1536,18 +1500,14 @@ function connectWebSocket() {
           payload.data.pending_joker_card?.effective_rank || null;
         state.highLowChoice = "";
       }
-      const cooldownOnlyUpdate =
-        previousPrivateState !== null &&
-        privateStateChangedOnlyByShoutoutCooldown(previousPrivateState, payload.data);
-      if (!cooldownOnlyUpdate) {
-        render();
-      }
+      render();
     } else if (payload.type === "shoutout") {
       if (!rememberShoutoutEvent(payload.data?.event_id || "")) {
         return;
       }
       queueAnimation({
         kind: "shoutout",
+        eventId: payload.data.event_id || "",
         seat: payload.data.seat,
         preset: payload.data.preset,
         duration: prefersReducedMotion() ? 320 : 1500,
@@ -3225,6 +3185,7 @@ function renderShoutoutBubble(animation, snapshot) {
   return `
     <span
       class="motion-shoutout motion-shoutout-${escapeHtml(preset.key || "default")}"
+      data-shoutout-event-id="${escapeHtml(animation.eventId || "")}"
       data-shoutout-key="${escapeHtml(preset.key || "")}"
       style="
         left:${Math.round(anchor.x)}px;

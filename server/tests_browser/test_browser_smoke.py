@@ -430,6 +430,14 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
     expect(host_page.locator(".motion-shoutout")).to_have_count(1)
     expect(guest_page.locator(".motion-shoutout")).to_have_count(1)
     expect(guest_page.locator(".motion-shoutout")).to_contain_text("HAHAHA")
+    first_host_event_id = host_page.locator(".motion-shoutout").get_attribute(
+        "data-shoutout-event-id"
+    )
+    first_guest_event_id = guest_page.locator(".motion-shoutout").get_attribute(
+        "data-shoutout-event-id"
+    )
+    assert first_host_event_id
+    assert first_host_event_id == first_guest_event_id
     expect(host_page.locator(".shoutout-trigger-fill")).to_be_visible()
     expect(host_page.locator("#open-shoutout-menu")).to_be_disabled()
     expect(host_page.locator("#open-shoutout-menu")).to_have_class(
@@ -461,6 +469,20 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
     expect(host_page.locator(".shoutout-trigger-fill")).to_have_count(1)
     host_page.locator("#open-shoutout-menu").click()
     expect(host_page.locator(".shoutout-menu")).to_be_visible()
+    host_page.locator("[data-shoutout-key='hahaha']").click()
+    expect(host_page.locator(".motion-shoutout")).to_have_count(1)
+    expect(guest_page.locator(".motion-shoutout")).to_have_count(1)
+    expect(host_page.locator(".motion-shoutout")).to_contain_text("HAHAHA")
+    expect(guest_page.locator(".motion-shoutout")).to_contain_text("HAHAHA")
+    second_host_event_id = host_page.locator(".motion-shoutout").get_attribute(
+        "data-shoutout-event-id"
+    )
+    second_guest_event_id = guest_page.locator(".motion-shoutout").get_attribute(
+        "data-shoutout-event-id"
+    )
+    assert second_host_event_id
+    assert second_host_event_id == second_guest_event_id
+    assert second_host_event_id != first_host_event_id
 
 
 def test_service_worker_registers_and_reload_keeps_app_usable(live_server, browser_factory):
