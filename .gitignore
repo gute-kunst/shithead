@@ -69,6 +69,8 @@ instance/
 # Documentation
 docs/_build/
 
+# PRDs & work
+work/
 
 # PyBuilder
 target/
