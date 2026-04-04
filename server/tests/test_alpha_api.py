@@ -991,6 +991,46 @@ def test_hidden_seven_requires_high_low_choice_after_being_revealed():
         assert resolved_snapshot.status_message == "7 or lower!"
 
 
+def test_revealed_seven_accepts_nullable_joker_rank_when_resolved():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        game = session.game_manager.game
+        game.state = GameState.DURING_GAME
+        game.deck = PileOfCards()
+        game.play_pile = PileOfCards()
+        game.valid_ranks = set(range(2, 15))
+
+        host_player = game.get_player(0)
+        guest_player = game.get_player(1)
+        host_player.private_cards = SetOfCards()
+        host_player.public_cards = SetOfCards()
+        host_player.hidden_cards = SetOfCards([Card(SpecialRank.HIGHLOW, Suit.HEART)])
+        guest_player.private_cards = SetOfCards([Card(9, Suit.HEART)])
+        guest_player.public_cards = SetOfCards()
+
+        session.apply_action(host["player_token"], ActionRequest(type="play_hidden_card"))
+
+        pending_snapshot = session.build_snapshot()
+        pending_private_state = session.build_private_state(0)
+        assert pending_snapshot.current_turn_seat == 0
+        assert pending_snapshot.play_pile[0].rank == SpecialRank.HIGHLOW
+        assert pending_private_state.pending_joker_selection is True
+
+        session.apply_action(
+            host["player_token"],
+            ActionRequest(type="resolve_joker", choice="LOWER", joker_rank=None),
+        )
+
+        resolved_snapshot = session.build_snapshot()
+        assert resolved_snapshot.current_turn_seat == 1
+        assert resolved_snapshot.status_message == "7 or lower!"
+
+
 def test_unplayable_hidden_seven_requires_taking_the_pile_not_high_low_choice():
     session_manager.sessions.clear()
     with TestClient(app, base_url="http://localhost") as client:

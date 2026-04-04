@@ -142,17 +142,15 @@ def test_debug_bootstrap_link_opens_revealed_seven_preset_and_resolves_choice(
     )
     expect(page.locator("#choose-lower")).to_be_visible()
     expect(page.locator("#choose-higher")).to_be_visible()
-    page.locator("#choose-lower").evaluate("(button) => button.click()")
+    page.locator("#choose-lower").click()
     expect(page.locator("#choose-lower")).to_have_class(re.compile(r"\baccent\b"))
 
     expect(page.locator("#hand-primary-action")).to_be_enabled()
-    seed.session.apply_action(
-        seed.session.get_player_by_seat(0).token,
-        ActionRequest(type="resolve_joker", choice="LOWER", joker_rank=int(SpecialRank.HIGHLOW)),
-    )
-    page.reload(wait_until="networkidle")
+    page.locator("#hand-primary-action").click()
 
     _wait_for(lambda: seed.session.build_snapshot().status_message == "7 or lower!")
+    expect(page.locator(".dock-error")).to_have_count(0)
+    expect(page.locator(".dock-prompt")).to_contain_text("Waiting for Guest to play.")
     resolved_private_state = seed.session.build_private_state(0)
     resolved_snapshot = seed.session.build_snapshot()
     assert resolved_private_state.pending_joker_selection is False

@@ -1722,27 +1722,41 @@ function submitResolveJoker() {
     render();
     return;
   }
-  if (!state.jokerRank) {
-    state.error = "Choose what the joker should be first.";
-    render();
-    return;
-  }
-  if (
-    state.jokerRank === state.snapshot.data.rules.high_low_rank &&
-    !["HIGHER", "LOWER"].includes(state.highLowChoice)
-  ) {
+  const pendingCard = pendingJokerCard();
+  const pendingRevealedJoker = isJokerCard(pendingCard);
+  const needsHighLowChoice = pendingRevealedJoker
+    ? state.jokerRank === state.snapshot.data.rules.high_low_rank
+    : true;
+
+  if (pendingRevealedJoker) {
+    if (!state.jokerRank) {
+      state.error = "Choose what the joker should be first.";
+      render();
+      return;
+    }
+    if (needsHighLowChoice && !["HIGHER", "LOWER"].includes(state.highLowChoice)) {
+      state.error =
+        "Choose whether the next player must go higher or may go lower.";
+      render();
+      return;
+    }
+  } else if (!["HIGHER", "LOWER"].includes(state.highLowChoice)) {
     state.error =
       "Choose whether the next player must go higher or may go lower.";
     render();
     return;
   }
+
+  const choice = pendingRevealedJoker
+    ? needsHighLowChoice
+      ? state.highLowChoice
+      : ""
+    : state.highLowChoice;
+
   sendAction({
     type: "resolve_joker",
-    choice:
-      state.jokerRank === state.snapshot.data.rules.high_low_rank
-        ? state.highLowChoice
-        : "",
-    joker_rank: state.jokerRank,
+    choice,
+    joker_rank: pendingRevealedJoker ? state.jokerRank : null,
   });
   resetSelection();
 }
