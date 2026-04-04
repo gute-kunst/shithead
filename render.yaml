@@ -10,3 +10,5 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.11
+      - key: DATABASE_URL
+        value: sqlite:////var/data/shithead.db
