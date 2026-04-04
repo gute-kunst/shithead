@@ -33,6 +33,7 @@ app = FastAPI()
 logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+STATS_UI_DIR = Path(__file__).resolve().parent / "stats_ui"
 SESSION_STORAGE_KEY = "shithead.alpha.session"
 ANONYMOUS_USER_COOKIE = "shithead.alpha.user"
 STATIC_ASSET_VERSION = "20260404c"
@@ -78,6 +79,19 @@ def create_app(
     @app.get("/healthz")
     async def healthcheck():
         return {"ok": True}
+
+    @app.get("/stats-ui", response_class=HTMLResponse)
+    @app.get("/stats-ui/", include_in_schema=False)
+    async def read_stats_ui():
+        return FileResponse(STATS_UI_DIR / "index.html")
+
+    @app.get("/stats-ui/stats.js", include_in_schema=False)
+    async def read_stats_ui_script():
+        return FileResponse(STATS_UI_DIR / "stats.js", media_type="application/javascript")
+
+    @app.get("/stats-ui/styles.css", include_in_schema=False)
+    async def read_stats_ui_styles():
+        return FileResponse(STATS_UI_DIR / "styles.css", media_type="text/css")
 
     @app.get("/stats")
     async def read_stats(days: int = Query(30, ge=7, le=365)):

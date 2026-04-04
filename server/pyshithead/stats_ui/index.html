@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0f1c19" />
+    <title>Shithead Stats</title>
+    <meta
+      name="description"
+      content="Public aggregate usage statistics for the Shithead game."
+    />
+    <link rel="stylesheet" href="/stats-ui/styles.css?v=20260404a" />
+    <script src="/stats-ui/stats.js?v=20260404a" defer></script>
+  </head>
+  <body>
+    <div class="page-shell stats-shell">
+      <main class="stats-app" id="dashboard">
+        <header class="hero">
+          <div class="hero-copy">
+            <p class="eyebrow">Public stats</p>
+            <h1>Shithead Stats</h1>
+            <p class="lede">
+              Aggregate usage metrics showing how the game is being used over time.
+            </p>
+          </div>
+          <div class="hero-controls">
+            <div class="control-label">Time range</div>
+            <div id="range-selector" class="segmented" role="group" aria-label="Select time range"></div>
+          </div>
+        </header>
+
+        <section id="status-banner" class="status-banner" role="status" aria-live="polite">
+          Loading stats...
+        </section>
+
+        <section class="panel">
+          <div class="section-heading">
+            <h2>Overview</h2>
+            <p>Core totals for users, lobbies, and games.</p>
+          </div>
+          <div id="summary-grid" class="metric-grid"></div>
+        </section>
+
+        <section class="panel">
+          <div class="section-heading">
+            <h2>Conversion</h2>
+            <p>How effectively lobbies become games and games finish.</p>
+          </div>
+          <div id="conversion-grid" class="metric-grid metric-grid--compact"></div>
+        </section>
+
+        <section class="panel">
+          <div class="section-heading">
+            <h2>Recent activity</h2>
+            <p>Short-window activity snapshots.</p>
+          </div>
+          <div id="recent-grid" class="metric-grid metric-grid--dense"></div>
+        </section>
+
+        <section class="panel">
+          <div class="section-heading">
+            <h2>Daily activity</h2>
+            <p>Small multiple charts for the selected range.</p>
+          </div>
+          <div id="charts-grid" class="chart-grid"></div>
+        </section>
+
+        <footer class="footer">
+          <div id="meta-line" class="meta-line">Aggregate-only data.</div>
+          <p>This page shows aggregate usage only. No personal player data is exposed.</p>
+        </footer>
+      </main>
+    </div>
+  </body>
+</html>
