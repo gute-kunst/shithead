@@ -12,6 +12,7 @@
 From the repo root:
 
 ```powershell
+.\.githooks\install.cmd
 cd server
 poetry install
 poetry run python -m playwright install chromium firefox webkit
@@ -76,7 +77,7 @@ poetry run python -m pytest tests_browser -q -o addopts='' --browser chromium
 Enable the repo hook path once from the repo root:
 
 ```powershell
-git config core.hooksPath .githooks
+.\.githooks\install.cmd
 ```
 
 After that, every `git commit` runs the same black/isort checks as CI before the commit is created.

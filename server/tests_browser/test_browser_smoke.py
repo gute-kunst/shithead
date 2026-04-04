@@ -486,9 +486,7 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
     assert second_host_event_id != first_host_event_id
 
 
-def test_game_over_score_page_can_rematch_back_to_lobby(
-    live_app_server_factory, browser_factory
-):
+def test_game_over_score_page_can_rematch_back_to_lobby(live_app_server_factory, browser_factory):
     debug_app, seed = create_debug_app("game-over")
     base_url = live_app_server_factory(debug_app)
     host = seed.session.get_player_by_seat(0)
