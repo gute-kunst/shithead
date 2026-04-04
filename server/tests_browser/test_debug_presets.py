@@ -178,3 +178,14 @@ def test_debug_bootstrap_link_opens_hidden_seven_take_preset(
     expect(page.locator(".pile-preview")).to_contain_text("7")
     expect(page.locator("#take-pile-overlay")).to_be_visible()
     assert seed.session.build_snapshot().status_message == "Host revealed 7 and must take the pile."
+
+
+def test_debug_game_over_shows_rank_badges_for_winner_and_final_player(
+    live_app_server_factory, browser_factory
+):
+    page, _seed = _open_debug_session(live_app_server_factory, browser_factory, "game-over")
+
+    expect(page.locator(".seat-badge-placement.seat-badge-winner")).to_contain_text("1st")
+    expect(page.locator(".seat-badge-placement.seat-badge-winner")).to_contain_text("👑")
+    expect(page.locator(".seat-badge-placement.seat-badge-shithead")).to_contain_text("Shithead")
+    expect(page.locator(".seat-badge-placement.seat-badge-shithead")).to_contain_text("💩")

@@ -890,6 +890,34 @@ function winner() {
   );
 }
 
+function placementBadgeForPlayer(snapshot, player) {
+  if (player.finished_position == null) {
+    return null;
+  }
+
+  if (player.finished_position === 1) {
+    return {
+      label: "1st 👑",
+      classes: ["seat-badge-placement", "seat-badge-winner"],
+    };
+  }
+
+  if (
+    snapshot.status === "GAME_OVER" &&
+    player.finished_position === snapshot.players.length
+  ) {
+    return {
+      label: "Shithead 💩",
+      classes: ["seat-badge-placement", "seat-badge-shithead"],
+    };
+  }
+
+  return {
+    label: ordinal(player.finished_position),
+    classes: ["seat-badge-placement"],
+  };
+}
+
 function turnPlayer() {
   return (
     state.snapshot?.data?.players.find(
@@ -2561,6 +2589,7 @@ function renderSeat(snapshot, player) {
   const isCurrentTurn = player.seat === snapshot.current_turn_seat;
   const isWinner = player.finished_position === 1;
   const isYou = player.seat === state.seat;
+  const placementBadge = placementBadgeForPlayer(snapshot, player);
   const seatClasses = [
     "seat-panel",
     seatPositionClass(snapshot, player),
@@ -2580,13 +2609,14 @@ function renderSeat(snapshot, player) {
     .join(" ");
 
   const seatBadges = [
-    isYou ? "You" : "",
-    player.is_host ? "Host" : "",
-    player.has_finished ? ordinal(player.finished_position) : "",
-    !player.is_connected ? "Offline" : "",
+    placementBadge
+      ? `<span class="seat-badge ${placementBadge.classes.join(" ")}">${escapeHtml(placementBadge.label)}</span>`
+      : "",
+    isYou ? '<span class="seat-badge seat-badge-meta">You</span>' : "",
+    player.is_host ? '<span class="seat-badge seat-badge-meta">Host</span>' : "",
+    !player.is_connected ? '<span class="seat-badge seat-badge-meta">Offline</span>' : "",
   ]
     .filter(Boolean)
-    .map((badge) => `<span class="seat-badge">${escapeHtml(badge)}</span>`)
     .join("");
 
   return `
