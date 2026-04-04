@@ -1,0 +1,47 @@
+name: Nightly Shithead Server Tests
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: "Nightly Python ${{ matrix.python-version }} on ${{ matrix.os }}"
+    runs-on: "${{ matrix.os }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-latest"]
+        python-version: ["3.11"]
+    defaults:
+      run:
+        working-directory: ./server
+        shell: bash
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - uses: snok/install-poetry@v1
+      with:
+        version: 1.8.5
+        virtualenvs-create: true
+
+    - run: poetry install --no-interaction
+
+    - run: poetry run python -m playwright install --with-deps chromium firefox webkit
+
+    - run: poetry run python -m pytest tests_browser -q -o addopts=''
+
+    - run: poetry run python -m pytest --junitxml=junit/test-results-${{ matrix.python-version }}-${{ matrix.os }}.xml --cov
+
+    - name: Upload pytest test results
+      uses: actions/upload-artifact@v4
+      with:
+        name: nightly-pytest-results-${{ matrix.python-version }}-${{ matrix.os }}
+        path: server/junit/test-results-${{ matrix.python-version }}-${{ matrix.os }}.xml
+      if: ${{ always() }}

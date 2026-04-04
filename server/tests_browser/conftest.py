@@ -39,6 +39,23 @@ BROWSER_PROFILES_BY_BROWSER = {
 }
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--browser",
+        action="append",
+        choices=BROWSER_TYPES,
+        help="Limit browser test execution to the selected browser type(s).",
+    )
+
+
+def pytest_generate_tests(metafunc):
+    if "browser_name" not in metafunc.fixturenames:
+        return
+
+    selected_browsers = metafunc.config.getoption("browser") or list(BROWSER_TYPES)
+    metafunc.parametrize("browser_name", selected_browsers, scope="session", ids=selected_browsers)
+
+
 def _browser_launch(browser_type, *, browser_name: str):
     try:
         return getattr(browser_type, browser_name).launch(headless=True)
@@ -144,7 +161,7 @@ def playwright_instance():
         manager.__exit__(None, None, None)
 
 
-@pytest.fixture(scope="session", params=BROWSER_TYPES, ids=BROWSER_TYPES)
+@pytest.fixture(scope="session")
 def browser_name(request):
     return request.param
 

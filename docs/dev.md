@@ -64,6 +64,13 @@ cd server
 poetry run python -m pytest tests_browser/test_debug_presets.py tests_browser/test_browser_smoke.py -q -o addopts=''
 ```
 
+For a faster Chromium-only run that matches the push CI path:
+
+```powershell
+cd server
+poetry run python -m pytest tests_browser -q -o addopts='' --browser chromium
+```
+
 ## Pre-Commit Hook
 
 Enable the repo hook path once from the repo root:

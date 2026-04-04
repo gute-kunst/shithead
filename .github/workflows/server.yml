@@ -12,6 +12,9 @@ jobs:
   tests:
     name: "Python ${{ matrix.python-version }} on ${{ matrix.os }}"
     runs-on: "${{ matrix.os }}"
+    env:
+      PLAYWRIGHT_BROWSERS: "${{ github.event_name == 'push' && 'chromium' || 'chromium firefox webkit' }}"
+      BROWSER_ARGS: "${{ github.event_name == 'push' && '--browser chromium' || '' }}"
     strategy:
       fail-fast: false
       matrix:
@@ -40,9 +43,9 @@ jobs:
 
     - run: poetry run python -m isort --check-only pyshithead/main.py pyshithead/models/common/game_manager.py pyshithead/models/game/game.py pyshithead/models/session/manager.py tests/test_alpha_api.py tests_browser
 
-    - run: poetry run python -m playwright install --with-deps chromium firefox webkit
+    - run: poetry run python -m playwright install --with-deps $PLAYWRIGHT_BROWSERS
 
-    - run: poetry run python -m pytest tests_browser -q -o addopts=''
+    - run: poetry run python -m pytest tests_browser -q -o addopts='' $BROWSER_ARGS
 
     - run: poetry run python -m pytest --junitxml=junit/test-results-${{ matrix.python-version }}-${{ matrix.os }}.xml --cov
 
