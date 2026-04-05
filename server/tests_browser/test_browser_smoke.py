@@ -222,9 +222,7 @@ def test_multiplayer_lobby_start_public_selection_and_refresh_reconnect(
 ):
     host_page = open_page(browser_factory(), live_server)
     create_table(host_page, "Host")
-    expect(host_page.locator("body")).to_have_class(
-        re.compile(r".*game-active-mobile.*")
-    )
+    expect(host_page.locator("body")).to_have_class(re.compile(r".*game-active-mobile.*"))
     invite_code = extract_invite_code(host_page)
 
     guest_page = open_page(browser_factory(), live_server)
