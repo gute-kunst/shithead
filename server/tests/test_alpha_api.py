@@ -47,6 +47,12 @@ def join_game(client: TestClient, invite_code: str, display_name: str):
     return response.json()
 
 
+def shoutout_signature(snapshot):
+    return [
+        (preset["key"], preset["label"], preset["emoji"]) for preset in snapshot["shoutout_presets"]
+    ]
+
+
 def start_game(client: TestClient, invite_code: str, player_token: str):
     response = client.post(
         f"/api/games/{invite_code}/start",
@@ -125,13 +131,41 @@ def test_create_and_join_alpha_lobby():
         assert snapshot["status"] == "LOBBY"
         assert [player["display_name"] for player in snapshot["players"]] == ["Host", "Guest"]
         assert snapshot["rules"]["allow_optional_take_pile"] is False
-        assert [preset["key"] for preset in snapshot["shoutout_presets"]] == [
-            "hahaha",
-            "great-move",
-            "wtf",
-            "shit",
-            "nice",
-            "oof",
+        assert shoutout_signature(snapshot) == [
+            ("lets-gooo", "Let's gooo!", "🎉"),
+            ("shuffle-up-and-deal", "Shuffle up and deal.", "🃏"),
+            ("optional-pile-takes", "Shall we allow optional pile takes?", "🤔"),
+            ("obviously", "Obviously!", "💯"),
+            ("nope", "Nope.", "👎"),
+            ("may-the-worst-hand-lose", "May the worst hand lose.", "💩"),
+        ]
+
+        start_game(client, invite_code, host["player_token"])
+        state = client.get(f"/api/games/{invite_code}")
+        assert state.status_code == 200
+        snapshot = state.json()["data"]
+        assert snapshot["status"] == "IN_GAME"
+        assert shoutout_signature(snapshot) == [
+            ("how-just-how", "How. Just HOW.", "🤯"),
+            ("its-getting-hot-in-here", "It's getting hot in here.", "🌶️"),
+            ("good-vibes-only", "Good vibes only!", "🍀"),
+            ("faster", "FASTER!", "⚡"),
+        ]
+
+        session = session_manager.get_session(invite_code)
+        session.game_manager.game.state = GameState.GAME_OVER
+        session._finalize_state_change()
+        state = client.get(f"/api/games/{invite_code}")
+        assert state.status_code == 200
+        snapshot = state.json()["data"]
+        assert snapshot["status"] == "GAME_OVER"
+        assert shoutout_signature(snapshot) == [
+            ("expletive-burst", "*!♧@#♢%^&", "👿"),
+            ("rematch-immediately", "Rematch. Immediately.", "😈"),
+            ("that-doesnt-count", "That doesn't count.", "😤"),
+            ("that-was-intense", "That was intense.", "😮‍💨"),
+            ("strong-game", "Strong game!", "💪"),
+            ("sending-love", "Sending Love", "🫶"),
         ]
 
 
@@ -242,7 +276,7 @@ def test_lobby_shoutout_broadcasts_live_event_to_connected_players():
                 assert host_join_notice["type"] == "session_snapshot"
                 assert host_join_notice["data"]["players"][1]["is_connected"] is True
 
-                host_ws.send_json({"type": "send_shoutout", "shoutout_key": "hahaha"})
+                host_ws.send_json({"type": "send_shoutout", "shoutout_key": "lets-gooo"})
 
                 host_event = host_ws.receive_json()
                 guest_event = guest_ws.receive_json()
@@ -252,8 +286,24 @@ def test_lobby_shoutout_broadcasts_live_event_to_connected_players():
                 assert host_event["data"]["event_id"] != ""
                 assert guest_event["data"]["event_id"] == host_event["data"]["event_id"]
                 assert host_event["data"]["seat"] == 0
-                assert host_event["data"]["preset"]["key"] == "hahaha"
-                assert guest_event["data"]["preset"]["label"] == "HAHAHA"
+                assert host_event["data"]["preset"]["key"] == "lets-gooo"
+                assert guest_event["data"]["preset"]["label"] == "Let's gooo!"
+
+
+def test_in_game_shoutout_keys_are_phase_specific():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+        start_game(client, host["invite_code"], host["player_token"])
+        snapshot = client.get(f"/api/games/{host['invite_code']}").json()["data"]
+        assert snapshot["status"] == "IN_GAME"
+
+        with pytest.raises(ValueError, match="Unknown shoutout preset."):
+            session_manager.get_session(host["invite_code"]).apply_action(
+                host["player_token"],
+                ActionRequest(type="send_shoutout", shoutout_key="lets-gooo"),
+            )
 
 
 def test_game_over_shoutout_broadcasts_live_event_to_connected_players():
@@ -278,7 +328,7 @@ def test_game_over_shoutout_broadcasts_live_event_to_connected_players():
             with client.websocket_connect(guest_path) as guest_ws:
                 receive_until_types(guest_ws, {"session_snapshot", "private_state"})
 
-                host_ws.send_json({"type": "send_shoutout", "shoutout_key": "hahaha"})
+                host_ws.send_json({"type": "send_shoutout", "shoutout_key": "rematch-immediately"})
 
                 host_messages = receive_until_types(host_ws, {"shoutout"})
                 guest_messages = receive_until_types(guest_ws, {"shoutout"})
@@ -286,7 +336,7 @@ def test_game_over_shoutout_broadcasts_live_event_to_connected_players():
                 guest_event = guest_messages["shoutout"]
                 assert host_event["type"] == "shoutout"
                 assert guest_event["type"] == "shoutout"
-                assert host_event["data"]["preset"]["key"] == "hahaha"
+                assert host_event["data"]["preset"]["key"] == "rematch-immediately"
                 assert guest_event["data"]["event_id"] == host_event["data"]["event_id"]
                 assert host_event["data"]["seat"] == 0
 
@@ -301,11 +351,11 @@ def test_shoutout_cooldown_blocks_rapid_repeats(monkeypatch):
 
         first_event = session.apply_action(
             host["player_token"],
-            ActionRequest(type="send_shoutout", shoutout_key="nice"),
+            ActionRequest(type="send_shoutout", shoutout_key="optional-pile-takes"),
         )
         assert first_event is not None
         assert first_event.data.event_id
-        assert first_event.data.preset.key == "nice"
+        assert first_event.data.preset.key == "optional-pile-takes"
         assert session.get_player_by_seat(0).last_shoutout_at == fixed_now
         assert session.build_private_state(0).shoutout_next_available_at == fixed_now + timedelta(
             seconds=4
@@ -314,7 +364,7 @@ def test_shoutout_cooldown_blocks_rapid_repeats(monkeypatch):
         with pytest.raises(ValueError, match="Please wait before sending another shoutout."):
             session.apply_action(
                 host["player_token"],
-                ActionRequest(type="send_shoutout", shoutout_key="oof"),
+                ActionRequest(type="send_shoutout", shoutout_key="nope"),
             )
 
 

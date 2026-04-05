@@ -66,14 +66,146 @@ def _normalize_display_name(display_name: str) -> str:
     return cleaned
 
 
-SHOUTOUT_PRESET_DATA = (
-    {"key": "hahaha", "label": "HAHAHA", "emoji": "😹", "color": "#2F6F8F"},
-    {"key": "great-move", "label": "*!♧@#♢%^&", "emoji": "👿", "color": "#6D3FA5"},
-    {"key": "wtf", "label": "Eat the pile, loser!", "emoji": "🗑️", "color": "#56606B"},
-    {"key": "shit", "label": "That escalated quickly.", "emoji": "⚡", "color": "#3656A8"},
-    {"key": "nice", "label": "Burrrrn!", "emoji": "🔥", "color": "#C2410C"},
-    {"key": "oof", "label": "Well played \n ♦ ♣ ♠ ♥", "emoji": "🤝", "color": "#8A5A2B"},
-)
+SHOUTOUT_PRESET_DATA_BY_STATUS = {
+    SessionStatus.LOBBY: (
+        {
+            "key": "lets-gooo",
+            "label": "Let's gooo!",
+            "emoji": "🎉",
+            "color": "#B45309",  # festive amber — party energy
+        },
+        {
+            "key": "shuffle-up-and-deal",
+            "label": "Shuffle up and deal.",
+            "emoji": "🃏",
+            "color": "#1E3A5F",  # deep card table green-blue — casino
+        },
+        {
+            "key": "optional-pile-takes",
+            "label": "Shall we allow optional pile takes?",
+            "emoji": "🤔",
+            "color": "#6D4C41",  # warm brown — thoughtful
+        },
+        {
+            "key": "obviously",
+            "label": "Obviously!",
+            "emoji": "💯",
+            "color": "#15803D",  # strong green — confirmed yes
+        },
+        {
+            "key": "nope",
+            "label": "Nope.",
+            "emoji": "👎",
+            "color": "#991B1B",  # hard red — rejection
+        },
+        {
+            "key": "may-the-worst-hand-lose",
+            "label": "May the worst hand lose.",
+            "emoji": "💩",
+            "color": "#78350F",  # deep brown — obvious reasons 💩
+        },
+    ),
+    SessionStatus.IN_GAME: (
+        {
+            "key": "hahaha",
+            "label": "HAHAHA",
+            "emoji": "😹",
+            "color": "#FDE68A",
+        },  # warm yellow — laughter
+        {
+            "key": "great-move",
+            "label": "*!♧@#♢%^&",
+            "emoji": "👿",
+            "color": "#7C3AED",
+        },  # deep purple — evil
+        {
+            "key": "wtf",
+            "label": "Eat the pile, loser!",
+            "emoji": "🗑️",
+            "color": "#6B7280",
+        },  # cool grey — trash
+        {
+            "key": "shit",
+            "label": "That escalated quickly.",
+            "emoji": "⚡",
+            "color": "#1D4ED8",
+        },  # electric blue — shock
+        {
+            "key": "nice",
+            "label": "Burrrrn!",
+            "emoji": "🔥",
+            "color": "#EA580C",
+        },  # deep orange — fire
+        {
+            "key": "oof",
+            "label": "Well played \n ♦ ♣ ♠ ♥",
+            "emoji": "🤝",
+            "color": "#92400E",
+        },  # warm brown — respect
+        {
+            "key": "how-just-how",
+            "label": "How. Just HOW.",
+            "emoji": "🤯",
+            "color": "#DB2777",
+        },  # hot pink — explosion
+        {
+            "key": "its-getting-hot-in-here",
+            "label": "It's getting hot in here.",
+            "emoji": "🌶️",
+            "color": "#B91C1C",
+        },  # chili red — spicy
+        {
+            "key": "good-vibes-only",
+            "label": "Good vibes only!",
+            "emoji": "🍀",
+            "color": "#15803D",
+        },  # rich green — luck
+        {
+            "key": "faster",
+            "label": "FASTER!",
+            "emoji": "⚡",
+            "color": "#1E40AF",
+        },  # deep blue — electric
+    ),
+    SessionStatus.GAME_OVER: (
+        {
+            "key": "expletive-burst",
+            "label": "*!♧@#♢%^&",
+            "emoji": "👿",
+            "color": "#4C1D95",  # deep villain purple — rage demon
+        },
+        {
+            "key": "rematch-immediately",
+            "label": "Rematch. Immediately.",
+            "emoji": "😈",
+            "color": "#7F1D1D",  # dark blood red — vengeful energy
+        },
+        {
+            "key": "that-doesnt-count",
+            "label": "That doesn't count.",
+            "emoji": "😤",
+            "color": "#374151",  # stormy grey — dismissive
+        },
+        {
+            "key": "that-was-intense",
+            "label": "That was intense.",
+            "emoji": "😮‍💨",
+            "color": "#1E3A5F",  # deep exhale blue — relief/tension
+        },
+        {
+            "key": "strong-game",
+            "label": "Strong game!",
+            "emoji": "💪",
+            "color": "#1D4ED8",  # bold blue — strength/confidence
+        },
+        {
+            "key": "sending-love",
+            "label": "Sending Love",
+            "emoji": "🫶",
+            "color": "#9D174D",  # deep rose — warm love
+        },
+    ),
+}
 
 
 @dataclass
@@ -274,11 +406,16 @@ class GameSession:
             allow_optional_take_pile=self.settings.allow_optional_take_pile,
         )
 
-    def _shoutout_presets(self) -> list[ShoutoutPreset]:
-        return [ShoutoutPreset(**preset) for preset in SHOUTOUT_PRESET_DATA]
+    def _shoutout_preset_data(self, status: SessionStatus | None = None):
+        return SHOUTOUT_PRESET_DATA_BY_STATUS.get(status or self.status, ())
 
-    def _get_shoutout_preset(self, shoutout_key: str) -> ShoutoutPreset:
-        for preset in SHOUTOUT_PRESET_DATA:
+    def _shoutout_presets(self, status: SessionStatus | None = None) -> list[ShoutoutPreset]:
+        return [ShoutoutPreset(**preset) for preset in self._shoutout_preset_data(status)]
+
+    def _get_shoutout_preset(
+        self, shoutout_key: str, status: SessionStatus | None = None
+    ) -> ShoutoutPreset:
+        for preset in self._shoutout_preset_data(status):
             if preset["key"] == shoutout_key:
                 return ShoutoutPreset(**preset)
         raise ValueError("Unknown shoutout preset.")

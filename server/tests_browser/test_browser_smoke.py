@@ -48,8 +48,19 @@ def extract_invite_code(page) -> str:
     return match.group(1)
 
 
+def shoutout_menu_signature(page):
+    return page.locator("[data-shoutout-key]").evaluate_all(
+        "(nodes) => nodes.map((node) => [node.dataset.shoutoutKey, node.title])"
+    )
+
+
 def finish_public_selection(invite_code: str):
     session = session_manager.get_session(invite_code)
+    for _ in range(50):
+        if session.game_manager is not None:
+            break
+        time.sleep(0.1)
+    assert session.game_manager is not None
     game = session.game_manager.game
     for player in game.active_players:
         player.public_cards_were_selected = True
@@ -732,12 +743,21 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
     expect(host_page.locator("#open-shoutout-menu")).to_be_visible()
     host_page.locator("#open-shoutout-menu").click()
     expect(host_page.locator(".shoutout-menu")).to_be_visible()
+    expect(host_page.locator(".shoutout-chip")).to_have_count(6)
+    assert shoutout_menu_signature(host_page) == [
+        ["lets-gooo", "Let's gooo!"],
+        ["shuffle-up-and-deal", "Shuffle up and deal."],
+        ["optional-pile-takes", "Shall we allow optional pile takes?"],
+        ["obviously", "Obviously!"],
+        ["nope", "Nope."],
+        ["may-the-worst-hand-lose", "May the worst hand lose."],
+    ]
 
-    host_page.locator("[data-shoutout-key='hahaha']").click()
+    host_page.locator("[data-shoutout-key='lets-gooo']").click()
 
     expect(host_page.locator(".motion-shoutout")).to_have_count(1)
     expect(guest_page.locator(".motion-shoutout")).to_have_count(1)
-    expect(guest_page.locator(".motion-shoutout")).to_contain_text("HAHAHA")
+    expect(guest_page.locator(".motion-shoutout")).to_contain_text("Let's gooo!")
     first_host_event_id = host_page.locator(".motion-shoutout").get_attribute(
         "data-shoutout-event-id"
     )
@@ -777,11 +797,11 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
     expect(host_page.locator(".shoutout-trigger-fill")).to_have_count(1)
     host_page.locator("#open-shoutout-menu").click()
     expect(host_page.locator(".shoutout-menu")).to_be_visible()
-    host_page.locator("[data-shoutout-key='hahaha']").click()
+    host_page.locator("[data-shoutout-key='lets-gooo']").click()
     expect(host_page.locator(".motion-shoutout")).to_have_count(1)
     expect(guest_page.locator(".motion-shoutout")).to_have_count(1)
-    expect(host_page.locator(".motion-shoutout")).to_contain_text("HAHAHA")
-    expect(guest_page.locator(".motion-shoutout")).to_contain_text("HAHAHA")
+    expect(host_page.locator(".motion-shoutout")).to_contain_text("Let's gooo!")
+    expect(guest_page.locator(".motion-shoutout")).to_contain_text("Let's gooo!")
     second_host_event_id = host_page.locator(".motion-shoutout").get_attribute(
         "data-shoutout-event-id"
     )
@@ -791,6 +811,35 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
     assert second_host_event_id
     assert second_host_event_id == second_guest_event_id
     assert second_host_event_id != first_host_event_id
+
+
+def test_during_game_shoutouts_show_phase_specific_presets(live_server, browser_factory):
+    host_page = open_page(browser_factory(), live_server)
+    create_table(host_page, "Host")
+    invite_code = extract_invite_code(host_page)
+
+    guest_page = open_page(browser_factory(), live_server)
+    join_table(guest_page, invite_code, "Guest")
+
+    host_page.locator("#start-game").click()
+    finish_public_selection(invite_code)
+
+    expect(host_page.locator("#open-shoutout-menu")).to_be_visible()
+    host_page.locator("#open-shoutout-menu").click()
+    expect(host_page.locator(".shoutout-menu")).to_be_visible()
+    expect(host_page.locator(".shoutout-chip")).to_have_count(4)
+    assert shoutout_menu_signature(host_page) == [
+        ["how-just-how", "How. Just HOW."],
+        ["its-getting-hot-in-here", "It's getting hot in here."],
+        ["good-vibes-only", "Good vibes only!"],
+        ["faster", "FASTER!"],
+    ]
+
+    host_page.locator("[data-shoutout-key='faster']").click()
+
+    expect(host_page.locator(".motion-shoutout")).to_have_count(1)
+    expect(guest_page.locator(".motion-shoutout")).to_have_count(1)
+    expect(guest_page.locator(".motion-shoutout")).to_contain_text("FASTER!")
 
 
 def test_game_over_score_page_shoutouts_and_rematch_back_to_lobby(
@@ -818,11 +867,20 @@ def test_game_over_score_page_shoutouts_and_rematch_back_to_lobby(
     expect(host_page.locator("#open-shoutout-menu")).to_be_visible()
     host_page.locator("#open-shoutout-menu").click()
     expect(host_page.locator(".shoutout-menu")).to_be_visible()
-    host_page.locator("[data-shoutout-key='hahaha']").click()
+    expect(host_page.locator(".shoutout-chip")).to_have_count(6)
+    assert shoutout_menu_signature(host_page) == [
+        ["expletive-burst", "*!♧@#♢%^&"],
+        ["rematch-immediately", "Rematch. Immediately."],
+        ["that-doesnt-count", "That doesn't count."],
+        ["that-was-intense", "That was intense."],
+        ["strong-game", "Strong game!"],
+        ["sending-love", "Sending Love"],
+    ]
+    host_page.locator("[data-shoutout-key='rematch-immediately']").click()
 
     expect(host_page.locator(".motion-shoutout")).to_have_count(1)
     expect(guest_page.locator(".motion-shoutout")).to_have_count(1)
-    expect(guest_page.locator(".motion-shoutout")).to_contain_text("HAHAHA")
+    expect(guest_page.locator(".motion-shoutout")).to_contain_text("Rematch. Immediately.")
 
     guest_host_panel, guest_host_rail, guest_host_badge_offsets = _seat_badge_geometry(
         guest_page, 0
