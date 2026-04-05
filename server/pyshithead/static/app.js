@@ -2526,7 +2526,7 @@ function renderSeatBackCard(rotation = 0, offset = 0) {
 
 function renderSeatHandFan(privateCardsCount) {
   if (privateCardsCount <= 0) {
-    return '<span class="seat-muted">No hand cards</span>';
+    return "";
   }
 
   const visibleCards = Math.min(privateCardsCount, 8);
@@ -2554,9 +2554,7 @@ function renderSeatMiniCard(card) {
 
 function renderSeatPublicStack(publicCards, hiddenCardsCount) {
   if (publicCards.length === 0) {
-    return hiddenCardsCount > 0
-      ? renderSeatHiddenStack(hiddenCardsCount)
-      : '<span class="seat-muted">No table cards</span>';
+    return hiddenCardsCount > 0 ? renderSeatHiddenStack(hiddenCardsCount) : "";
   }
 
   return `
