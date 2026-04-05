@@ -4,8 +4,9 @@ from fastapi.testclient import TestClient
 from pyshithead.debug_presets import DEBUG_PRESET_NAMES, seed_debug_preset
 from pyshithead.debug_server import create_debug_app
 from pyshithead.main import app, create_app
-from pyshithead.models.game import JOKER_RANK, SpecialRank
+from pyshithead.models.game import JOKER_RANK, SpecialRank, Suit
 from pyshithead.models.session import GameSessionManager
+from pyshithead.models.session.models import ActionRequest, CardModel
 
 
 @pytest.mark.parametrize("preset_name", DEBUG_PRESET_NAMES)
@@ -106,6 +107,35 @@ def test_host_turn_15_preset_sets_host_turn_and_hand_size():
     assert snapshot.current_turn_display_name == "Host"
     assert len(private_state.private_cards) == 15
     assert host_snapshot.private_cards_count == 15
+
+
+def test_host_win_last_card_preset_allows_the_final_play():
+    manager = GameSessionManager()
+    seed = seed_debug_preset(manager, "host-win-last-card")
+
+    snapshot = seed.session.build_snapshot()
+    private_state = seed.session.build_private_state(0)
+    host = seed.session.get_player_by_seat(0)
+
+    assert snapshot.game_state == "DURING_GAME"
+    assert snapshot.current_turn_seat == 0
+    assert snapshot.current_turn_display_name == "Host"
+    assert snapshot.play_pile[0].rank == 6
+    assert 9 in snapshot.current_valid_ranks
+    assert len(private_state.private_cards) == 1
+
+    seed.session.apply_action(
+        host.token,
+        ActionRequest(
+            type="play_private_cards",
+            cards=[CardModel(rank=9, suit=Suit.HEART)],
+        ),
+    )
+
+    resolved_snapshot = seed.session.build_snapshot()
+    assert resolved_snapshot.status == "GAME_OVER"
+    assert resolved_snapshot.players[0].finished_position == 1
+    assert resolved_snapshot.players[0].has_finished is True
 
 
 def test_revealed_card_presets_keep_resolution_state_visible():

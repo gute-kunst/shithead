@@ -24,6 +24,7 @@ DEBUG_PRESET_NAMES = (
     "host-specials",
     "host-specials-lock",
     "host-turn-15",
+    "host-win-last-card",
     "hidden-reveal",
     "hidden-take",
     "hidden-seven-take",
@@ -239,6 +240,29 @@ def _build_host_turn_15(manager: GameSessionManager) -> GameSession:
     return session
 
 
+def _build_host_win_last_card(manager: GameSessionManager) -> GameSession:
+    session = _base_started_session(manager, ("Host", "Guest"))
+    game = _prepare_during_game(session)
+    game.play_pile = PileOfCards([Card(6, Suit.HEART)])
+    game.valid_ranks = _valid_ranks_for_top_rank(6)
+    _set_player_cards(
+        session,
+        0,
+        private=[Card(9, Suit.HEART)],
+        public=[],
+        hidden=[],
+    )
+    _set_player_cards(
+        session,
+        1,
+        private=[Card(12, Suit.CLOVERS)],
+        public=[],
+        hidden=[],
+    )
+    session.last_status_message = "Host has one legal card left before winning."
+    return session
+
+
 def _build_hidden_reveal(manager: GameSessionManager) -> GameSession:
     session = _base_started_session(manager, ("Host", "Guest"))
     game = _prepare_during_game(session)
@@ -369,6 +393,7 @@ PRESET_BUILDERS = {
     "host-specials": _build_host_specials,
     "host-specials-lock": _build_host_specials_lock,
     "host-turn-15": _build_host_turn_15,
+    "host-win-last-card": _build_host_win_last_card,
     "hidden-reveal": _build_hidden_reveal,
     "hidden-take": _build_hidden_take,
     "hidden-seven-take": _build_hidden_seven_take,

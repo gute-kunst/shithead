@@ -3793,6 +3793,10 @@ function renderApp() {
   }
 
   const snapshot = state.snapshot.data;
+  const self = me();
+  const localPlayerFinished =
+    isMobileActiveGameLayout(snapshot) &&
+    Boolean(self?.finished_position != null);
   const showMobileLobbyLayout = isMobileLobbyLayout(snapshot);
   const gameScreenClasses = [
     "game-screen",
@@ -3801,6 +3805,7 @@ function renderApp() {
     isMobileActiveGameLayout(snapshot)
       ? `layout-${tableLayoutVariant(snapshot)}`
       : "",
+    localPlayerFinished ? "local-player-finished" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -3809,7 +3814,7 @@ function renderApp() {
     ${renderGameTopbar(snapshot)}
     <section class="${gameScreenClasses}">
       ${renderTable(snapshot)}
-      ${showMobileLobbyLayout ? "" : renderActions(snapshot)}
+      ${showMobileLobbyLayout || localPlayerFinished ? "" : renderActions(snapshot)}
       ${renderMotionLayer(snapshot)}
     </section>
     ${!isMobileActiveGameLayout(snapshot) && state.error ? `<section class="panel error">${escapeHtml(state.error)}</section>` : ""}

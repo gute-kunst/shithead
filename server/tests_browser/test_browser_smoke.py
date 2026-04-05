@@ -57,6 +57,20 @@ def finish_public_selection(invite_code: str):
     session_manager._save_session(session)
 
 
+def finish_local_player_while_game_continues(invite_code: str, seat: int = 0):
+    session = session_manager.get_session(invite_code)
+    game = session.game_manager.game
+    finished_player = game.get_player(seat)
+    game.ranking = [finished_player]
+    if game.active_players.head is not None and game.active_players.head.data.id_ == seat:
+        game.active_players.next()
+    finished_player.private_cards = SetOfCards()
+    finished_player.public_cards = SetOfCards()
+    finished_player.hidden_cards = SetOfCards()
+    session.last_status_message = "Guest is still playing."
+    session_manager._save_session(session)
+
+
 def build_large_hand_cards():
     return [
         Card(3, Suit.HEART),
@@ -439,6 +453,33 @@ def test_mobile_landscape_uses_wide_layout_variant(live_server, mobile_landscape
     expect(page.locator(".hand-dock")).to_have_class(re.compile(r"\bhand-layout-scroll\b"))
 
 
+def test_mobile_finished_player_hides_hand_dock_and_expands_table(
+    live_server, mobile_landscape_browser_factory
+):
+    page = open_page(mobile_landscape_browser_factory(), live_server)
+    create_table(page, "Host")
+    invite_code = extract_invite_code(page)
+
+    guest_page = open_page(mobile_landscape_browser_factory(), live_server)
+    join_table(guest_page, invite_code, "Guest")
+
+    page.locator("#start-game").click()
+    expect(page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
+    expect(guest_page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
+    finish_public_selection(invite_code)
+
+    before_height = page.locator(".table-stage").bounding_box()["height"]
+
+    finish_local_player_while_game_continues(invite_code)
+    page.reload(wait_until="networkidle")
+
+    expect(page.locator(".game-screen")).to_have_class(re.compile(r".*\blocal-player-finished\b.*"))
+    expect(page.locator(".hand-dock")).to_have_count(0)
+
+    after_height = page.locator(".table-stage").bounding_box()["height"]
+    assert after_height > before_height
+
+
 def test_mobile_tapping_a_hand_card_selects_it(live_server, touch_browser_factory):
     host_page = open_page(touch_browser_factory(), live_server)
     create_table(host_page, "Host")
@@ -812,6 +853,10 @@ def test_game_over_score_page_shoutouts_and_rematch_back_to_lobby(
         expect(host_page.locator(".game-screen")).to_have_class(
             re.compile(r".*mobile-one-screen.*")
         )
+        expect(host_page.locator(".game-screen")).to_have_class(
+            re.compile(r".*local-player-finished.*")
+        )
+        expect(host_page.locator(".hand-dock")).to_have_count(0)
 
     rematch_button.click()
 

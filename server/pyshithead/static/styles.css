@@ -2038,6 +2038,15 @@ body.game-active-mobile .game-screen.mobile-one-screen {
   align-items: stretch;
 }
 
+body.game-active-mobile .game-screen.mobile-one-screen.local-player-finished {
+  gap: 0;
+  grid-template-rows: minmax(0, var(--mobile-table-height));
+}
+
+body.game-active-mobile .game-screen.mobile-one-screen.local-player-finished .hand-dock {
+  display: none;
+}
+
 body.game-active-mobile .landing-screen {
   height: calc(var(--mobile-table-height) - 1.4rem);
   min-height: calc(var(--mobile-table-height) - 1.4rem);

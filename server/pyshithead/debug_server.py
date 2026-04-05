@@ -47,7 +47,7 @@ def main():
     parser = argparse.ArgumentParser(description="Run the Shithead debug preset server.")
     parser.add_argument(
         "--preset",
-        default="choose-public",
+        default="host-win-last-card",
         choices=DEBUG_PRESET_NAMES,
         help="Debug preset to seed before startup.",
     )
