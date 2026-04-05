@@ -36,7 +36,7 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 STATS_UI_DIR = Path(__file__).resolve().parent / "stats_ui"
 SESSION_STORAGE_KEY = "shithead.alpha.session"
 ANONYMOUS_USER_COOKIE = "shithead.alpha.user"
-STATIC_ASSET_VERSION = "20260404c"
+STATIC_ASSET_VERSION = "20260405b"
 
 
 def _http_error(err: ValueError) -> HTTPException:
@@ -132,6 +132,9 @@ def create_app(
     </script>
     <div class="page-shell">
       <main id="app" class="app-root"></main>
+    </div>
+    <div id="motion-overlay" class="motion-overlay" aria-hidden="true">
+      <div id="motion-layer-host" class="motion-layer"></div>
     </div>
     <script src="/static/app.js?v={STATIC_ASSET_VERSION}" defer></script>
   </body>

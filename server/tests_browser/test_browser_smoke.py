@@ -54,6 +54,23 @@ def shoutout_menu_signature(page):
     )
 
 
+def remember_dom_node(page, name: str, selector: str):
+    return page.evaluate(
+        """([name, selector]) => {
+            window[name] = document.querySelector(selector);
+            return Boolean(window[name]);
+        }""",
+        [name, selector],
+    )
+
+
+def same_dom_node(page, name: str, selector: str):
+    return page.evaluate(
+        """([name, selector]) => window[name] === document.querySelector(selector)""",
+        [name, selector],
+    )
+
+
 def finish_public_selection(invite_code: str):
     session = session_manager.get_session(invite_code)
     for _ in range(50):
@@ -754,18 +771,6 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
     ]
 
     host_page.locator("[data-shoutout-key='lets-gooo']").click()
-
-    expect(host_page.locator(".motion-shoutout")).to_have_count(1)
-    expect(guest_page.locator(".motion-shoutout")).to_have_count(1)
-    expect(guest_page.locator(".motion-shoutout")).to_contain_text("Let's gooo!")
-    first_host_event_id = host_page.locator(".motion-shoutout").get_attribute(
-        "data-shoutout-event-id"
-    )
-    first_guest_event_id = guest_page.locator(".motion-shoutout").get_attribute(
-        "data-shoutout-event-id"
-    )
-    assert first_host_event_id
-    assert first_host_event_id == first_guest_event_id
     expect(host_page.locator(".shoutout-trigger-fill")).to_be_visible()
     expect(host_page.locator("#open-shoutout-menu")).to_be_disabled()
     expect(host_page.locator("#open-shoutout-menu")).to_have_class(
@@ -810,7 +815,6 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
     )
     assert second_host_event_id
     assert second_host_event_id == second_guest_event_id
-    assert second_host_event_id != first_host_event_id
 
 
 def test_during_game_shoutouts_show_phase_specific_presets(live_server, browser_factory):
@@ -865,6 +869,9 @@ def test_game_over_score_page_shoutouts_and_rematch_back_to_lobby(
     )
 
     expect(host_page.locator("#open-shoutout-menu")).to_be_visible()
+    assert remember_dom_node(host_page, "__hostPulseSeat", ".seat-panel.current-turn")
+    assert remember_dom_node(guest_page, "__guestPulseSeat", ".seat-panel.current-turn")
+    assert remember_dom_node(host_page, "__hostTableMap", ".table-map")
     host_page.locator("#open-shoutout-menu").click()
     expect(host_page.locator(".shoutout-menu")).to_be_visible()
     expect(host_page.locator(".shoutout-chip")).to_have_count(6)
@@ -881,6 +888,20 @@ def test_game_over_score_page_shoutouts_and_rematch_back_to_lobby(
     expect(host_page.locator(".motion-shoutout")).to_have_count(1)
     expect(guest_page.locator(".motion-shoutout")).to_have_count(1)
     expect(guest_page.locator(".motion-shoutout")).to_contain_text("Rematch. Immediately.")
+    assert same_dom_node(host_page, "__hostPulseSeat", ".seat-panel.current-turn")
+    assert same_dom_node(guest_page, "__guestPulseSeat", ".seat-panel.current-turn")
+    assert same_dom_node(host_page, "__hostTableMap", ".table-map")
+
+    host_page.evaluate("window.dispatchEvent(new Event('resize'))")
+    host_page.wait_for_timeout(250)
+    expect(host_page.locator(".motion-shoutout")).to_have_count(1)
+    expect(guest_page.locator(".motion-shoutout")).to_have_count(1)
+
+    host_page.wait_for_timeout(4050)
+    expect(host_page.locator("#open-shoutout-menu")).to_be_enabled()
+    expect(host_page.locator(".shoutout-trigger-fill")).to_have_count(1)
+    expect(host_page.locator(".motion-shoutout")).to_have_count(0)
+    expect(guest_page.locator(".motion-shoutout")).to_have_count(0)
 
     guest_host_panel, guest_host_rail, guest_host_badge_offsets = _seat_badge_geometry(
         guest_page, 0

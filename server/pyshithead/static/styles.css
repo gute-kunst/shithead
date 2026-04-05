@@ -1612,6 +1612,14 @@ button {
   box-shadow: none;
 }
 
+.motion-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+  pointer-events: none;
+  overflow: hidden;
+}
+
 .motion-layer {
   position: absolute;
   inset: 0;

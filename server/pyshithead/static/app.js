@@ -409,31 +409,127 @@ function closeRulesMenu() {
   render();
 }
 
+function syncShoutoutMenu() {
+  const overlay = getMotionOverlayRoot();
+  if (!overlay) {
+    return;
+  }
+
+  const currentLayer = overlay.querySelector(".shoutout-menu-layer");
+  const shouldShow =
+    state.shoutoutMenuOpen &&
+    canSendShoutouts() &&
+    !isShoutoutOnCooldown();
+  if (!shouldShow) {
+    if (currentLayer) {
+      currentLayer.remove();
+    }
+    return;
+  }
+
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = renderShoutoutMenu(state.snapshot?.data);
+  const nextLayer = wrapper.firstElementChild;
+  if (!nextLayer) {
+    if (currentLayer) {
+      currentLayer.remove();
+    }
+    return;
+  }
+
+  wireShoutoutMenuLayer(nextLayer);
+  if (currentLayer) {
+    currentLayer.replaceWith(nextLayer);
+  } else {
+    overlay.appendChild(nextLayer);
+  }
+}
+
 function openShoutoutMenu() {
   if (isShoutoutOnCooldown()) {
     state.shoutoutMenuOpen = false;
-    render();
+    syncShoutoutMenu();
     return;
   }
   state.rulesMenuOpen = false;
   state.shoutoutMenuOpen = true;
-  render();
+  document.querySelectorAll(".rules-menu-layer").forEach((element) => {
+    element.remove();
+  });
+  syncShoutoutMenu();
 }
 
-function closeShoutoutMenu() {
-  if (!state.shoutoutMenuOpen) {
+function closeShoutoutMenu({ rerender = false } = {}) {
+  state.shoutoutMenuOpen = false;
+  const currentLayer = document.querySelector(".shoutout-menu-layer");
+  if (currentLayer) {
+    currentLayer.remove();
+  }
+  if (rerender) {
+    render();
     return;
   }
-  state.shoutoutMenuOpen = false;
-  render();
+}
+
+function wireShoutoutMenuLayer(layer) {
+  if (!layer || layer.dataset.wired === "true") {
+    return;
+  }
+
+  layer.dataset.wired = "true";
+  layer.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) {
+      return;
+    }
+
+    if (target.closest("#close-shoutout-menu-backdrop")) {
+      closeShoutoutMenu({ rerender: false });
+      return;
+    }
+    if (target.closest("#close-shoutout-menu")) {
+      closeShoutoutMenu({ rerender: false });
+      return;
+    }
+    const chip = target.closest("[data-shoutout-key]");
+    if (chip) {
+      submitShoutout(chip.dataset.shoutoutKey || "");
+    }
+  });
 }
 
 function toggleShoutoutMenu() {
   if (state.shoutoutMenuOpen) {
-    closeShoutoutMenu();
+    closeShoutoutMenu({ rerender: false });
     return;
   }
   openShoutoutMenu();
+}
+
+function getMotionOverlayRoot() {
+  return document.getElementById("motion-overlay");
+}
+
+function getMotionLayerHost() {
+  return document.getElementById("motion-layer-host");
+}
+
+function ensureMotionLayer() {
+  const existingLayer = getMotionLayerHost();
+  if (existingLayer) {
+    return existingLayer;
+  }
+
+  const overlay = getMotionOverlayRoot();
+  if (!overlay) {
+    return null;
+  }
+
+  const layer = document.createElement("div");
+  layer.className = "motion-layer";
+  layer.id = "motion-layer-host";
+  overlay.appendChild(layer);
+  return layer;
 }
 
 function clearTurnNoticeTimer() {
@@ -1009,8 +1105,65 @@ function shoutoutCooldownState(privateState = state.privateState?.data) {
   };
 }
 
+function shoutoutTriggerState(
+  snapshot = state.snapshot?.data,
+  privateState = state.privateState?.data,
+) {
+  const shoutoutReady = Boolean(
+    snapshot &&
+      state.wsReady &&
+      (snapshot.status === "LOBBY" ||
+        snapshot.status === "IN_GAME" ||
+        snapshot.status === "GAME_OVER"),
+  );
+  const shoutoutCooldown = shoutoutCooldownState(privateState);
+  const shoutoutLocked = shoutoutCooldown !== null;
+  const shoutoutEnabled = shoutoutReady && !shoutoutLocked;
+  const shoutoutFillStyle = [
+    `--shoutout-fill-duration:${shoutoutCooldownMs}ms`,
+    `--shoutout-fill-delay:${
+      shoutoutLocked
+        ? `-${Math.min(shoutoutCooldown.elapsedMs, shoutoutCooldown.durationMs)}ms`
+        : "0ms"
+    }`,
+  ].join(";");
+  return {
+    shoutoutReady,
+    shoutoutCooldown,
+    shoutoutLocked,
+    shoutoutEnabled,
+    shoutoutFillStyle,
+  };
+}
+
 function isShoutoutOnCooldown(privateState = state.privateState?.data) {
   return shoutoutCooldownState(privateState) !== null;
+}
+
+function isShoutoutCooldownOnlyUpdate(previousPrivateData, nextPrivateData) {
+  if (!previousPrivateData || !nextPrivateData) {
+    return false;
+  }
+  if (
+    previousPrivateData.shoutout_next_available_at ===
+    nextPrivateData.shoutout_next_available_at
+  ) {
+    return false;
+  }
+
+  const comparableKeys = [
+    "seat",
+    "private_cards",
+    "pending_joker_selection",
+    "pending_joker_card",
+    "pending_hidden_take",
+  ];
+
+  return comparableKeys.every(
+    (key) =>
+      JSON.stringify(previousPrivateData[key]) ===
+      JSON.stringify(nextPrivateData[key]),
+  );
 }
 
 function primeLocalShoutoutCooldown() {
@@ -1035,6 +1188,34 @@ function primeLocalShoutoutCooldown() {
   };
 }
 
+function syncShoutoutTriggerState() {
+  const shoutoutButton = document.getElementById("open-shoutout-menu");
+  if (!shoutoutButton) {
+    return;
+  }
+
+  const {
+    shoutoutReady,
+    shoutoutCooldown,
+    shoutoutLocked,
+    shoutoutEnabled,
+    shoutoutFillStyle,
+  } = shoutoutTriggerState();
+  shoutoutButton.className = `table-shoutout-trigger ${
+    shoutoutEnabled ? "" : "disabled"
+  } ${shoutoutLocked ? "locked" : ""}`.trim();
+  shoutoutButton.disabled = !shoutoutEnabled;
+  shoutoutButton.title = !shoutoutReady
+    ? "Connecting to the table"
+    : shoutoutLocked
+      ? `Shoutouts available in ${Math.max(
+          1,
+          Math.ceil(shoutoutCooldown.remainingMs / 1000),
+        )}s`
+      : "Shoutouts";
+  shoutoutButton.style.cssText = shoutoutFillStyle;
+}
+
 function syncShoutoutUnlockTimer() {
   clearShoutoutUnlockTimer();
   const cooldown = shoutoutCooldownState();
@@ -1043,8 +1224,30 @@ function syncShoutoutUnlockTimer() {
   }
   state.shoutoutUnlockTimer = window.setTimeout(() => {
     state.shoutoutUnlockTimer = null;
-    render();
+    syncShoutoutTriggerState();
   }, Math.max(0, cooldown.remainingMs) + 30);
+}
+
+function getGameScreenRoot() {
+  return document.querySelector(".game-screen");
+}
+
+function getSeatAnchorFromDom(seat) {
+  const root = getGameScreenRoot();
+  const seatElement = root?.querySelector(`[data-motion-anchor="seat-seat-${seat}"]`);
+  if (!root || !seatElement) {
+    return null;
+  }
+
+  const rect = seatElement.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) {
+    return null;
+  }
+
+  return {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2,
+  };
 }
 
 function canSendShoutouts(snapshot = state.snapshot?.data) {
@@ -1558,8 +1761,8 @@ function connectWebSocket() {
       }
       render();
     } else if (payload.type === "private_state") {
-      const previousPrivateCards =
-        state.privateState?.data?.private_cards || [];
+      const previousPrivateState = state.privateState?.data || null;
+      const previousPrivateCards = previousPrivateState?.private_cards || [];
       state.privateState = payload;
       if (
         state.pendingLocalPlay &&
@@ -1575,7 +1778,12 @@ function connectWebSocket() {
       state.hiddenLocalHandCardIds = [];
       state.pendingLocalPlay = null;
       if (isShoutoutOnCooldown(payload.data)) {
-        state.shoutoutMenuOpen = false;
+        closeShoutoutMenu({ rerender: false });
+      }
+      if (isShoutoutCooldownOnlyUpdate(previousPrivateState, payload.data)) {
+        syncShoutoutTriggerState();
+        syncShoutoutUnlockTimer();
+        return;
       }
       if (
         payload.data.pending_joker_selection ||
@@ -1588,17 +1796,11 @@ function connectWebSocket() {
       }
       render();
     } else if (payload.type === "shoutout") {
-      if (!rememberShoutoutEvent(payload.data?.event_id || "")) {
-        return;
-      }
-      queueAnimation({
-        kind: "shoutout",
-        eventId: payload.data.event_id || "",
-        seat: payload.data.seat,
-        preset: payload.data.preset,
-        duration: prefersReducedMotion() ? 320 : 1500,
+      appendShoutoutBubble({
+        eventId: payload.data?.event_id || "",
+        seat: payload.data?.seat,
+        preset: payload.data?.preset,
       });
-      render();
     } else if (payload.type === "action_error") {
       clearPendingLocalPlay();
       state.pendingLocalDrawAnimation = null;
@@ -1806,14 +2008,15 @@ function submitShoutout(shoutoutKey) {
   if (!shoutoutKey) {
     return;
   }
-  closeShoutoutMenu();
+  closeShoutoutMenu({ rerender: false });
   state.error = "";
   const sent = sendAction({ type: "send_shoutout", shoutout_key: shoutoutKey });
   if (!sent) {
     return;
   }
   primeLocalShoutoutCooldown();
-  render();
+  syncShoutoutTriggerState();
+  syncShoutoutUnlockTimer();
 }
 
 function submitHiddenCard() {
@@ -2036,10 +2239,6 @@ function measureMotionAnchors() {
   state.motionAnchors = nextAnchors;
   state.motionAnchorSignature = signature;
   return changed;
-}
-
-function getGameScreenRoot() {
-  return document.querySelector(".game-screen");
 }
 
 function rectWithinGameScreen(element) {
@@ -3308,14 +3507,16 @@ function renderLocalMotionCard(animation) {
   `;
 }
 
-function renderShoutoutBubble(animation, snapshot) {
+function renderShoutoutBubble(animation, snapshot, anchorOverride = null) {
   const player = snapshot?.players?.find(
     (entry) => entry.seat === animation.seat,
   );
-  const anchor = resolveMotionAnchor(
-    motionAnchorKeyForSeat(animation.seat, "seat"),
-    `seat-seat-${animation.seat}`,
-  );
+  const anchor =
+    anchorOverride ||
+    resolveMotionAnchor(
+      motionAnchorKeyForSeat(animation.seat, "seat"),
+      `seat-seat-${animation.seat}`,
+    );
   if (!player || !anchor) {
     return "";
   }
@@ -3344,6 +3545,36 @@ function renderShoutoutBubble(animation, snapshot) {
       </span>
     </span>
   `;
+}
+
+function appendShoutoutBubble(animation) {
+  if (!rememberShoutoutEvent(animation.eventId || "")) {
+    return;
+  }
+
+  const snapshot = state.snapshot?.data;
+  const motionLayer = ensureMotionLayer();
+  const anchor = getSeatAnchorFromDom(animation.seat);
+  if (!snapshot || !motionLayer || !anchor) {
+    return;
+  }
+
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = renderShoutoutBubble(animation, snapshot, anchor);
+  const bubble = wrapper.firstElementChild;
+  if (!bubble) {
+    return;
+  }
+
+  motionLayer.appendChild(bubble);
+  const duration = prefersReducedMotion() ? 320 : 1500;
+  const timer = window.setTimeout(() => {
+    bubble.remove();
+    state.animationTimers = state.animationTimers.filter(
+      (entry) => entry !== timer,
+    );
+  }, duration + 90);
+  state.animationTimers = [...state.animationTimers, timer];
 }
 
 function renderMotionLayer(snapshot) {
@@ -3406,10 +3637,6 @@ function renderMotionLayer(snapshot) {
         return Array.from({ length: animation.count || 1 }, (_, index) =>
           renderMotionGhost("play", from, resolveMotionAnchor("pile"), index),
         ).join("");
-      }
-
-      if (animation.kind === "shoutout") {
-        return renderShoutoutBubble(animation, snapshot);
       }
 
       if (animation.kind === "draw-self") {
@@ -3625,18 +3852,7 @@ function renderTable(snapshot) {
     snapshot.status === "LOBBY" ||
     snapshot.status === "IN_GAME" ||
     snapshot.status === "GAME_OVER";
-  const shoutoutReady = showShoutoutControls && canSendShoutouts(snapshot);
-  const shoutoutCooldown = shoutoutCooldownState();
-  const shoutoutLocked = shoutoutCooldown !== null;
-  const shoutoutEnabled = shoutoutReady && !shoutoutLocked;
-  const shoutoutFillStyle = [
-    `--shoutout-fill-duration:${shoutoutCooldownMs}ms`,
-    `--shoutout-fill-delay:${
-      shoutoutLocked
-        ? `-${Math.min(shoutoutCooldown.elapsedMs, shoutoutCooldown.durationMs)}ms`
-        : "0ms"
-    }`,
-  ].join(";");
+  const shoutoutTrigger = shoutoutTriggerState(snapshot);
   const showMobileLobbyLayout = isMobileLobbyLayout(snapshot);
   const sortedPlayers = [...snapshot.players].sort(
     (left, right) =>
@@ -3745,22 +3961,22 @@ function renderTable(snapshot) {
           showShoutoutControls
             ? `
           <button
-            class="table-shoutout-trigger ${shoutoutEnabled ? "" : "disabled"} ${shoutoutLocked ? "locked" : ""}"
+            class="table-shoutout-trigger ${shoutoutTrigger.shoutoutEnabled ? "" : "disabled"} ${shoutoutTrigger.shoutoutLocked ? "locked" : ""}"
             id="open-shoutout-menu"
             type="button"
             aria-label="Open shoutouts"
             title="${
-              !shoutoutReady
+              !shoutoutTrigger.shoutoutReady
                 ? "Connecting to the table"
-                : shoutoutLocked
+                : shoutoutTrigger.shoutoutLocked
                   ? `Shoutouts available in ${Math.max(
                       1,
-                      Math.ceil(shoutoutCooldown.remainingMs / 1000),
+                      Math.ceil(shoutoutTrigger.shoutoutCooldown.remainingMs / 1000),
                     )}s`
                   : "Shoutouts"
             }"
-            style="${shoutoutFillStyle};"
-            ${shoutoutEnabled ? "" : "disabled"}
+            style="${shoutoutTrigger.shoutoutFillStyle};"
+            ${shoutoutTrigger.shoutoutEnabled ? "" : "disabled"}
           >
             <span class="shoutout-trigger-fill" aria-hidden="true"></span>
             <span class="shoutout-joker-emoji" aria-hidden="true">★</span>
@@ -3769,7 +3985,6 @@ function renderTable(snapshot) {
             : ""
         }
         <button class="table-help-trigger" id="open-rules-menu" type="button" aria-label="Open rules" title="Rules">?</button>
-        ${showShoutoutControls ? renderShoutoutMenu(snapshot) : ""}
         ${renderRulesMenu()}
       </div>
       ${
@@ -4312,6 +4527,7 @@ function render({ force = false } = {}) {
       });
     }
   });
+  syncShoutoutMenu();
 }
 
 loadStoredSession();
@@ -4359,7 +4575,7 @@ window.addEventListener("orientationchange", () => {
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker
-    .register("/static/sw.js?v=20260404c")
+    .register("/static/sw.js?v=20260405b")
     .then(() => {
       if (navigator.serviceWorker.controller) {
         navigator.serviceWorker.addEventListener("controllerchange", () => {
