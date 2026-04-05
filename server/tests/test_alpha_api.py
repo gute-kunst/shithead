@@ -256,6 +256,41 @@ def test_lobby_shoutout_broadcasts_live_event_to_connected_players():
                 assert guest_event["data"]["preset"]["label"] == "HAHAHA"
 
 
+def test_game_over_shoutout_broadcasts_live_event_to_connected_players():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        guest = join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        session.game_manager.game.state = GameState.DURING_GAME
+        session._finalize_state_change()
+        session.game_manager.game.state = GameState.GAME_OVER
+        session._finalize_state_change()
+
+        host_path = f"/api/games/{host['invite_code']}/ws?token={host['player_token']}"
+        guest_path = f"/api/games/{host['invite_code']}/ws?token={guest['player_token']}"
+
+        with client.websocket_connect(host_path) as host_ws:
+            receive_until_types(host_ws, {"session_snapshot", "private_state"})
+
+            with client.websocket_connect(guest_path) as guest_ws:
+                receive_until_types(guest_ws, {"session_snapshot", "private_state"})
+
+                host_ws.send_json({"type": "send_shoutout", "shoutout_key": "hahaha"})
+
+                host_messages = receive_until_types(host_ws, {"shoutout"})
+                guest_messages = receive_until_types(guest_ws, {"shoutout"})
+                host_event = host_messages["shoutout"]
+                guest_event = guest_messages["shoutout"]
+                assert host_event["type"] == "shoutout"
+                assert guest_event["type"] == "shoutout"
+                assert host_event["data"]["preset"]["key"] == "hahaha"
+                assert guest_event["data"]["event_id"] == host_event["data"]["event_id"]
+                assert host_event["data"]["seat"] == 0
+
+
 def test_shoutout_cooldown_blocks_rapid_repeats(monkeypatch):
     session_manager.sessions.clear()
     with TestClient(app, base_url="http://localhost") as client:

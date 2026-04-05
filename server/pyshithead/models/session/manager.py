@@ -858,8 +858,14 @@ class GameSession:
 
         if action.type == "send_shoutout":
             self._sync_status()
-            if self.status not in {SessionStatus.LOBBY, SessionStatus.IN_GAME}:
-                raise ValueError("Shoutouts are only available in the lobby or during a game.")
+            if self.status not in {
+                SessionStatus.LOBBY,
+                SessionStatus.IN_GAME,
+                SessionStatus.GAME_OVER,
+            }:
+                raise ValueError(
+                    "Shoutouts are only available in the lobby, during a game, or after it ends."
+                )
             shoutout_event = self._build_shoutout_event(player, action.shoutout_key)
             self._finalize_state_change()
             return shoutout_event

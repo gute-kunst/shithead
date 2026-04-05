@@ -1051,7 +1051,9 @@ function canSendShoutouts(snapshot = state.snapshot?.data) {
   return Boolean(
     snapshot &&
     state.wsReady &&
-    (snapshot.status === "LOBBY" || snapshot.status === "IN_GAME"),
+    (snapshot.status === "LOBBY" ||
+      snapshot.status === "IN_GAME" ||
+      snapshot.status === "GAME_OVER"),
   );
 }
 
@@ -3622,7 +3624,9 @@ function renderTable(snapshot) {
   const isHost = self && self.is_host;
   const showLobbyControls = snapshot.status === "LOBBY";
   const showShoutoutControls =
-    snapshot.status === "LOBBY" || snapshot.status === "IN_GAME";
+    snapshot.status === "LOBBY" ||
+    snapshot.status === "IN_GAME" ||
+    snapshot.status === "GAME_OVER";
   const shoutoutReady = showShoutoutControls && canSendShoutouts(snapshot);
   const shoutoutCooldown = shoutoutCooldownState();
   const shoutoutLocked = shoutoutCooldown !== null;
