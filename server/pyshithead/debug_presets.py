@@ -87,9 +87,7 @@ def _set_player_cards(
         player.private_cards = SetOfCards(private)
     if public is not None:
         player._public_cards = SetOfCards(public)
-        player.public_cards_were_selected = (
-            public_selected if public_selected is not None else True
-        )
+        player.public_cards_were_selected = public_selected if public_selected is not None else True
     if hidden is not None:
         player.hidden_cards = SetOfCards(hidden)
     return player

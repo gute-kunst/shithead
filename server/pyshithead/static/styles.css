@@ -571,12 +571,13 @@ button {
 .seat-badge-rail {
   position: absolute;
   top: 0.58rem;
-  right: -0.58rem;
+  left: calc(100% + 0.58rem);
   z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.26rem;
+  width: max-content;
 }
 
 .seat-panel.current-turn {
@@ -672,6 +673,8 @@ button {
   display: grid;
   gap: 0.2rem;
   margin-top: 0.42rem;
+  margin-left: 0.7rem;
+  margin-right: 0.7rem;
   justify-items: center;
   text-align: center;
 }
@@ -703,6 +706,7 @@ button {
 .seat-badge {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 0.26rem;
   padding: 0.24rem 0.58rem;
   border-radius: 999px;
@@ -2256,7 +2260,7 @@ body.game-active-mobile .choice-row {
 
 body.game-active-mobile .seat-badge-rail {
   top: 1rem;
-  right: -1.1rem;
+  left: calc(100% - 1.1rem);
 }
 
 body.game-active-mobile .seat-badge,

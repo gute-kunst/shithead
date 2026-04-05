@@ -29,6 +29,7 @@ def ranks_at_or_below(rank: int, ranks=ALL_RANKS) -> set[int]:
     threshold = rank_precedence(int(rank))
     return {int(candidate) for candidate in ranks if rank_precedence(int(candidate)) <= threshold}
 
+
 from .errors import *
 from .card import *
 from .pile_of_cards import *

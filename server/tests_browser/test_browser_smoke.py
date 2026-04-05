@@ -172,6 +172,26 @@ def _visible_hand_card_index(hand_fan) -> int:
     )
 
 
+def _seat_badge_geometry(page, seat: int):
+    panel = page.locator(f'[data-motion-anchor="seat-seat-{seat}"]')
+    rail = panel.locator(".seat-badge-rail")
+    badges = rail.locator(".seat-badge")
+
+    expect(panel).to_be_visible()
+    expect(rail).to_be_visible()
+
+    panel_box = panel.bounding_box()
+    rail_box = rail.bounding_box()
+    assert panel_box is not None
+    assert rail_box is not None
+
+    badge_offsets = []
+    for index in range(badges.count()):
+        badge_offsets.append(badges.nth(index).evaluate("(element) => element.offsetLeft"))
+
+    return panel_box, rail_box, badge_offsets
+
+
 def test_landing_shows_folded_buckets_and_rules_menu(live_server, browser_factory):
     page = open_page(browser_factory(), live_server)
 
@@ -734,6 +754,7 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
 def test_game_over_score_page_shoutouts_and_rematch_back_to_lobby(
     live_app_server_factory,
     browser_factory,
+    browser_profile_name,
 ):
     debug_app, seed = create_debug_app("game-over")
     base_url = live_app_server_factory(debug_app)
@@ -761,13 +782,40 @@ def test_game_over_score_page_shoutouts_and_rematch_back_to_lobby(
     expect(guest_page.locator(".motion-shoutout")).to_have_count(1)
     expect(guest_page.locator(".motion-shoutout")).to_contain_text("HAHAHA")
 
-    expect(host_page.get_by_role("button", name="Rematch")).to_be_visible()
-    expect(host_page.locator(".standings")).to_contain_text("Host")
-    host_page.get_by_role("button", name="Rematch").click()
+    guest_host_panel, guest_host_rail, guest_host_badge_offsets = _seat_badge_geometry(
+        guest_page, 0
+    )
+    host_guest_panel, host_guest_rail, host_guest_badge_offsets = _seat_badge_geometry(host_page, 1)
+    guest_host_left_gap = guest_host_rail["x"] - (guest_host_panel["x"] + guest_host_panel["width"])
+    host_guest_left_gap = host_guest_rail["x"] - (host_guest_panel["x"] + host_guest_panel["width"])
+    assert guest_host_left_gap == pytest.approx(host_guest_left_gap, abs=1.0)
+    for badge_offsets in (
+        guest_host_badge_offsets,
+        host_guest_badge_offsets,
+    ):
+        first_left = badge_offsets[0]
+        for badge_offset in badge_offsets:
+            assert badge_offset == pytest.approx(first_left, abs=1.0)
+            assert badge_offset == pytest.approx(0, abs=1.0)
+
+    rematch_button = host_page.locator("#rematch-game")
+    expect(rematch_button).to_be_visible()
+    expect(guest_page.locator("#rematch-game")).to_have_count(0)
+    expect(host_page.locator(".standings")).to_have_count(0)
+    expect(guest_page.locator(".standings")).to_have_count(0)
+    assert "accent" not in (rematch_button.get_attribute("class") or "")
+    expect(rematch_button).to_have_css("background-color", "rgb(16, 38, 31)")
+
+    if browser_profile_name != "desktop":
+        expect(host_page.locator("body")).to_have_class(re.compile(r".*game-active-mobile.*"))
+        expect(host_page.locator(".game-screen")).to_have_class(
+            re.compile(r".*mobile-one-screen.*")
+        )
+
+    rematch_button.click()
 
     expect(host_page.locator("#copy-invite-code")).to_be_visible()
     expect(host_page.locator("#start-game")).to_be_visible()
-    expect(host_page.locator(".standings")).to_have_count(0)
     expect(host_page.get_by_role("button", name="Rematch")).to_have_count(0)
 
 

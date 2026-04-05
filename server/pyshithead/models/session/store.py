@@ -488,9 +488,7 @@ class SQLiteSessionStore:
             user_rows = connection.execute(
                 "SELECT user_id, first_seen_at, last_seen_at FROM stats_users"
             ).fetchall()
-            lobby_rows = connection.execute(
-                "SELECT created_at FROM stats_lobbies"
-            ).fetchall()
+            lobby_rows = connection.execute("SELECT created_at FROM stats_lobbies").fetchall()
             game_rows = connection.execute(
                 """
                 SELECT
@@ -593,9 +591,7 @@ class SQLiteSessionStore:
                 "lobby_to_game_start_rate": completion_rate(
                     total_games_started, total_lobbies_created
                 ),
-                "game_completion_rate": completion_rate(
-                    total_games_completed, total_games_started
-                ),
+                "game_completion_rate": completion_rate(total_games_completed, total_games_started),
             },
             "recent": {
                 "games_played_today": daily_completed.get(today_key, 0),

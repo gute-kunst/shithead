@@ -2714,7 +2714,7 @@ function displayedDeckCount(snapshot) {
 }
 
 function isMobileActiveGameLayout(snapshot = state.snapshot?.data) {
-  return Boolean(snapshot) && snapshot.status !== "GAME_OVER";
+  return Boolean(snapshot) && snapshot.status !== "LOBBY";
 }
 
 function isMobileLobbyLayout(snapshot = state.snapshot?.data) {
@@ -2798,7 +2798,7 @@ function currentPrompt(snapshot) {
     return "Share the code, wait for enough players, then start.";
   }
   if (snapshot.status === "GAME_OVER") {
-    return "Final standings are ready below.";
+    return "Game over. The host can start a rematch.";
   }
   if (canChoosePublicCards()) {
     return "Pick 3 public cards for the table.";
@@ -3719,6 +3719,15 @@ function renderTable(snapshot) {
           `
               : ""
           }
+          ${
+            snapshot.status === "GAME_OVER" && isHost
+              ? `
+            <div class="primary-action-row">
+              <button class="button full-width" id="rematch-game" type="button">Rematch</button>
+            </div>
+          `
+              : ""
+          }
           <div class="table-resources">
             <div class="deck-orb">
               <span class="resource-label">Deck</span>
@@ -3804,7 +3813,6 @@ function renderApp() {
       ${renderMotionLayer(snapshot)}
     </section>
     ${!isMobileActiveGameLayout(snapshot) && state.error ? `<section class="panel error">${escapeHtml(state.error)}</section>` : ""}
-    ${renderStandings(snapshot)}
   `;
 }
 
