@@ -2714,7 +2714,7 @@ function displayedDeckCount(snapshot) {
 }
 
 function isMobileActiveGameLayout(snapshot = state.snapshot?.data) {
-  return Boolean(snapshot) && snapshot.status !== "LOBBY";
+  return Boolean(snapshot);
 }
 
 function isMobileLobbyLayout(snapshot = state.snapshot?.data) {
