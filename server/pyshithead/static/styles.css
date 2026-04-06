@@ -1240,9 +1240,11 @@ button {
 
 .shoutout-menu {
   position: absolute;
-  left: 0.85rem;
+  left: 0;
+  right: 0;
   bottom: 3.55rem;
-  width: min(24rem, calc(100% - 1.7rem));
+  width: auto;
+  max-width: none;
   max-height: min(30rem, calc(100% - 2rem));
   overflow: auto;
   pointer-events: auto;
@@ -2637,8 +2639,8 @@ body.game-active-mobile .rules-menu {
 }
 
 body.game-active-mobile .shoutout-menu {
-  left: 0.45rem;
-  right: 0.45rem;
+  left: 0;
+  right: 0;
   bottom: 3.25rem;
   width: auto;
   max-height: min(24rem, calc(100% - 1rem));

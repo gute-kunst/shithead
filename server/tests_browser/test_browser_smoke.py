@@ -54,6 +54,12 @@ def shoutout_menu_signature(page):
     )
 
 
+def _box(locator):
+    box = locator.bounding_box()
+    assert box is not None
+    return box
+
+
 def remember_dom_node(page, name: str, selector: str):
     return page.evaluate(
         """([name, selector]) => {
@@ -761,6 +767,14 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
     host_page.locator("#open-shoutout-menu").click()
     expect(host_page.locator(".shoutout-menu")).to_be_visible()
     expect(host_page.locator(".shoutout-chip")).to_have_count(6)
+    table_map_box = _box(host_page.locator(".table-map"))
+    shoutout_menu_box = _box(host_page.locator(".shoutout-menu"))
+    shoutout_trigger_box = _box(host_page.locator("#open-shoutout-menu"))
+    assert shoutout_menu_box["width"] == pytest.approx(table_map_box["width"], abs=2.0)
+    assert shoutout_menu_box["x"] == pytest.approx(table_map_box["x"], abs=2.0)
+    shoutout_menu_bottom = shoutout_menu_box["y"] + shoutout_menu_box["height"]
+    shoutout_trigger_top = shoutout_trigger_box["y"]
+    assert shoutout_menu_bottom <= shoutout_trigger_top - 2.0
     assert shoutout_menu_signature(host_page) == [
         ["lets-gooo", "Let's gooo!"],
         ["shuffle-up-and-deal", "Shuffle up and deal."],

@@ -410,12 +410,12 @@ function closeRulesMenu() {
 }
 
 function syncShoutoutMenu() {
-  const overlay = getMotionOverlayRoot();
-  if (!overlay) {
+  const tableMap = document.querySelector(".table-map");
+  if (!tableMap) {
     return;
   }
 
-  const currentLayer = overlay.querySelector(".shoutout-menu-layer");
+  const currentLayer = document.querySelector(".shoutout-menu-layer");
   const shouldShow =
     state.shoutoutMenuOpen &&
     canSendShoutouts() &&
@@ -441,7 +441,7 @@ function syncShoutoutMenu() {
   if (currentLayer) {
     currentLayer.replaceWith(nextLayer);
   } else {
-    overlay.appendChild(nextLayer);
+    tableMap.appendChild(nextLayer);
   }
 }
 
