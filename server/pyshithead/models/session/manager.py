@@ -72,7 +72,7 @@ SHOUTOUT_PRESET_DATA_BY_STATUS = {
             "key": "lets-gooo",
             "label": "Let's gooo!",
             "emoji": "🎉",
-            "color": "#B45309",  # festive amber — party energy
+            "color": "#FFF5B0",  # festive amber — party energy
         },
         {
             "key": "shuffle-up-and-deal",
@@ -90,7 +90,7 @@ SHOUTOUT_PRESET_DATA_BY_STATUS = {
             "key": "obviously",
             "label": "Obviously!",
             "emoji": "💯",
-            "color": "#15803D",  # strong green — confirmed yes
+            "color": "#4ADE80",  # strong green — confirmed yes
         },
         {
             "key": "nope",
@@ -102,7 +102,7 @@ SHOUTOUT_PRESET_DATA_BY_STATUS = {
             "key": "may-the-worst-hand-lose",
             "label": "May the worst hand lose.",
             "emoji": "💩",
-            "color": "#78350F",  # deep brown — obvious reasons 💩
+            "color": "#1A1A1A",  # deep brown — obvious reasons 💩
         },
     ),
     SessionStatus.IN_GAME: (
@@ -110,61 +110,61 @@ SHOUTOUT_PRESET_DATA_BY_STATUS = {
             "key": "hahaha",
             "label": "HAHAHA",
             "emoji": "😹",
-            "color": "#FDE68A",
+            "color": "#FEF3C7",
         },  # warm yellow — laughter
         {
             "key": "great-move",
             "label": "*!♧@#♢%^&",
             "emoji": "👿",
-            "color": "#7C3AED",
+            "color": "#1E0335",
         },  # deep purple — evil
         {
             "key": "wtf",
             "label": "Eat the pile, loser!",
             "emoji": "🗑️",
-            "color": "#6B7280",
+            "color": "#D1D5DB",
         },  # cool grey — trash
         {
             "key": "shit",
             "label": "That escalated quickly.",
             "emoji": "⚡",
-            "color": "#1D4ED8",
+            "color": "#4B6FBD",
         },  # electric blue — shock
         {
             "key": "nice",
             "label": "Burrrrn!",
             "emoji": "🔥",
-            "color": "#EA580C",
+            "color": "#FFA500",
         },  # deep orange — fire
         {
             "key": "oof",
             "label": "Well played \n ♦ ♣ ♠ ♥",
             "emoji": "🤝",
-            "color": "#92400E",
+            "color": "#1F2937",
         },  # warm brown — respect
         {
             "key": "how-just-how",
             "label": "How. Just HOW.",
             "emoji": "🤯",
-            "color": "#DB2777",
+            "color": "#F9A8D4",
         },  # hot pink — explosion
         {
             "key": "its-getting-hot-in-here",
             "label": "It's getting hot in here.",
             "emoji": "🌶️",
-            "color": "#B91C1C",
+            "color": "#F59E0B",
         },  # chili red — spicy
         {
             "key": "good-vibes-only",
             "label": "Good vibes only!",
             "emoji": "🍀",
-            "color": "#15803D",
+            "color": "#A8E6AB",
         },  # rich green — luck
         {
             "key": "faster",
-            "label": "FASTER!",
-            "emoji": "⚡",
-            "color": "#1E40AF",
+            "label": "tic toc ...",
+            "emoji": "🕰️",
+            "color": "#F5D78E",
         },  # deep blue — electric
     ),
     SessionStatus.GAME_OVER: (
@@ -172,13 +172,13 @@ SHOUTOUT_PRESET_DATA_BY_STATUS = {
             "key": "expletive-burst",
             "label": "*!♧@#♢%^&",
             "emoji": "👿",
-            "color": "#4C1D95",  # deep villain purple — rage demon
+            "color": "#1E0335",  # deep villain purple — rage demon
         },
         {
             "key": "rematch-immediately",
-            "label": "Rematch. Immediately.",
+            "label": "Remaaatch.",
             "emoji": "😈",
-            "color": "#7F1D1D",  # dark blood red — vengeful energy
+            "color": "#CE7ADB",  # dark blood red — vengeful energy
         },
         {
             "key": "that-doesnt-count",
@@ -190,19 +190,19 @@ SHOUTOUT_PRESET_DATA_BY_STATUS = {
             "key": "that-was-intense",
             "label": "That was intense.",
             "emoji": "😮‍💨",
-            "color": "#1E3A5F",  # deep exhale blue — relief/tension
+            "color": "#93B8D9",  # deep exhale blue — relief/tension
         },
         {
             "key": "strong-game",
             "label": "Strong game!",
             "emoji": "💪",
-            "color": "#1D4ED8",  # bold blue — strength/confidence
+            "color": "#4B6FBD",  # bold blue — strength/confidence
         },
         {
             "key": "sending-love",
             "label": "Sending Love",
             "emoji": "🫶",
-            "color": "#9D174D",  # deep rose — warm love
+            "color": "#DB2777",  # deep rose — warm love
         },
     ),
 }
