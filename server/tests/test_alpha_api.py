@@ -146,10 +146,16 @@ def test_create_and_join_alpha_lobby():
         snapshot = state.json()["data"]
         assert snapshot["status"] == "IN_GAME"
         assert shoutout_signature(snapshot) == [
+            ("hahaha", "HAHAHA", "😹"),
+            ("great-move", "*!♧@#♢%^&", "👿"),
+            ("wtf", "Eat the pile, loser!", "🗑️"),
+            ("shit", "That escalated quickly.", "⚡"),
+            ("nice", "Burrrrn!", "🔥"),
+            ("oof", "Well played \n ♦ ♣ ♠ ♥", "🤝"),
             ("how-just-how", "How. Just HOW.", "🤯"),
             ("its-getting-hot-in-here", "It's getting hot in here.", "🌶️"),
             ("good-vibes-only", "Good vibes only!", "🍀"),
-            ("faster", "FASTER!", "⚡"),
+            ("faster", "tic toc ...", "🕰️"),
         ]
 
         session = session_manager.get_session(invite_code)
@@ -161,7 +167,7 @@ def test_create_and_join_alpha_lobby():
         assert snapshot["status"] == "GAME_OVER"
         assert shoutout_signature(snapshot) == [
             ("expletive-burst", "*!♧@#♢%^&", "👿"),
-            ("rematch-immediately", "Rematch. Immediately.", "😈"),
+            ("rematch-immediately", "Remaaatch.", "😈"),
             ("that-doesnt-count", "That doesn't count.", "😤"),
             ("that-was-intense", "That was intense.", "😮‍💨"),
             ("strong-game", "Strong game!", "💪"),
