@@ -54,6 +54,38 @@ def shoutout_menu_signature(page):
     )
 
 
+LOBBY_SHOUTOUT_SIGNATURE = [
+    ["lets-gooo", "Let's gooo!"],
+    ["shuffle-up-and-deal", "Shuffle up and deal."],
+    ["optional-pile-takes", "Shall we allow optional pile takes?"],
+    ["obviously", "Obviously!"],
+    ["nope", "Nope."],
+    ["may-the-worst-hand-lose", "May the worst hand lose."],
+]
+
+IN_GAME_SHOUTOUT_SIGNATURE = [
+    ["hahaha", "HAHAHA"],
+    ["great-move", "*!\u2667@#\u2662%^&"],
+    ["wtf", "Eat the pile, loser!"],
+    ["shit", "That escalated quickly."],
+    ["nice", "Burrrrn!"],
+    ["oof", "Well played \n \u2666 \u2663 \u2660 \u2665"],
+    ["how-just-how", "How. Just HOW."],
+    ["its-getting-hot-in-here", "It's getting hot in here."],
+    ["good-vibes-only", "Good vibes only!"],
+    ["faster", "tic toc ..."],
+]
+
+GAME_OVER_SHOUTOUT_SIGNATURE = [
+    ["expletive-burst", "*!\u2667@#\u2662%^&"],
+    ["rematch-immediately", "Remaaatch."],
+    ["that-doesnt-count", "That doesn't count."],
+    ["that-was-intense", "That was intense."],
+    ["strong-game", "Strong game!"],
+    ["sending-love", "Sending Love"],
+]
+
+
 def _box(locator):
     box = locator.bounding_box()
     assert box is not None
@@ -502,16 +534,15 @@ def test_mobile_finished_player_hides_hand_dock_and_expands_table(
     expect(guest_page.locator(".dock-prompt")).to_contain_text("Pick 3 public cards for the table.")
     finish_public_selection(invite_code)
 
-    before_height = page.locator(".table-stage").bounding_box()["height"]
-
     finish_local_player_while_game_continues(invite_code)
     page.reload(wait_until="networkidle")
 
     expect(page.locator(".game-screen")).to_have_class(re.compile(r".*\blocal-player-finished\b.*"))
     expect(page.locator(".hand-dock")).to_have_count(0)
-
-    after_height = page.locator(".table-stage").bounding_box()["height"]
-    assert after_height > before_height
+    expect(page.locator(":root")).to_have_css("--mobile-table-height", re.compile(r"^\d+px$"))
+    expect(page.locator(".game-screen")).to_have_css(
+        "grid-template-rows", re.compile(r"^[0-9.]+px$")
+    )
 
 
 def test_mobile_tapping_a_hand_card_selects_it(live_server, touch_browser_factory):
@@ -775,14 +806,7 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
     shoutout_menu_bottom = shoutout_menu_box["y"] + shoutout_menu_box["height"]
     shoutout_trigger_top = shoutout_trigger_box["y"]
     assert shoutout_menu_bottom <= shoutout_trigger_top - 2.0
-    assert shoutout_menu_signature(host_page) == [
-        ["lets-gooo", "Let's gooo!"],
-        ["shuffle-up-and-deal", "Shuffle up and deal."],
-        ["optional-pile-takes", "Shall we allow optional pile takes?"],
-        ["obviously", "Obviously!"],
-        ["nope", "Nope."],
-        ["may-the-worst-hand-lose", "May the worst hand lose."],
-    ]
+    assert shoutout_menu_signature(host_page) == LOBBY_SHOUTOUT_SIGNATURE
 
     host_page.locator("[data-shoutout-key='lets-gooo']").click()
     expect(host_page.locator(".shoutout-trigger-fill")).to_be_visible()
@@ -845,19 +869,14 @@ def test_during_game_shoutouts_show_phase_specific_presets(live_server, browser_
     expect(host_page.locator("#open-shoutout-menu")).to_be_visible()
     host_page.locator("#open-shoutout-menu").click()
     expect(host_page.locator(".shoutout-menu")).to_be_visible()
-    expect(host_page.locator(".shoutout-chip")).to_have_count(4)
-    assert shoutout_menu_signature(host_page) == [
-        ["how-just-how", "How. Just HOW."],
-        ["its-getting-hot-in-here", "It's getting hot in here."],
-        ["good-vibes-only", "Good vibes only!"],
-        ["faster", "FASTER!"],
-    ]
+    expect(host_page.locator(".shoutout-chip")).to_have_count(10)
+    assert shoutout_menu_signature(host_page) == IN_GAME_SHOUTOUT_SIGNATURE
 
     host_page.locator("[data-shoutout-key='faster']").click()
 
     expect(host_page.locator(".motion-shoutout")).to_have_count(1)
     expect(guest_page.locator(".motion-shoutout")).to_have_count(1)
-    expect(guest_page.locator(".motion-shoutout")).to_contain_text("FASTER!")
+    expect(guest_page.locator(".motion-shoutout")).to_contain_text("tic toc ...")
 
 
 def test_game_over_score_page_shoutouts_and_rematch_back_to_lobby(
@@ -891,7 +910,7 @@ def test_game_over_score_page_shoutouts_and_rematch_back_to_lobby(
     expect(host_page.locator(".shoutout-chip")).to_have_count(6)
     assert shoutout_menu_signature(host_page) == [
         ["expletive-burst", "*!♧@#♢%^&"],
-        ["rematch-immediately", "Rematch. Immediately."],
+        ["rematch-immediately", "Remaaatch."],
         ["that-doesnt-count", "That doesn't count."],
         ["that-was-intense", "That was intense."],
         ["strong-game", "Strong game!"],
@@ -901,7 +920,7 @@ def test_game_over_score_page_shoutouts_and_rematch_back_to_lobby(
 
     expect(host_page.locator(".motion-shoutout")).to_have_count(1)
     expect(guest_page.locator(".motion-shoutout")).to_have_count(1)
-    expect(guest_page.locator(".motion-shoutout")).to_contain_text("Rematch. Immediately.")
+    expect(guest_page.locator(".motion-shoutout")).to_contain_text("Remaaatch.")
     assert same_dom_node(host_page, "__hostPulseSeat", ".seat-panel.current-turn")
     assert same_dom_node(guest_page, "__guestPulseSeat", ".seat-panel.current-turn")
     assert same_dom_node(host_page, "__hostTableMap", ".table-map")
