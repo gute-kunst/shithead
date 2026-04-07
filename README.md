@@ -1,4 +1,14 @@
+
 # Shithead Card Game
+
+## 🃏 Play it
+
+**[shit.bond](https://shit.bond)** — free, no sign-up, runs in the browser.
+
+Multiplayer Shithead card game built with Python (WebSockets) + vanilla JS.  
+Also known as Palace, Karma, Shed, Minus, or *drei verdeckt*.
+
+## Important Docs
 
 Architecture documentation: [docs/architecture.md](docs/architecture.md)
 Development guide: [docs/dev.md](docs/dev.md)
