@@ -669,6 +669,14 @@ button {
   font-size: 0.95rem;
 }
 
+.seat-shoutout-region {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  overflow: visible;
+}
+
 .seat-presence {
   display: grid;
   gap: 0.2rem;
@@ -1634,6 +1642,7 @@ button {
   position: absolute;
   left: 0;
   top: 0;
+  z-index: 4;
   min-width: 7.6rem;
   max-width: 10rem;
   padding: 0.58rem 0.78rem;
@@ -1647,8 +1656,9 @@ button {
     0 18px 32px rgba(8, 23, 19, 0.18),
     0 0 0 1px rgba(255, 255, 255, 0.35) inset;
   opacity: 0;
+  pointer-events: none;
   transform: translate3d(calc(-50% + 0px), calc(-50% + 0px), 0) scale(0.76) rotate(-6deg);
-  animation: shoutoutFloat 1500ms cubic-bezier(0.2, 0.85, 0.32, 1) forwards;
+  animation: shoutoutFloat var(--shoutout-duration, 1500ms) cubic-bezier(0.2, 0.85, 0.32, 1) forwards;
   will-change: transform, opacity;
 }
 

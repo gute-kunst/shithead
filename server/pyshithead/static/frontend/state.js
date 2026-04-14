@@ -35,6 +35,7 @@ export const state = {
   presenceTicker: null,
   presenceNow: Date.now(),
   shoutoutUnlockTimer: null,
+  shoutoutExpiryTimer: null,
   rulesMenuOpen: false,
   shoutoutMenuOpen: false,
   animations: [],
@@ -51,6 +52,7 @@ export const state = {
   hiddenLocalHandCardIds: [],
   localPlaySendTimer: null,
   handFanScrollLeft: 0,
+  shoutoutRecords: [],
   seenShoutoutEvents: [],
   handDragActiveInputId: null,
   handDragStartX: 0,
@@ -135,6 +137,20 @@ export function clearShoutoutUnlockTimer() {
     window.clearTimeout(state.shoutoutUnlockTimer);
     state.shoutoutUnlockTimer = null;
   }
+}
+
+export function clearShoutoutExpiryTimer() {
+  if (state.shoutoutExpiryTimer !== null) {
+    window.clearTimeout(state.shoutoutExpiryTimer);
+    state.shoutoutExpiryTimer = null;
+  }
+}
+
+export function clearShoutoutState() {
+  clearShoutoutUnlockTimer();
+  clearShoutoutExpiryTimer();
+  state.shoutoutRecords = [];
+  state.seenShoutoutEvents = [];
 }
 
 export function resetHandFanTouchState() {

@@ -219,6 +219,32 @@ function seatPositionClass(snapshot, localSeat, player) {
   return layouts[snapshot.players.length]?.[relativeIndex] || "seat-top";
 }
 
+function shoutoutOffsetForSeat(snapshot, localSeat, player) {
+  const position = seatPositionClass(snapshot, localSeat, player);
+  if (position === "seat-bottom") {
+    return { dx: 0, dy: -94 };
+  }
+  if (position === "seat-top") {
+    return { dx: 0, dy: 92 };
+  }
+  if (position === "seat-top-left") {
+    return { dx: 74, dy: 74 };
+  }
+  if (position === "seat-top-right") {
+    return { dx: -74, dy: 74 };
+  }
+  if (position === "seat-left") {
+    return { dx: 96, dy: 0 };
+  }
+  if (position === "seat-right") {
+    return { dx: -96, dy: 0 };
+  }
+  if (position === "seat-bottom-left") {
+    return { dx: 74, dy: -74 };
+  }
+  return { dx: 0, dy: -84 };
+}
+
 function hasActiveMotion(animations, kind) {
   return animations.some((animation) => animation.kind === kind);
 }
@@ -334,6 +360,47 @@ function renderSeatHiddenStack(hiddenCardsCount) {
   `;
 }
 
+function renderSeatShoutouts({
+  snapshot,
+  player,
+  localSeat,
+  shoutouts = [],
+}) {
+  if (!Array.isArray(shoutouts) || shoutouts.length === 0) {
+    return "";
+  }
+
+  const offset = shoutoutOffsetForSeat(snapshot, localSeat, player);
+  return shoutouts
+    .map(
+      (shoutout) => `
+        <span
+          class="motion-shoutout motion-shoutout-${escapeHtml(shoutout.presetKey || "default")}"
+          data-shoutout-id="${escapeHtml(shoutout.id || "")}"
+          data-shoutout-event-id="${escapeHtml(shoutout.eventId || "")}"
+          data-shoutout-key="${escapeHtml(shoutout.presetKey || "")}"
+          style="
+            left:50%;
+            top:50%;
+            --shoutout-dx:${Math.round(offset.dx)}px;
+            --shoutout-dy:${Math.round(offset.dy)}px;
+            --shoutout-dx-soft:${Math.round(offset.dx * 0.72)}px;
+            --shoutout-dy-soft:${Math.round(offset.dy * 0.72)}px;
+            --shoutout-accent:${escapeHtml(shoutout.accentColor || "#f4b942")};
+            --shoutout-duration:${Math.max(0, shoutout.durationMs || 1500)}ms;
+          "
+          aria-hidden="true"
+        >
+          <span class="motion-shoutout-body">
+            <span class="motion-shoutout-emoji">${escapeHtml(shoutout.emoji || "✨")}</span>
+            <span class="motion-shoutout-label">${escapeHtml(shoutout.text || "Shoutout")}</span>
+          </span>
+        </span>
+      `,
+    )
+    .join("");
+}
+
 function renderSeat({
   snapshot,
   player,
@@ -342,6 +409,7 @@ function renderSeat({
   turnArrivalSeat,
   presenceNow,
   kickSeatArmed,
+  visibleShoutoutsBySeat,
 }) {
   const isCurrentTurn = player.seat === snapshot.current_turn_seat;
   const isWinner = player.finished_position === 1;
@@ -399,6 +467,14 @@ function renderSeat({
         presenceNow,
         kickSeatArmed,
       })}
+      <div class="seat-shoutout-region" data-shoutout-seat="${player.seat}">
+        ${renderSeatShoutouts({
+          snapshot,
+          player,
+          localSeat,
+          shoutouts: visibleShoutoutsBySeat?.[player.seat] || [],
+        })}
+      </div>
       <div class="seat-hand-row" data-motion-anchor="seat-hand-${player.seat}">${renderSeatHandFan(player.private_cards_count)}</div>
       <div
         class="seat-public-cards"
@@ -903,6 +979,7 @@ function renderTable({ snapshot, gameplayUi, viewState }) {
               turnArrivalSeat: viewState.turnArrivalSeat,
               presenceNow: viewState.presenceNow,
               kickSeatArmed: viewState.kickSeatArmed,
+              visibleShoutoutsBySeat: viewState.visibleShoutoutsBySeat,
             }),
           )
           .join("")}
@@ -980,6 +1057,9 @@ function renderTable({ snapshot, gameplayUi, viewState }) {
         }
         <button class="table-help-trigger" id="open-rules-menu" type="button" aria-label="Open rules" title="Rules">?</button>
         ${renderRulesMenuView(viewState.rulesMenu)}
+        <div class="table-shoutout-menu-region" data-shoutout-menu-region>
+          ${renderShoutoutMenuView(viewState.shoutoutMenu)}
+        </div>
       </div>
       ${
         snapshot.status === "LOBBY" && isHost
@@ -1016,4 +1096,50 @@ export function renderGameplayScreenView({ snapshot, gameplayUi, viewState }) {
         ? ""
         : renderActions({ gameplayUi, viewState }),
   };
+}
+
+export function syncGameplayShoutoutView({
+  root = document,
+  snapshot,
+  viewState,
+}) {
+  if (!root || !snapshot || !viewState) {
+    return;
+  }
+
+  const menuRegion = root.querySelector("[data-shoutout-menu-region]");
+  if (menuRegion) {
+    const nextMarkup = renderShoutoutMenuView(viewState.shoutoutMenu);
+    const nextSignature = JSON.stringify({
+      open: Boolean(viewState.shoutoutMenu?.open),
+      canSendShoutouts: Boolean(viewState.shoutoutMenu?.canSendShoutouts),
+      onCooldown: Boolean(viewState.shoutoutMenu?.onCooldown),
+      presets: (viewState.shoutoutMenu?.presets || []).map((preset) => preset.key),
+    });
+    if (menuRegion.dataset.shoutoutMenuSignature !== nextSignature) {
+      menuRegion.innerHTML = nextMarkup;
+      menuRegion.dataset.shoutoutMenuSignature = nextSignature;
+    }
+  }
+
+  root.querySelectorAll("[data-shoutout-seat]").forEach((region) => {
+    const seat = Number(region.getAttribute("data-shoutout-seat"));
+    const shoutouts = viewState.visibleShoutoutsBySeat?.[seat] || [];
+    const player = playerForSeat(snapshot, seat);
+    const nextMarkup = player
+      ? renderSeatShoutouts({
+          snapshot,
+          player,
+          localSeat: viewState.localSeat,
+          shoutouts,
+        })
+      : "";
+    const nextSignature = shoutouts
+      .map((shoutout) => `${shoutout.id}:${shoutout.expiresAt}:${shoutout.text}`)
+      .join("|");
+    if (region.dataset.shoutoutSignature !== nextSignature) {
+      region.innerHTML = nextMarkup;
+      region.dataset.shoutoutSignature = nextSignature;
+    }
+  });
 }

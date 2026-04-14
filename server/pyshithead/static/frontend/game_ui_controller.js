@@ -1,10 +1,12 @@
 import {
   clearPendingLocalPlay,
+  clearShoutoutExpiryTimer,
   clearShoutoutUnlockTimer,
   clearTurnNoticeTimer,
   resetSelection,
   state,
 } from "./state.js";
+import { applyShoutoutEvent, pruneExpiredShoutouts } from "./transport.js";
 import {
   canChoosePublicCards as deriveCanChoosePublicCards,
   deriveGameplayUiState,
@@ -79,7 +81,9 @@ function isShoutoutCooldownOnlyUpdate(previousPrivateData, nextPrivateData) {
 export function createGameUiController({
   render,
   shoutoutCooldownMs,
+  shoutoutDisplayDurationMs,
   closeShoutoutMenu,
+  syncShoutoutView,
   detectAnimationEvents,
   clearMotionState,
   resetLeaveConfirmation,
@@ -330,8 +334,29 @@ export function createGameUiController({
     }
     state.shoutoutUnlockTimer = window.setTimeout(() => {
       state.shoutoutUnlockTimer = null;
-      syncShoutoutTriggerState();
+      render();
     }, Math.max(0, cooldown.remainingMs) + 30);
+  }
+
+  function syncVisibleShoutoutTimer() {
+    clearShoutoutExpiryTimer();
+    if (state.shoutoutRecords.length === 0) {
+      return;
+    }
+    const nextExpiryAt = Math.min(
+      ...state.shoutoutRecords.map((record) => record.expiresAt || 0),
+    );
+    if (!Number.isFinite(nextExpiryAt) || nextExpiryAt <= 0) {
+      return;
+    }
+    state.shoutoutExpiryTimer = window.setTimeout(() => {
+      state.shoutoutExpiryTimer = null;
+      const removedExpiredShoutouts = pruneExpiredShoutouts();
+      if (removedExpiredShoutouts) {
+        syncShoutoutView();
+      }
+      syncVisibleShoutoutTimer();
+    }, Math.max(0, nextExpiryAt - Date.now()) + 30);
   }
 
   function shoutoutTriggerState(
@@ -611,6 +636,17 @@ export function createGameUiController({
     syncShoutoutUnlockTimer();
   }
 
+  function applyRealtimeShoutout(payload) {
+    const outcome = applyShoutoutEvent(payload, {
+      durationMs: shoutoutDisplayDurationMs(),
+    });
+    if (!outcome.applied) {
+      return;
+    }
+    syncVisibleShoutoutTimer();
+    syncShoutoutView();
+  }
+
   function submitHiddenCard() {
     sendAction({ type: "play_hidden_card" });
   }
@@ -730,6 +766,7 @@ export function createGameUiController({
   }
 
   return {
+    applyRealtimeShoutout,
     bindSessionController,
     canChoosePublicCards,
     clearGameStateForLobby,
@@ -762,6 +799,7 @@ export function createGameUiController({
     syncKickSeatConfirmation,
     syncShoutoutTriggerState,
     syncShoutoutUnlockTimer,
+    syncVisibleShoutoutTimer,
     syncTurnNotice,
     toggleCard,
   };

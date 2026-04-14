@@ -26,7 +26,6 @@ export function createSessionController({
   render,
   clearMotionState,
   clearSession,
-  appendShoutoutBubble,
   gameUiController,
 }) {
   function closeWebSocket({ allowReconnect = false } = {}) {
@@ -219,11 +218,7 @@ export function createSessionController({
         return;
       }
       if (payload.type === "shoutout") {
-        appendShoutoutBubble({
-          eventId: payload.data?.event_id || "",
-          seat: payload.data?.seat,
-          preset: payload.data?.preset,
-        });
+        gameUiController.applyRealtimeShoutout(payload);
       }
     });
 
