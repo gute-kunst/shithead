@@ -1,4 +1,10 @@
 export const JOKER_RANK = 15;
+export const GAMEPLAY_PRIMARY_ACTIONS = Object.freeze({
+  CHOOSE_PUBLIC_CARDS: "choose-public-cards",
+  PLAY_PRIVATE_CARDS: "play-private-cards",
+  PLAY_HIDDEN_CARD: "play-hidden-card",
+  RESOLVE_JOKER: "resolve-joker",
+});
 export const JOKER_ALLOWED_RANKS = [3, 4, 6, 7, 8, 9, 11, 13, 12, 14];
 export const JOKER_SYMBOL = "★";
 
@@ -90,6 +96,10 @@ export function getPlayRank({ selectedCards = [], jokerRank = null }) {
   return getSelectedHasJoker(selectedCards)
     ? jokerRank
     : getSelectedRank({ selectedCards, jokerRank });
+}
+
+export function hasHighLowChoice(choice) {
+  return ["HIGHER", "LOWER"].includes(choice);
 }
 
 export function getJokerOptions({ snapshot, cards = [] }) {
@@ -326,7 +336,7 @@ export function deriveGameplayUiState({
       ? jokerRank
       : currentPendingRank
     : selectedPlayRank;
-  const hasHighLowChoice = ["HIGHER", "LOWER"].includes(highLowChoice);
+  const hasSelectedHighLowChoice = hasHighLowChoice(highLowChoice);
   const pendingHiddenTake = hasPendingHiddenTake({ privateState });
   const hiddenCardPlayable = canPlayHiddenCard({
     snapshot,
@@ -357,7 +367,7 @@ export function deriveGameplayUiState({
     currentPlayRank === snapshot?.rules?.high_low_rank;
   const needsJokerRankChoice =
     showJokerChoiceUi && Number.isInteger(jokerRank) === false;
-  const needsHighLowChoice = showHighLowChoiceUi && !hasHighLowChoice;
+  const needsHighLowChoice = showHighLowChoiceUi && !hasSelectedHighLowChoice;
   const canPlaySelectedCards =
     selectedCards.length > 0 && !needsJokerRankChoice && !needsHighLowChoice;
   const showPlaySelectedAction =
@@ -371,25 +381,25 @@ export function deriveGameplayUiState({
   let primaryHandAction = null;
   if (choosingPublicCards) {
     primaryHandAction = {
-      action: "choose-public",
+      id: GAMEPLAY_PRIMARY_ACTIONS.CHOOSE_PUBLIC_CARDS,
       label: "Lock cards",
       disabled: false,
     };
   } else if (pendingJokerSelection) {
     primaryHandAction = {
-      action: "resolve-joker",
+      id: GAMEPLAY_PRIMARY_ACTIONS.RESOLVE_JOKER,
       label: pendingRevealedJoker ? "Play joker" : "Play revealed card",
       disabled: needsJokerRankChoice || needsHighLowChoice,
     };
   } else if (hiddenCardPlayable) {
     primaryHandAction = {
-      action: "play-hidden",
+      id: GAMEPLAY_PRIMARY_ACTIONS.PLAY_HIDDEN_CARD,
       label: "Reveal hidden card",
       disabled: false,
     };
   } else if (showPlaySelectedAction) {
     primaryHandAction = {
-      action: "play-cards",
+      id: GAMEPLAY_PRIMARY_ACTIONS.PLAY_PRIVATE_CARDS,
       label: "Play cards",
       disabled: playSelectedDisabled,
     };
@@ -455,7 +465,7 @@ export function deriveGameplayUiState({
       selectedHasJoker,
       currentPlayRank,
       jokerChoices,
-      hasHighLowChoice,
+      hasHighLowChoice: hasSelectedHighLowChoice,
       needsJokerRankChoice,
       needsHighLowChoice,
       canPlaySelectedCards,

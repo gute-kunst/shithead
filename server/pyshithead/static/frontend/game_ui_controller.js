@@ -7,11 +7,14 @@ import {
 } from "./state.js";
 import {
   canChoosePublicCards as deriveCanChoosePublicCards,
+  deriveGameplayUiState,
+  GAMEPLAY_PRIMARY_ACTIONS,
   getJokerOptions,
   getPendingJokerCard,
   getPlayRank,
   getSelectedHasJoker,
   getSelectedNonJokerRank,
+  hasHighLowChoice,
   hasPendingJokerSelection as deriveHasPendingJokerSelection,
   isJokerCard,
   JOKER_ALLOWED_RANKS,
@@ -85,7 +88,6 @@ export function createGameUiController({
   buildLocalPlayThrowMotions,
   prefersReducedMotion,
   queueLocalMotion,
-  turnNoticeContext,
 }) {
   let sessionController = null;
 
@@ -176,6 +178,20 @@ export function createGameUiController({
     return getJokerOptions({ snapshot, cards });
   }
 
+  function deriveCurrentGameplayUi(
+    snapshot = state.snapshot?.data,
+    privateState = state.privateState?.data,
+  ) {
+    return deriveGameplayUiState({
+      snapshot,
+      privateState,
+      seat: state.seat,
+      selectedCards: state.selectedCards,
+      jokerRank: state.jokerRank,
+      highLowChoice: state.highLowChoice,
+    });
+  }
+
   function syncJokerSelection() {
     if (state.selectedCards.length === 0) {
       state.jokerRank = null;
@@ -229,11 +245,11 @@ export function createGameUiController({
       return;
     }
 
-    const notice = turnNoticeContext.build(snapshot);
+    const notice = deriveCurrentGameplayUi(snapshot).turnNotice;
     const hasChanged = notice.key !== state.lastTurnNoticeKey;
     state.lastTurnNoticeKey = notice.key;
 
-    if (suppress || !turnNoticeContext.isMobileLayout(snapshot)) {
+    if (suppress) {
       state.turnNoticeVisible = false;
       return;
     }
@@ -509,7 +525,7 @@ export function createGameUiController({
   }
 
   function setHighLowChoice(choice) {
-    state.highLowChoice = choice;
+    state.highLowChoice = hasHighLowChoice(choice) ? choice : "";
     state.error = "";
     render();
   }
@@ -528,23 +544,21 @@ export function createGameUiController({
   }
 
   function submitPlayCards() {
+    const gameplayUi = deriveCurrentGameplayUi();
     if (state.localPlaySendTimer !== null) {
       return;
     }
-    if (state.selectedCards.length === 0) {
+    if (gameplayUi.selectedPlay.selectedCards.length === 0) {
       state.error = "Select at least one card.";
       render();
       return;
     }
-    if (selectedHasJoker() && !state.jokerRank) {
+    if (gameplayUi.selectedPlay.needsJokerRankChoice) {
       state.error = "Choose what the joker should be first.";
       render();
       return;
     }
-    if (
-      playRank() === state.snapshot.data.rules.high_low_rank &&
-      !["HIGHER", "LOWER"].includes(state.highLowChoice)
-    ) {
+    if (gameplayUi.selectedPlay.needsHighLowChoice) {
       state.error =
         "Choose whether the next player must go higher or may go lower.";
       render();
@@ -552,12 +566,13 @@ export function createGameUiController({
     }
     const payload = {
       type: "play_private_cards",
-      cards: [...state.selectedCards],
+      cards: [...gameplayUi.selectedPlay.selectedCards],
       choice:
-        playRank() === state.snapshot.data.rules.high_low_rank
+        gameplayUi.selectedPlay.currentPlayRank ===
+        state.snapshot.data.rules.high_low_rank
           ? state.highLowChoice
           : "",
-      joker_rank: selectedHasJoker() ? state.jokerRank : null,
+      joker_rank: gameplayUi.selectedPlay.selectedHasJoker ? state.jokerRank : null,
     };
     const capturedCards = captureLocalPlaySelection();
     const shouldStageLocalThrow =
@@ -601,41 +616,27 @@ export function createGameUiController({
   }
 
   function submitResolveJoker() {
-    if (!hasPendingJokerSelection()) {
+    const gameplayUi = deriveCurrentGameplayUi();
+    if (!gameplayUi.pendingJoker.active) {
       state.error = "No joker is waiting to be resolved.";
       render();
       return;
     }
-    const pendingCard = pendingJokerCard();
-    const pendingRevealedJoker = isJokerCard(pendingCard);
-    const needsHighLowChoice = pendingRevealedJoker
-      ? state.jokerRank === state.snapshot.data.rules.high_low_rank
-      : true;
-
-    if (pendingRevealedJoker) {
-      if (!state.jokerRank) {
-        state.error = "Choose what the joker should be first.";
-        render();
-        return;
-      }
-      if (
-        needsHighLowChoice &&
-        !["HIGHER", "LOWER"].includes(state.highLowChoice)
-      ) {
-        state.error =
-          "Choose whether the next player must go higher or may go lower.";
-        render();
-        return;
-      }
-    } else if (!["HIGHER", "LOWER"].includes(state.highLowChoice)) {
+    if (gameplayUi.selectedPlay.needsJokerRankChoice) {
+      state.error = "Choose what the joker should be first.";
+      render();
+      return;
+    }
+    if (gameplayUi.selectedPlay.needsHighLowChoice) {
       state.error =
         "Choose whether the next player must go higher or may go lower.";
       render();
       return;
     }
 
-    const choice = pendingRevealedJoker
-      ? needsHighLowChoice
+    const choice = gameplayUi.pendingJoker.isRevealedJoker
+      ? gameplayUi.selectedPlay.currentPlayRank ===
+          state.snapshot.data.rules.high_low_rank
         ? state.highLowChoice
         : ""
       : state.highLowChoice;
@@ -643,9 +644,23 @@ export function createGameUiController({
     sendAction({
       type: "resolve_joker",
       choice,
-      joker_rank: pendingRevealedJoker ? state.jokerRank : null,
+      joker_rank: gameplayUi.pendingJoker.isRevealedJoker ? state.jokerRank : null,
     });
     resetSelection();
+  }
+
+  const primaryActionHandlers = Object.freeze({
+    [GAMEPLAY_PRIMARY_ACTIONS.CHOOSE_PUBLIC_CARDS]: submitChoosePublicCards,
+    [GAMEPLAY_PRIMARY_ACTIONS.PLAY_PRIVATE_CARDS]: submitPlayCards,
+    [GAMEPLAY_PRIMARY_ACTIONS.PLAY_HIDDEN_CARD]: submitHiddenCard,
+    [GAMEPLAY_PRIMARY_ACTIONS.RESOLVE_JOKER]: submitResolveJoker,
+  });
+
+  function submitPrimaryAction(actionId) {
+    const handler = primaryActionHandlers[actionId];
+    if (handler) {
+      handler();
+    }
   }
 
   function onAuthPayloadApplied(snapshot) {
@@ -740,6 +755,7 @@ export function createGameUiController({
     submitChoosePublicCards,
     submitHiddenCard,
     submitPlayCards,
+    submitPrimaryAction,
     submitResolveJoker,
     submitShoutout,
     submitTakePile,
