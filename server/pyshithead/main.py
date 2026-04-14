@@ -136,7 +136,7 @@ def create_app(
     <div id="motion-overlay" class="motion-overlay" aria-hidden="true">
       <div id="motion-layer-host" class="motion-layer"></div>
     </div>
-    <script src="/static/app.js?v={STATIC_ASSET_VERSION}" defer></script>
+    <script type="module" src="/static/app.js?v={STATIC_ASSET_VERSION}"></script>
   </body>
 </html>"""
             )

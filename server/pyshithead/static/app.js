@@ -19,6 +19,12 @@ import {
   resetSelection,
   state,
 } from "./frontend/state.js";
+import {
+  applyAuthPayload as applyInboundAuthPayload,
+  applyServerError as applyInboundServerError,
+  applyServerSync,
+  applySessionSnapshot as applyInboundSessionSnapshot,
+} from "./frontend/transport.js";
 const playPilePreviewLimit = 6;
 const jokerRank = 15;
 const jokerAllowedRanks = [3, 4, 6, 7, 8, 9, 11, 13, 12, 14];
@@ -1396,26 +1402,16 @@ async function api(path, options = {}) {
 }
 
 function applyAuthPayload(payload) {
-  clearMotionState();
-  state.inviteCode = payload.invite_code;
-  state.playerToken = payload.player_token;
-  state.seat = payload.seat;
-  state.snapshot = { type: "session_snapshot", data: payload.snapshot };
-  state.privateState = { type: "private_state", data: payload.private_state };
-  state.presenceNow = Date.now();
-  state.displayName =
-    payload.snapshot.players.find((player) => player.seat === payload.seat)
-      ?.display_name || state.displayName;
-  state.error = "";
-  state.restoringSession = false;
-  resetSelection();
-  clearRestoreRetryTimer();
-  state.restoreRetryCount = 0;
-  syncKickSeatConfirmation(payload.snapshot);
-  persistSession();
-  syncTurnNotice(payload.snapshot, { suppress: true });
-  render();
-  connectWebSocket();
+  applyInboundAuthPayload(payload, {
+    clearMotionState,
+    resetSelection,
+    clearRestoreRetryTimer,
+    syncKickSeatConfirmation,
+    syncTurnNotice,
+    persistSession,
+    render,
+    connectWebSocket,
+  });
 }
 
 async function createGame(form) {
@@ -1561,73 +1557,74 @@ function connectWebSocket() {
       return;
     }
     const payload = JSON.parse(event.data);
-    if (payload.type === "session_snapshot") {
-      const previousSnapshot = state.snapshot?.data || null;
-      state.snapshot = payload;
-      state.presenceNow = Date.now();
-      detectAnimationEvents(previousSnapshot, payload.data);
-      if (!payload.data.players.some((player) => player.seat === state.seat)) {
-        clearSession(
-          "Your saved session is no longer available. Join the game again if it is still active.",
-        );
-        return;
-      }
-      syncKickSeatConfirmation(payload.data);
-      syncTurnNotice(payload.data);
-      if (payload.data.status === "LOBBY" && previousSnapshot?.status === "GAME_OVER") {
-        clearGameStateForLobby();
-      }
-      if (payload.data.status === "GAME_OVER" || !isMyTurn()) {
-        resetSelection();
-      }
-      render();
-    } else if (payload.type === "private_state") {
-      const previousPrivateState = state.privateState?.data || null;
-      const previousPrivateCards = previousPrivateState?.private_cards || [];
-      state.privateState = payload;
-      if (
-        state.pendingLocalPlay &&
-        Number.isInteger(state.pendingLocalPlay.expectedDrawCount) &&
-        state.pendingLocalPlay.expectedDrawCount > 0
-      ) {
-        state.pendingLocalDrawAnimation = collectAddedCards(
-          previousPrivateCards,
-          payload.data.private_cards || [],
-          state.pendingLocalPlay.expectedDrawCount,
-        );
-      }
-      state.hiddenLocalHandCardIds = [];
-      state.pendingLocalPlay = null;
-      if (isShoutoutOnCooldown(payload.data)) {
-        closeShoutoutMenu({ rerender: false });
-      }
-      if (isShoutoutCooldownOnlyUpdate(previousPrivateState, payload.data)) {
-        syncShoutoutTriggerState();
-        syncShoutoutUnlockTimer();
-        return;
-      }
-      if (
-        payload.data.pending_joker_selection ||
-        payload.data.pending_hidden_take
-      ) {
-        state.selectedCards = [];
-        state.jokerRank =
-          payload.data.pending_joker_card?.effective_rank || null;
-        state.highLowChoice = "";
-      }
-      render();
-    } else if (payload.type === "shoutout") {
-      appendShoutoutBubble({
-        eventId: payload.data?.event_id || "",
-        seat: payload.data?.seat,
-        preset: payload.data?.preset,
-      });
-    } else if (payload.type === "action_error") {
-      clearPendingLocalPlay();
-      state.pendingLocalDrawAnimation = null;
-      state.error = payload.message;
-      render();
-    }
+    applyServerSync(payload, {
+      onSessionSnapshot: ({ previousSnapshot, snapshot }) => {
+        detectAnimationEvents(previousSnapshot, snapshot);
+        if (!snapshot.players.some((player) => player.seat === state.seat)) {
+          clearSession(
+            "Your saved session is no longer available. Join the game again if it is still active.",
+          );
+          return;
+        }
+        syncKickSeatConfirmation(snapshot);
+        syncTurnNotice(snapshot);
+        if (snapshot.status === "LOBBY" && previousSnapshot?.status === "GAME_OVER") {
+          clearGameStateForLobby();
+        }
+        if (snapshot.status === "GAME_OVER" || !isMyTurn()) {
+          resetSelection();
+        }
+        render();
+      },
+      onPrivateState: ({
+        previousPrivateState,
+        previousPrivateCards,
+        privateState,
+      }) => {
+        if (
+          state.pendingLocalPlay &&
+          Number.isInteger(state.pendingLocalPlay.expectedDrawCount) &&
+          state.pendingLocalPlay.expectedDrawCount > 0
+        ) {
+          state.pendingLocalDrawAnimation = collectAddedCards(
+            previousPrivateCards,
+            privateState?.private_cards || [],
+            state.pendingLocalPlay.expectedDrawCount,
+          );
+        }
+        state.hiddenLocalHandCardIds = [];
+        state.pendingLocalPlay = null;
+        if (isShoutoutOnCooldown(privateState)) {
+          closeShoutoutMenu({ rerender: false });
+        }
+        if (isShoutoutCooldownOnlyUpdate(previousPrivateState, privateState)) {
+          syncShoutoutTriggerState();
+          syncShoutoutUnlockTimer();
+          return;
+        }
+        if (
+          privateState?.pending_joker_selection ||
+          privateState?.pending_hidden_take
+        ) {
+          state.selectedCards = [];
+          state.jokerRank = privateState?.pending_joker_card?.effective_rank || null;
+          state.highLowChoice = "";
+        }
+        render();
+      },
+      onShoutout: (message) => {
+        appendShoutoutBubble({
+          eventId: message.data?.event_id || "",
+          seat: message.data?.seat,
+          preset: message.data?.preset,
+        });
+      },
+      onActionError: () => {
+        clearPendingLocalPlay();
+        state.pendingLocalDrawAnimation = null;
+        render();
+      },
+    });
   });
 
   ws.addEventListener("close", (event) => {
@@ -1649,18 +1646,17 @@ function connectWebSocket() {
 
 async function startGame() {
   try {
-    const previousSnapshot = state.snapshot?.data || null;
     const response = await api(`/api/games/${state.inviteCode}/start`, {
       method: "POST",
       body: JSON.stringify({ player_token: state.playerToken }),
     });
-    state.snapshot = response;
+    const { previousSnapshot } = applyInboundSessionSnapshot(response);
     detectAnimationEvents(previousSnapshot, response.data);
     state.error = "";
     syncTurnNotice(response.data);
     render();
   } catch (error) {
-    state.error = error.message;
+    applyInboundServerError(error.message);
     render();
   }
 }
@@ -1674,12 +1670,12 @@ async function rematchGame() {
       }),
     });
     clearGameStateForLobby();
-    state.snapshot = response;
+    applyInboundSessionSnapshot(response);
     state.error = "";
     syncTurnNotice(response.data, { suppress: true });
     render();
   } catch (error) {
-    state.error = error.message;
+    applyInboundServerError(error.message);
     render();
   }
 }
@@ -1693,11 +1689,11 @@ async function updateGameSettings(allowOptionalTakePile) {
         allow_optional_take_pile: allowOptionalTakePile,
       }),
     });
-    state.snapshot = response;
+    applyInboundSessionSnapshot(response);
     state.error = "";
     render();
   } catch (error) {
-    state.error = error.message;
+    applyInboundServerError(error.message);
     render();
   }
 }
@@ -1712,12 +1708,12 @@ async function kickPlayer(seat) {
       },
     );
     resetKickSeatConfirmation();
-    state.snapshot = response;
+    applyInboundSessionSnapshot(response);
     state.error = "";
     syncTurnNotice(response.data);
     render();
   } catch (error) {
-    state.error = error.message;
+    applyInboundServerError(error.message);
     resetKickSeatConfirmation();
     render();
   }
@@ -4298,7 +4294,19 @@ function wireEvents() {
   }
 }
 
+function captureHandFanScrollBeforeRender() {
+  if (state.snapshot?.data?.status !== "IN_GAME") {
+    return;
+  }
+  const handFan = app.querySelector(".hand-fan");
+  if (!handFan) {
+    return;
+  }
+  state.handFanScrollLeft = handFan.scrollLeft;
+}
+
 function render({ force = false } = {}) {
+  captureHandFanScrollBeforeRender();
   if (!force && isHandInteractionActive()) {
     const handFan = app.querySelector(".hand-fan");
     if (handFan) {
@@ -4394,12 +4402,20 @@ window.addEventListener("keydown", (event) => {
 
 window.addEventListener("resize", () => {
   if (state.snapshot) {
+    const handFan = app.querySelector(".hand-fan");
+    if (handFan) {
+      state.handFanScrollLeft = handFan.scrollLeft;
+    }
     render();
   }
 });
 
 window.addEventListener("orientationchange", () => {
   if (state.snapshot) {
+    const handFan = app.querySelector(".hand-fan");
+    if (handFan) {
+      state.handFanScrollLeft = handFan.scrollLeft;
+    }
     render();
   }
 });
