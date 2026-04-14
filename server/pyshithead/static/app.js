@@ -1,4 +1,24 @@
-const storageKey = "shithead.alpha.session";
+import {
+  clearAnimationTimers,
+  clearKickSeatConfirmTimer,
+  clearLeaveConfirmTimer,
+  clearLocalPlaySendTimer,
+  clearPendingLocalPlay,
+  clearPresenceTicker,
+  clearReconnectTimer,
+  clearRestoreRetryTimer,
+  clearShoutoutUnlockTimer,
+  clearTurnArrivalTimer,
+  clearTurnNoticeTimer,
+  hasSavedSession,
+  isHandDragActive,
+  isHandInteractionActive,
+  loadStoredSession,
+  persistSession,
+  resetHandFanTouchState,
+  resetSelection,
+  state,
+} from "./frontend/state.js";
 const playPilePreviewLimit = 6;
 const jokerRank = 15;
 const jokerAllowedRanks = [3, 4, 6, 7, 8, 9, 11, 13, 12, 14];
@@ -8,109 +28,7 @@ const cardTapSuppressMs = 350;
 const handDragThreshold = 14;
 const mouseDragInputId = -1;
 
-const state = {
-  inviteCode: "",
-  playerToken: "",
-  seat: null,
-  displayName: "",
-  snapshot: null,
-  privateState: null,
-  error: "",
-  ws: null,
-  wsReady: false,
-  reconnectTimer: null,
-  restoringSession: false,
-  shouldReconnect: false,
-  selectedCards: [],
-  highLowChoice: "",
-  turnNoticeVisible: false,
-  turnNoticeHeadline: "",
-  turnNoticeCopy: "",
-  lastTurnNoticeKey: "",
-  turnNoticeTimer: null,
-  suppressCardTapUntil: 0,
-  landingInviteCode: "",
-  landingOpenBucket: "",
-  landingJoinFirst: false,
-  pendingLandingNameFocus: false,
-  restoreRetryTimer: null,
-  restoreRetryCount: 0,
-  jokerRank: null,
-  leaveArmed: false,
-  leaveConfirmTimer: null,
-  kickSeatArmed: null,
-  kickSeatConfirmTimer: null,
-  presenceTicker: null,
-  presenceNow: Date.now(),
-  shoutoutUnlockTimer: null,
-  rulesMenuOpen: false,
-  shoutoutMenuOpen: false,
-  animations: [],
-  localMotionAnimations: [],
-  animationCounter: 0,
-  animationTimers: [],
-  turnArrivalSeat: null,
-  turnArrivalTimer: null,
-  motionAnchors: {},
-  motionAnchorSignature: "",
-  motionRerenderScheduled: false,
-  pendingLocalPlay: null,
-  pendingLocalDrawAnimation: null,
-  hiddenLocalHandCardIds: [],
-  localPlaySendTimer: null,
-  handFanScrollLeft: 0,
-  seenShoutoutEvents: [],
-  handDragActiveInputId: null,
-  handDragStartX: 0,
-  handDragStartY: 0,
-  handDragStartScrollLeft: 0,
-  handDragDragging: false,
-  handDragQueuedRender: false,
-  handTouchActiveId: null,
-  handTouchStartX: 0,
-  handTouchStartY: 0,
-  handTouchStartScrollLeft: 0,
-  handTouchStartAt: 0,
-  handTouchMoved: false,
-};
-
 const app = document.getElementById("app");
-
-function loadStoredSession() {
-  try {
-    const raw = localStorage.getItem(storageKey);
-    if (!raw) {
-      return;
-    }
-    const parsed = JSON.parse(raw);
-    state.inviteCode = parsed.inviteCode || "";
-    state.playerToken = parsed.playerToken || "";
-    state.seat = Number.isInteger(parsed.seat) ? parsed.seat : null;
-    state.displayName = parsed.displayName || "";
-  } catch (error) {
-    localStorage.removeItem(storageKey);
-  }
-}
-
-function persistSession() {
-  if (!state.inviteCode || !state.playerToken) {
-    localStorage.removeItem(storageKey);
-    return;
-  }
-  localStorage.setItem(
-    storageKey,
-    JSON.stringify({
-      inviteCode: state.inviteCode,
-      playerToken: state.playerToken,
-      seat: state.seat,
-      displayName: state.displayName,
-    }),
-  );
-}
-
-function hasSavedSession() {
-  return Boolean(state.inviteCode && state.playerToken);
-}
 
 function loadInviteLink() {
   const params = new URLSearchParams(window.location.search);
@@ -131,41 +49,6 @@ function toggleLandingBucket(bucket) {
     state.pendingLandingNameFocus = true;
   }
   render();
-}
-
-function clearReconnectTimer() {
-  if (state.reconnectTimer !== null) {
-    window.clearTimeout(state.reconnectTimer);
-    state.reconnectTimer = null;
-  }
-}
-
-function clearLeaveConfirmTimer() {
-  if (state.leaveConfirmTimer !== null) {
-    window.clearTimeout(state.leaveConfirmTimer);
-    state.leaveConfirmTimer = null;
-  }
-}
-
-function clearKickSeatConfirmTimer() {
-  if (state.kickSeatConfirmTimer !== null) {
-    window.clearTimeout(state.kickSeatConfirmTimer);
-    state.kickSeatConfirmTimer = null;
-  }
-}
-
-function clearPresenceTicker() {
-  if (state.presenceTicker !== null) {
-    window.clearInterval(state.presenceTicker);
-    state.presenceTicker = null;
-  }
-}
-
-function clearShoutoutUnlockTimer() {
-  if (state.shoutoutUnlockTimer !== null) {
-    window.clearTimeout(state.shoutoutUnlockTimer);
-    state.shoutoutUnlockTimer = null;
-  }
 }
 
 function pruneSeenShoutoutEvents(now = Date.now()) {
@@ -196,15 +79,6 @@ function clearHandFanDraggingClasses() {
   });
 }
 
-function resetHandFanTouchState() {
-  state.handTouchActiveId = null;
-  state.handTouchStartX = 0;
-  state.handTouchStartY = 0;
-  state.handTouchStartScrollLeft = 0;
-  state.handTouchStartAt = 0;
-  state.handTouchMoved = false;
-}
-
 function resetHandFanDragState() {
   state.handDragActiveInputId = null;
   state.handDragStartX = 0;
@@ -214,14 +88,6 @@ function resetHandFanDragState() {
   state.handDragQueuedRender = false;
   resetHandFanTouchState();
   clearHandFanDraggingClasses();
-}
-
-function isHandDragActive() {
-  return state.handDragActiveInputId !== null;
-}
-
-function isHandInteractionActive() {
-  return isHandDragActive() || state.handTouchActiveId !== null;
 }
 
 function suppressCardTap() {
@@ -532,40 +398,8 @@ function ensureMotionLayer() {
   return layer;
 }
 
-function clearTurnNoticeTimer() {
-  if (state.turnNoticeTimer !== null) {
-    window.clearTimeout(state.turnNoticeTimer);
-    state.turnNoticeTimer = null;
-  }
-}
-
 function prefersReducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
-function clearAnimationTimers() {
-  state.animationTimers.forEach((timer) => window.clearTimeout(timer));
-  state.animationTimers = [];
-}
-
-function clearTurnArrivalTimer() {
-  if (state.turnArrivalTimer !== null) {
-    window.clearTimeout(state.turnArrivalTimer);
-    state.turnArrivalTimer = null;
-  }
-}
-
-function clearLocalPlaySendTimer() {
-  if (state.localPlaySendTimer !== null) {
-    window.clearTimeout(state.localPlaySendTimer);
-    state.localPlaySendTimer = null;
-  }
-}
-
-function clearPendingLocalPlay() {
-  clearLocalPlaySendTimer();
-  state.pendingLocalPlay = null;
-  state.hiddenLocalHandCardIds = [];
 }
 
 function clearMotionState() {
@@ -635,13 +469,6 @@ function markTurnArrival(seat) {
     },
     prefersReducedMotion() ? 220 : 1100,
   );
-}
-
-function clearRestoreRetryTimer() {
-  if (state.restoreRetryTimer !== null) {
-    window.clearTimeout(state.restoreRetryTimer);
-    state.restoreRetryTimer = null;
-  }
 }
 
 function hideTurnNotice() {
@@ -1322,12 +1149,6 @@ function selectedRank() {
     return nonJokerRank;
   }
   return state.jokerRank;
-}
-
-function resetSelection() {
-  state.selectedCards = [];
-  state.highLowChoice = "";
-  state.jokerRank = null;
 }
 
 function selectedHasJoker() {
