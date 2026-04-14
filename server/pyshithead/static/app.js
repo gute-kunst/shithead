@@ -4133,7 +4133,13 @@ function wireHandFanInteractions(handFan) {
     );
     if (!touch) {
       if (event.type === "touchcancel" || event.touches.length === 0) {
+        state.handFanScrollLeft = handFan.scrollLeft;
         resetHandFanTouchState();
+        const queuedRender = state.handDragQueuedRender;
+        state.handDragQueuedRender = false;
+        if (queuedRender) {
+          render({ force: true });
+        }
       }
       return;
     }
@@ -4473,6 +4479,10 @@ function wireEvents() {
 
 function render({ force = false } = {}) {
   if (!force && isHandInteractionActive()) {
+    const handFan = app.querySelector(".hand-fan");
+    if (handFan) {
+      state.handFanScrollLeft = handFan.scrollLeft;
+    }
     state.handDragQueuedRender = true;
     return;
   }
