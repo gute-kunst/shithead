@@ -24,10 +24,12 @@ import {
   renderGameTopbarView,
   renderLandingView,
 } from "./frontend/view/root.js";
+import {
+  deriveGameplayUiState,
+  isJokerCard,
+  JOKER_SYMBOL as jokerSymbol,
+} from "./frontend/gameplay_ui_state.js";
 const playPilePreviewLimit = 6;
-const jokerRank = 15;
-const jokerAllowedRanks = [3, 4, 6, 7, 8, 9, 11, 13, 12, 14];
-const jokerSymbol = "★";
 const shoutoutCooldownMs = 4000;
 const cardTapSuppressMs = 350;
 const handDragThreshold = 14;
@@ -505,19 +507,6 @@ function cardId(card) {
   return `${card.rank}-${card.suit}`;
 }
 
-function isJokerCard(card) {
-  return Boolean(card && (card.is_joker || card.rank === jokerRank));
-}
-
-function cardEffectiveRank(card) {
-  if (!card) {
-    return null;
-  }
-  return isJokerCard(card) && Number.isInteger(card.effective_rank)
-    ? card.effective_rank
-    : card.rank;
-}
-
 function rankLabel(rank) {
   const map = {
     2: "2",
@@ -694,14 +683,6 @@ function syncPresenceTicker() {
   }, 1000);
 }
 
-function winner() {
-  return (
-    state.snapshot?.data?.players.find(
-      (player) => player.finished_position === 1,
-    ) || null
-  );
-}
-
 function placementBadgeForPlayer(snapshot, player) {
   if (player.finished_position == null) {
     return null;
@@ -728,61 +709,6 @@ function placementBadgeForPlayer(snapshot, player) {
     label: ordinal(player.finished_position),
     classes: ["seat-badge-placement"],
   };
-}
-
-function turnPlayer() {
-  return (
-    state.snapshot?.data?.players.find(
-      (player) => player.seat === state.snapshot?.data?.current_turn_seat,
-    ) || null
-  );
-}
-
-function currentGameState() {
-  return gameUiController?.currentGameState() || null;
-}
-
-function isMyTurn() {
-  return Boolean(gameUiController?.isMyTurn());
-}
-
-function canChoosePublicCards() {
-  return Boolean(gameUiController?.canChoosePublicCards());
-}
-
-function canPlayHiddenCard() {
-  const self = me();
-  return (
-    currentGameState() === "DURING_GAME" &&
-    isMyTurn() &&
-    !hasPendingHiddenTake() &&
-    self &&
-    self.public_cards.length === 0 &&
-    self.hidden_cards_count > 0 &&
-    (state.privateState?.data?.private_cards.length || 0) === 0
-  );
-}
-
-function hasPlayablePrivateCard(snapshot = state.snapshot?.data) {
-  if (currentGameState() !== "DURING_GAME" || !isMyTurn()) {
-    return false;
-  }
-
-  const validRanks = new Set(snapshot?.current_valid_ranks || []);
-  return privateCards().some((card) => {
-    if (isJokerCard(card)) {
-      return jokerAllowedRanks.some((rank) => validRanks.has(rank));
-    }
-    return validRanks.has(card.rank);
-  });
-}
-
-function hasPendingHiddenTake() {
-  return Boolean(state.privateState?.data?.pending_hidden_take);
-}
-
-function optionalTakeRuleEnabled(snapshot = state.snapshot?.data) {
-  return Boolean(snapshot?.rules?.allow_optional_take_pile);
 }
 
 function shoutoutPresets(snapshot = state.snapshot?.data) {
@@ -856,33 +782,6 @@ function canSendShoutouts(snapshot = state.snapshot?.data) {
   );
 }
 
-function canOptionallyTakePile(snapshot = state.snapshot?.data) {
-  if (currentGameState() !== "DURING_GAME" || !isMyTurn()) {
-    return false;
-  }
-  if (
-    !optionalTakeRuleEnabled(snapshot) ||
-    (snapshot?.play_pile?.length || 0) === 0
-  ) {
-    return false;
-  }
-  return !hasPendingJokerSelection() && !hasPendingHiddenTake();
-}
-
-function mustTakePile(snapshot = state.snapshot?.data) {
-  if (currentGameState() !== "DURING_GAME" || !isMyTurn()) {
-    return false;
-  }
-  if (hasPendingHiddenTake()) {
-    return true;
-  }
-  return (
-    privateCards().length > 0 &&
-    !canPlayHiddenCard() &&
-    !hasPlayablePrivateCard(snapshot)
-  );
-}
-
 function privateCards() {
   return gameUiController?.privateCards() || [];
 }
@@ -909,60 +808,21 @@ function isLocalHandCardHidden(card) {
   return state.hiddenLocalHandCardIds.includes(cardId(card));
 }
 
-function selectedHasJoker() {
-  return Boolean(gameUiController?.selectedHasJoker());
-}
-
-function pendingJokerCard() {
-  return gameUiController?.pendingJokerCard() || null;
-}
-
-function hasPendingJokerSelection() {
-  return Boolean(gameUiController?.hasPendingJokerSelection());
-}
-
-function jokerOptions(
-  snapshot = state.snapshot?.data,
-  cards = state.selectedCards,
-) {
-  return gameUiController?.jokerOptions(snapshot, cards) || [];
-}
-
-function playRank() {
-  return gameUiController?.playRank() ?? null;
-}
-
 function buildInviteLink() {
   const inviteUrl = new URL("/", window.location.origin);
   inviteUrl.searchParams.set("invite", state.inviteCode);
   return inviteUrl.toString();
 }
 
-function turnNoticePayload(snapshot) {
-  let headline = "Waiting";
-  if (snapshot.status === "GAME_OVER") {
-    headline = `${winner()?.display_name || "A player"} won`;
-  } else if (snapshot.status === "LOBBY") {
-    headline = "Lobby";
-  } else if (isMyTurn()) {
-    headline =
-      currentGameState() === "PLAYERS_CHOOSE_PUBLIC_CARDS"
-        ? "Choose your cards"
-        : "It's your turn!";
-  } else if (snapshot.current_turn_display_name) {
-    headline = `${snapshot.current_turn_display_name} is up`;
-  }
-
-  return {
-    key: [
-      snapshot.status,
-      snapshot.game_state || "",
-      snapshot.current_turn_seat ?? "none",
-      state.seat ?? "none",
-    ].join(":"),
-    headline,
-    copy: currentPrompt(snapshot),
-  };
+function buildGameplayUiState(snapshot = state.snapshot?.data) {
+  return deriveGameplayUiState({
+    snapshot,
+    privateState: state.privateState?.data,
+    seat: state.seat,
+    selectedCards: state.selectedCards,
+    jokerRank: state.jokerRank,
+    highLowChoice: state.highLowChoice,
+  });
 }
 
 function toggleCard(card) {
@@ -1915,57 +1775,6 @@ function handLayout(snapshot) {
   };
 }
 
-function currentPrompt(snapshot) {
-  const turnTarget =
-    snapshot.current_turn_display_name ||
-    (Number.isInteger(snapshot.current_turn_seat)
-      ? `Seat ${snapshot.current_turn_seat}`
-      : "the next player");
-  if (snapshot.status === "LOBBY") {
-    return "Share the code, wait for enough players, then start.";
-  }
-  if (snapshot.status === "GAME_OVER") {
-    return "Game over. The host can start a rematch.";
-  }
-  if (canChoosePublicCards()) {
-    return "Pick 3 public cards for the table.";
-  }
-  if (currentGameState() === "DURING_GAME" && isMyTurn()) {
-    if (hasPendingJokerSelection()) {
-      if (isJokerCard(pendingJokerCard())) {
-        return "Choose which rank the revealed joker should be.";
-      }
-      return "Choose how the revealed 7 changes the next player's turn.";
-    }
-    if (selectedHasJoker() && !state.jokerRank) {
-      return "Choose which rank the joker should be before playing.";
-    }
-    if (playRank() === snapshot.rules.high_low_rank) {
-      return "Choose how the 7 changes the next player's turn.";
-    }
-    if (hasPendingHiddenTake()) {
-      return "Your revealed hidden card cannot be played. Take the pile.";
-    }
-    if (canPlayHiddenCard()) {
-      if (canOptionallyTakePile(snapshot)) {
-        return "Reveal a hidden card or take the pile.";
-      }
-      return "Your hidden cards are live. Reveal a hidden card.";
-    }
-    if (mustTakePile(snapshot)) {
-      return "No legal card to play. Take the pile.";
-    }
-    if (canOptionallyTakePile(snapshot)) {
-      return "Tap matching cards from your hand or take the pile.";
-    }
-    return "Tap matching cards from your hand.";
-  }
-  if (currentGameState() === "DURING_GAME") {
-    return `Waiting for ${turnTarget} to play.`;
-  }
-  return "Waiting for the game to begin.";
-}
-
 function renderLanding() {
   return renderLandingView({
     landingJoinFirst: state.landingJoinFirst,
@@ -2021,81 +1830,14 @@ function renderStandings(snapshot) {
   `;
 }
 
-function renderActions(snapshot) {
-  const cards = privateCards();
+function renderActions(snapshot, gameplayUi) {
+  const cards = gameplayUi.privateCards;
   const selectedIds = new Set(state.selectedCards.map((card) => cardId(card)));
-  const pendingCard = pendingJokerCard();
-  const pendingJoker = hasPendingJokerSelection();
-  const pendingRevealedJoker = pendingJoker && isJokerCard(pendingCard);
-  const currentPendingRank = pendingJoker
-    ? cardEffectiveRank(pendingCard)
-    : null;
-  const choosingPublicCards = canChoosePublicCards();
-  const isPlayDecisionPhase =
-    currentGameState() === "DURING_GAME" && isMyTurn();
-  const allowJokerDefinition =
-    isPlayDecisionPhase && (pendingRevealedJoker || selectedHasJoker());
-  const jokerChoices = pendingJoker
-    ? jokerOptions(snapshot, [pendingCard])
-    : jokerOptions(snapshot);
-  const currentPlayRank = pendingJoker
-    ? pendingRevealedJoker
-      ? state.jokerRank
-      : currentPendingRank
-    : playRank();
-  const showHighLowChoice =
-    isPlayDecisionPhase &&
-    !choosingPublicCards &&
-    currentPlayRank === snapshot.rules.high_low_rank;
-  const hasHighLowChoice = ["HIGHER", "LOWER"].includes(state.highLowChoice);
-  const turnName =
-    snapshot.current_turn_display_name ||
-    (Number.isInteger(snapshot.current_turn_seat)
-      ? `Seat ${snapshot.current_turn_seat}`
-      : "the next player");
   const layout = handLayout(snapshot);
-  const showTakePileOverlay = mustTakePile(snapshot);
-  const showHiddenAction = canPlayHiddenCard();
   const showMobileTurnPrompt =
-    isMobileActiveGameLayout(snapshot) && currentGameState() === "DURING_GAME";
-  const showPlaySelectedAction =
-    currentGameState() === "DURING_GAME" &&
-    isMyTurn() &&
-    !showHiddenAction &&
-    !showTakePileOverlay &&
-    !pendingJoker;
-  const playSelectedDisabled =
-    cards.length === 0 ||
-    (selectedHasJoker() && !state.jokerRank) ||
-    (showHighLowChoice && !hasHighLowChoice);
-  let handPrimaryAction = null;
-  if (choosingPublicCards) {
-    handPrimaryAction = {
-      action: "choose-public",
-      label: "Lock cards",
-      disabled: false,
-    };
-  } else if (pendingJoker) {
-    handPrimaryAction = {
-      action: "resolve-joker",
-      label: pendingRevealedJoker ? "Play joker" : "Play revealed card",
-      disabled:
-        (pendingRevealedJoker && state.jokerRank === null) ||
-        (showHighLowChoice && !hasHighLowChoice),
-    };
-  } else if (showHiddenAction) {
-    handPrimaryAction = {
-      action: "play-hidden",
-      label: "Reveal hidden card",
-      disabled: false,
-    };
-  } else if (showPlaySelectedAction) {
-    handPrimaryAction = {
-      action: "play-cards",
-      label: "Play cards",
-      disabled: playSelectedDisabled,
-    };
-  }
+    isMobileActiveGameLayout(snapshot) &&
+    gameplayUi.currentGameState === "DURING_GAME";
+  const handPrimaryAction = gameplayUi.actionPanel.primaryHandAction;
   const dockClasses = [
     "panel",
     "hand-dock",
@@ -2106,7 +1848,9 @@ function renderActions(snapshot) {
     hasActiveMotion("draw-self") ? "motion-draw-target" : "",
     seatHasActiveMotion(state.seat, ["take-pile"]) ? "motion-take-target" : "",
     state.turnArrivalSeat === state.seat ? "turn-arrival" : "",
-    currentGameState() === "DURING_GAME" && !isMyTurn() ? "waiting" : "",
+    gameplayUi.currentGameState === "DURING_GAME" && !gameplayUi.isMyTurn
+      ? "waiting"
+      : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -2130,13 +1874,13 @@ function renderActions(snapshot) {
             : ""
         }
       </div>
-      <div class="dock-prompt">${escapeHtml(currentPrompt(snapshot))}</div>
+      <div class="dock-prompt">${escapeHtml(gameplayUi.turnGuidance.prompt)}</div>
       ${state.error ? `<div class="dock-error">${escapeHtml(state.error)}</div>` : ""}
       ${
-        pendingJoker
+        gameplayUi.pendingJoker.active
           ? `
         <div class="joker-pending-card">
-          ${renderCard(pendingCard, false, false)}
+          ${renderCard(gameplayUi.pendingJoker.card, false, false)}
         </div>
       `
           : `
@@ -2158,12 +1902,12 @@ function renderActions(snapshot) {
       }
       <div class="actions">
         ${
-          allowJokerDefinition
+          gameplayUi.actionPanel.showJokerChoiceUi
             ? `
           <div class="choice-block">
-            <strong class="choice-title">${pendingRevealedJoker ? "Choose the revealed joker" : "Choose the joker rank"}</strong>
+            <strong class="choice-title">${gameplayUi.pendingJoker.isRevealedJoker ? "Choose the revealed joker" : "Choose the joker rank"}</strong>
             <div class="joker-choice-row">
-              ${jokerChoices
+              ${gameplayUi.selectedPlay.jokerChoices
                 .map(
                   (rank) => `
                 <button
@@ -2179,7 +1923,7 @@ function renderActions(snapshot) {
             : ""
         }
         ${
-          showHighLowChoice
+          gameplayUi.actionPanel.showHighLowChoiceUi
             ? `
           <div class="choice-block">
             <div class="choice-row">
@@ -2190,7 +1934,11 @@ function renderActions(snapshot) {
         `
             : ""
         }
-        ${currentGameState() === "DURING_GAME" && !isMyTurn() && !showMobileTurnPrompt ? `<p class="muted tiny">Waiting for ${escapeHtml(turnName)}.</p>` : ""}
+        ${
+          gameplayUi.actionPanel.waitingText && !showMobileTurnPrompt
+            ? `<p class="muted tiny">${escapeHtml(gameplayUi.actionPanel.waitingText)}</p>`
+            : ""
+        }
       </div>
     </section>
   `;
@@ -2221,8 +1969,8 @@ function renderTurnToast(snapshot) {
   `;
 }
 
-function renderPileAction(snapshot) {
-  if (!mustTakePile(snapshot) && !canOptionallyTakePile(snapshot)) {
+function renderPileAction(gameplayUi) {
+  if (!gameplayUi.actionPanel.showTakePileAction) {
     return "";
   }
 
@@ -2624,7 +2372,7 @@ function renderLobbySettings(snapshot, isHost) {
   `;
 }
 
-function renderTable(snapshot) {
+function renderTable(snapshot, gameplayUi) {
   const self = me();
   const isHost = self && self.is_host;
   const showLobbyControls = snapshot.status === "LOBBY";
@@ -2733,7 +2481,7 @@ function renderTable(snapshot) {
               <span class="resource-label">Play pile</span>
               <div class="${pilePreviewClasses}" data-motion-anchor="pile">${renderPilePreview(snapshot.play_pile)}</div>
               <span class="pile-caption">${playPileCaption(snapshot.play_pile)}</span>
-              ${renderPileAction(snapshot)}
+              ${renderPileAction(gameplayUi)}
             </div>
           </div>
         </div>
@@ -2786,6 +2534,7 @@ function renderApp() {
   }
 
   const snapshot = state.snapshot.data;
+  const gameplayUi = buildGameplayUiState(snapshot);
   const self = me();
   const localPlayerFinished =
     isMobileActiveGameLayout(snapshot) &&
@@ -2806,9 +2555,11 @@ function renderApp() {
   return renderAppView({
     gameTopbarHtml: renderGameTopbar(snapshot),
     gameScreenClasses,
-    tableHtml: renderTable(snapshot),
+    tableHtml: renderTable(snapshot, gameplayUi),
     actionsHtml:
-      showMobileLobbyLayout || localPlayerFinished ? "" : renderActions(snapshot),
+      showMobileLobbyLayout || localPlayerFinished
+        ? ""
+        : renderActions(snapshot, gameplayUi),
     motionLayerHtml: renderMotionLayer(snapshot),
     globalErrorHtml:
       !isMobileActiveGameLayout(snapshot) && state.error
@@ -3331,8 +3082,6 @@ function render({ force = false } = {}) {
 
 gameUiController = createGameUiController({
   render,
-  isJokerCard,
-  jokerAllowedRanks,
   shoutoutCooldownMs,
   closeShoutoutMenu,
   detectAnimationEvents,
@@ -3345,7 +3094,7 @@ gameUiController = createGameUiController({
   queueLocalMotion,
   turnNoticeContext: {
     isMobileLayout: (snapshot) => isMobileActiveGameLayout(snapshot),
-    build: (snapshot) => turnNoticePayload(snapshot),
+    build: (snapshot) => buildGameplayUiState(snapshot).turnNotice,
   },
 });
 

@@ -5,6 +5,17 @@ import {
   resetSelection,
   state,
 } from "./state.js";
+import {
+  canChoosePublicCards as deriveCanChoosePublicCards,
+  getJokerOptions,
+  getPendingJokerCard,
+  getPlayRank,
+  getSelectedHasJoker,
+  getSelectedNonJokerRank,
+  hasPendingJokerSelection as deriveHasPendingJokerSelection,
+  isJokerCard,
+  JOKER_ALLOWED_RANKS,
+} from "./gameplay_ui_state.js";
 
 function cardId(card) {
   return `${card.rank}-${card.suit}`;
@@ -64,8 +75,6 @@ function isShoutoutCooldownOnlyUpdate(previousPrivateData, nextPrivateData) {
 
 export function createGameUiController({
   render,
-  isJokerCard,
-  jokerAllowedRanks,
   shoutoutCooldownMs,
   closeShoutoutMenu,
   detectAnimationEvents,
@@ -117,21 +126,11 @@ export function createGameUiController({
   }
 
   function selectedNonJokerRank() {
-    const ranks = [
-      ...new Set(
-        state.selectedCards
-          .filter((card) => !isJokerCard(card))
-          .map((card) => card.rank),
-      ),
-    ];
-    if (ranks.length !== 1) {
-      return null;
-    }
-    return ranks[0];
+    return getSelectedNonJokerRank(state.selectedCards);
   }
 
   function selectedHasJoker() {
-    return state.selectedCards.some((card) => isJokerCard(card));
+    return getSelectedHasJoker(state.selectedCards);
   }
 
   function selectedRank() {
@@ -146,54 +145,35 @@ export function createGameUiController({
   }
 
   function playRank() {
-    return selectedHasJoker() ? state.jokerRank : selectedRank();
+    return getPlayRank({
+      selectedCards: state.selectedCards,
+      jokerRank: state.jokerRank,
+    });
   }
 
   function canChoosePublicCards() {
-    const snapshot = state.snapshot?.data;
-    const self =
-      snapshot?.players?.find((player) => player.seat === state.seat) || null;
-    return (
-      currentGameState() === "PLAYERS_CHOOSE_PUBLIC_CARDS" &&
-      self &&
-      self.public_cards.length === 0 &&
-      (state.privateState?.data?.private_cards.length || 0) >= 3
-    );
+    return deriveCanChoosePublicCards({
+      snapshot: state.snapshot?.data,
+      privateState: state.privateState?.data,
+      seat: state.seat,
+    });
   }
 
   function pendingJokerCard() {
-    return state.privateState?.data?.pending_joker_card || null;
+    return getPendingJokerCard({ privateState: state.privateState?.data });
   }
 
   function hasPendingJokerSelection() {
-    return Boolean(
-      state.privateState?.data?.pending_joker_selection && pendingJokerCard(),
-    );
+    return deriveHasPendingJokerSelection({
+      privateState: state.privateState?.data,
+    });
   }
 
   function jokerOptions(
     snapshot = state.snapshot?.data,
     cards = state.selectedCards,
   ) {
-    if (!cards.some((card) => isJokerCard(card))) {
-      return [];
-    }
-    const validRanks = new Set(snapshot?.current_valid_ranks || []);
-    const nonJokerRanks = [
-      ...new Set(
-        cards.filter((card) => !isJokerCard(card)).map((card) => card.rank),
-      ),
-    ];
-    if (nonJokerRanks.length > 1) {
-      return [];
-    }
-    if (nonJokerRanks.length === 1) {
-      const [rank] = nonJokerRanks;
-      return jokerAllowedRanks.includes(rank) && validRanks.has(rank)
-        ? [rank]
-        : [];
-    }
-    return jokerAllowedRanks.filter((rank) => validRanks.has(rank));
+    return getJokerOptions({ snapshot, cards });
   }
 
   function syncJokerSelection() {
@@ -479,7 +459,10 @@ export function createGameUiController({
     if (currentGameState() === "DURING_GAME") {
       const nonJokerRank = selectedNonJokerRank();
       if (isJokerCard(card)) {
-        if (nonJokerRank !== null && !jokerAllowedRanks.includes(nonJokerRank)) {
+        if (
+          nonJokerRank !== null &&
+          !JOKER_ALLOWED_RANKS.includes(nonJokerRank)
+        ) {
           state.error = "Jokers cannot be 2, 5, or 10.";
           render();
           return;
@@ -492,7 +475,7 @@ export function createGameUiController({
         nonJokerRank === null &&
         state.selectedCards.length > 0
       ) {
-        if (!jokerAllowedRanks.includes(card.rank)) {
+        if (!JOKER_ALLOWED_RANKS.includes(card.rank)) {
           state.error = "Jokers cannot be 2, 5, or 10.";
           render();
           return;
@@ -501,7 +484,7 @@ export function createGameUiController({
         state.error = "";
         syncJokerSelection();
       } else if (state.selectedCards.length === 0 || nonJokerRank === card.rank) {
-        if (selectedHasJoker() && !jokerAllowedRanks.includes(card.rank)) {
+        if (selectedHasJoker() && !JOKER_ALLOWED_RANKS.includes(card.rank)) {
           state.error = "Jokers cannot be 2, 5, or 10.";
           render();
           return;
