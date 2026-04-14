@@ -8,7 +8,6 @@ import {
   clearRestoreRetryTimer,
   clearShoutoutUnlockTimer,
   clearTurnArrivalTimer,
-  clearTurnNoticeTimer,
   hasSavedSession,
   isHandDragActive,
   isHandInteractionActive,
@@ -19,6 +18,7 @@ import {
   state,
 } from "./frontend/state.js";
 import { createSessionController } from "./frontend/session_controller.js";
+import { createGameUiController } from "./frontend/game_ui_controller.js";
 import {
   renderAppView,
   renderGameTopbarView,
@@ -36,6 +36,7 @@ const mouseDragInputId = -1;
 const app = document.getElementById("app");
 let appDelegatedEventsWired = false;
 let sessionController = null;
+let gameUiController = null;
 
 function loadInviteLink() {
   const params = new URLSearchParams(window.location.search);
@@ -450,26 +451,9 @@ function markTurnArrival(seat) {
   );
 }
 
-function hideTurnNotice() {
-  clearTurnNoticeTimer();
-  state.turnNoticeVisible = false;
-}
-
-function showTurnNotice(headline, copy) {
-  clearTurnNoticeTimer();
-  state.turnNoticeHeadline = headline;
-  state.turnNoticeCopy = copy;
-  state.turnNoticeVisible = true;
-  state.turnNoticeTimer = window.setTimeout(() => {
-    state.turnNoticeTimer = null;
-    state.turnNoticeVisible = false;
-    render();
-  }, 2600);
-}
-
 function clearSession(errorMessage = "") {
   sessionController?.closeWebSocket();
-  hideTurnNotice();
+  gameUiController?.clearTurnNoticeState();
   clearRestoreRetryTimer();
   clearPresenceTicker();
   clearShoutoutUnlockTimer();
@@ -486,30 +470,15 @@ function clearSession(errorMessage = "") {
   state.privateState = null;
   state.error = errorMessage;
   state.restoringSession = false;
-  state.selectedCards = [];
-  state.highLowChoice = "";
-  state.lastTurnNoticeKey = "";
+  resetSelection();
   state.restoreRetryCount = 0;
   persistSession();
   render({ force: true });
 }
 
-function clearGameStateForLobby() {
-  clearMotionState();
-  clearPendingLocalPlay();
-  resetSelection();
-  state.privateState = null;
-  state.error = "";
-  state.handFanScrollLeft = 0;
-  resetLeaveConfirmation();
-  resetKickSeatConfirmation();
-  state.rulesMenuOpen = false;
-  state.shoutoutMenuOpen = false;
-}
-
 function forgetSavedSession() {
   sessionController?.closeWebSocket();
-  hideTurnNotice();
+  gameUiController?.clearTurnNoticeState();
   clearRestoreRetryTimer();
   clearPresenceTicker();
   clearShoutoutUnlockTimer();
@@ -526,9 +495,7 @@ function forgetSavedSession() {
   state.privateState = null;
   state.error = "";
   state.restoringSession = false;
-  state.selectedCards = [];
-  state.highLowChoice = "";
-  state.lastTurnNoticeKey = "";
+  resetSelection();
   state.restoreRetryCount = 0;
   persistSession();
   render({ force: true });
@@ -727,18 +694,6 @@ function syncPresenceTicker() {
   }, 1000);
 }
 
-function syncKickSeatConfirmation(snapshot = state.snapshot?.data) {
-  if (!Number.isInteger(state.kickSeatArmed)) {
-    return;
-  }
-  const armedPlayer = snapshot?.players?.find(
-    (player) => player.seat === state.kickSeatArmed,
-  );
-  if (!armedPlayer || !canHostRemovePlayer(armedPlayer)) {
-    resetKickSeatConfirmation();
-  }
-}
-
 function winner() {
   return (
     state.snapshot?.data?.players.find(
@@ -784,21 +739,15 @@ function turnPlayer() {
 }
 
 function currentGameState() {
-  return state.snapshot?.data?.game_state || null;
+  return gameUiController?.currentGameState() || null;
 }
 
 function isMyTurn() {
-  return state.snapshot?.data?.current_turn_seat === state.seat;
+  return Boolean(gameUiController?.isMyTurn());
 }
 
 function canChoosePublicCards() {
-  const self = me();
-  return (
-    currentGameState() === "PLAYERS_CHOOSE_PUBLIC_CARDS" &&
-    self &&
-    self.public_cards.length === 0 &&
-    (state.privateState?.data?.private_cards.length || 0) >= 3
-  );
+  return Boolean(gameUiController?.canChoosePublicCards());
 }
 
 function canPlayHiddenCard() {
@@ -841,104 +790,38 @@ function shoutoutPresets(snapshot = state.snapshot?.data) {
 }
 
 function shoutoutCooldownState(privateState = state.privateState?.data) {
-  const nextAvailableAt = privateState?.shoutout_next_available_at;
-  if (!nextAvailableAt) {
-    return null;
-  }
-  const dueAt = Date.parse(nextAvailableAt);
-  if (!Number.isFinite(dueAt)) {
-    return null;
-  }
-  const remainingMs = dueAt - Date.now();
-  if (remainingMs <= 0) {
-    return null;
-  }
-  const durationMs = shoutoutCooldownMs;
-  const elapsedMs = Math.min(
-    durationMs,
-    Math.max(0, durationMs - remainingMs),
+  const trigger = gameUiController?.shoutoutTriggerState(
+    state.snapshot?.data,
+    privateState,
   );
-  return {
-    dueAt,
-    durationMs,
-    elapsedMs,
-    remainingMs,
-  };
+  return trigger?.shoutoutCooldown || null;
 }
 
 function shoutoutTriggerState(
   snapshot = state.snapshot?.data,
   privateState = state.privateState?.data,
 ) {
-  const shoutoutReady = Boolean(
-    snapshot &&
-      state.wsReady &&
-      (snapshot.status === "LOBBY" ||
-        snapshot.status === "IN_GAME" ||
-        snapshot.status === "GAME_OVER"),
+  return (
+    gameUiController?.shoutoutTriggerState(snapshot, privateState) || {
+      shoutoutReady: false,
+      shoutoutCooldown: null,
+      shoutoutLocked: false,
+      shoutoutEnabled: false,
+      shoutoutFillStyle: "",
+    }
   );
-  const shoutoutCooldown = shoutoutCooldownState(privateState);
-  const shoutoutLocked = shoutoutCooldown !== null;
-  const shoutoutEnabled = shoutoutReady && !shoutoutLocked;
-  const shoutoutFillStyle = [
-    `--shoutout-fill-duration:${shoutoutCooldownMs}ms`,
-    `--shoutout-fill-delay:${
-      shoutoutLocked
-        ? `-${Math.min(shoutoutCooldown.elapsedMs, shoutoutCooldown.durationMs)}ms`
-        : "0ms"
-    }`,
-  ].join(";");
-  return {
-    shoutoutReady,
-    shoutoutCooldown,
-    shoutoutLocked,
-    shoutoutEnabled,
-    shoutoutFillStyle,
-  };
 }
 
 function isShoutoutOnCooldown(privateState = state.privateState?.data) {
-  return shoutoutCooldownState(privateState) !== null;
+  return Boolean(gameUiController?.isShoutoutOnCooldown(privateState));
 }
 
 function syncShoutoutTriggerState() {
-  const shoutoutButton = document.getElementById("open-shoutout-menu");
-  if (!shoutoutButton) {
-    return;
-  }
-
-  const {
-    shoutoutReady,
-    shoutoutCooldown,
-    shoutoutLocked,
-    shoutoutEnabled,
-    shoutoutFillStyle,
-  } = shoutoutTriggerState();
-  shoutoutButton.className = `table-shoutout-trigger ${
-    shoutoutEnabled ? "" : "disabled"
-  } ${shoutoutLocked ? "locked" : ""}`.trim();
-  shoutoutButton.disabled = !shoutoutEnabled;
-  shoutoutButton.title = !shoutoutReady
-    ? "Connecting to the table"
-    : shoutoutLocked
-      ? `Shoutouts available in ${Math.max(
-          1,
-          Math.ceil(shoutoutCooldown.remainingMs / 1000),
-        )}s`
-      : "Shoutouts";
-  shoutoutButton.style.cssText = shoutoutFillStyle;
+  gameUiController?.syncShoutoutTriggerState();
 }
 
 function syncShoutoutUnlockTimer() {
-  clearShoutoutUnlockTimer();
-  const cooldown = shoutoutCooldownState();
-  if (!cooldown) {
-    return;
-  }
-  state.shoutoutUnlockTimer = window.setTimeout(() => {
-    state.shoutoutUnlockTimer = null;
-    syncShoutoutTriggerState();
-  }, Math.max(0, cooldown.remainingMs) + 30);
+  gameUiController?.syncShoutoutUnlockTimer();
 }
 
 function getGameScreenRoot() {
@@ -1001,7 +884,7 @@ function mustTakePile(snapshot = state.snapshot?.data) {
 }
 
 function privateCards() {
-  return state.privateState?.data?.private_cards || [];
+  return gameUiController?.privateCards() || [];
 }
 
 function currentHandScrollKey() {
@@ -1026,101 +909,27 @@ function isLocalHandCardHidden(card) {
   return state.hiddenLocalHandCardIds.includes(cardId(card));
 }
 
-function selectedRank() {
-  if (state.selectedCards.length === 0) {
-    return null;
-  }
-  const nonJokerRank = selectedNonJokerRank();
-  if (nonJokerRank !== null) {
-    return nonJokerRank;
-  }
-  return state.jokerRank;
-}
-
 function selectedHasJoker() {
-  return state.selectedCards.some((card) => isJokerCard(card));
-}
-
-function selectedNonJokerRank() {
-  const ranks = [
-    ...new Set(
-      state.selectedCards
-        .filter((card) => !isJokerCard(card))
-        .map((card) => card.rank),
-    ),
-  ];
-  if (ranks.length !== 1) {
-    return null;
-  }
-  return ranks[0];
+  return Boolean(gameUiController?.selectedHasJoker());
 }
 
 function pendingJokerCard() {
-  return state.privateState?.data?.pending_joker_card || null;
+  return gameUiController?.pendingJokerCard() || null;
 }
 
 function hasPendingJokerSelection() {
-  return Boolean(
-    state.privateState?.data?.pending_joker_selection && pendingJokerCard(),
-  );
+  return Boolean(gameUiController?.hasPendingJokerSelection());
 }
 
 function jokerOptions(
   snapshot = state.snapshot?.data,
   cards = state.selectedCards,
 ) {
-  if (!cards.some((card) => isJokerCard(card))) {
-    return [];
-  }
-  const validRanks = new Set(snapshot?.current_valid_ranks || []);
-  const nonJokerRanks = [
-    ...new Set(
-      cards.filter((card) => !isJokerCard(card)).map((card) => card.rank),
-    ),
-  ];
-  if (nonJokerRanks.length > 1) {
-    return [];
-  }
-  if (nonJokerRanks.length === 1) {
-    const [rank] = nonJokerRanks;
-    return jokerAllowedRanks.includes(rank) && validRanks.has(rank)
-      ? [rank]
-      : [];
-  }
-  return jokerAllowedRanks.filter((rank) => validRanks.has(rank));
-}
-
-function syncJokerSelection() {
-  if (state.selectedCards.length === 0) {
-    state.jokerRank = null;
-    state.highLowChoice = "";
-    return;
-  }
-
-  if (canChoosePublicCards()) {
-    state.jokerRank = null;
-    state.highLowChoice = "";
-    return;
-  }
-
-  if (selectedHasJoker()) {
-    const nonJokerRank = selectedNonJokerRank();
-    if (nonJokerRank !== null) {
-      state.jokerRank = nonJokerRank;
-    } else if (!jokerOptions().includes(state.jokerRank)) {
-      state.jokerRank = null;
-    }
-  } else {
-    state.jokerRank = null;
-  }
-
-  if (selectedRank() !== state.snapshot?.data?.rules.high_low_rank) {
-    state.highLowChoice = "";
-  }
+  return gameUiController?.jokerOptions(snapshot, cards) || [];
 }
 
 function playRank() {
-  return selectedHasJoker() ? state.jokerRank : selectedRank();
+  return gameUiController?.playRank() ?? null;
 }
 
 function buildInviteLink() {
@@ -1152,226 +961,36 @@ function turnNoticePayload(snapshot) {
       state.seat ?? "none",
     ].join(":"),
     headline,
-    copy: currentPrompt({ type: "session_snapshot", data: snapshot }),
+    copy: currentPrompt(snapshot),
   };
-}
-
-function syncTurnNotice(snapshot, { suppress = false } = {}) {
-  if (!snapshot) {
-    hideTurnNotice();
-    state.lastTurnNoticeKey = "";
-    return;
-  }
-
-  const notice = turnNoticePayload(snapshot);
-  const hasChanged = notice.key !== state.lastTurnNoticeKey;
-  state.lastTurnNoticeKey = notice.key;
-
-  if (suppress || !isMobileActiveGameLayout(snapshot)) {
-    state.turnNoticeVisible = false;
-    return;
-  }
-
-  if (hasChanged) {
-    showTurnNotice(notice.headline, notice.copy);
-  }
 }
 
 function toggleCard(card) {
-  const exists = state.selectedCards.some(
-    (selected) => cardId(selected) === cardId(card),
-  );
-  if (exists) {
-    state.selectedCards = state.selectedCards.filter(
-      (selected) => cardId(selected) !== cardId(card),
-    );
-    syncJokerSelection();
-    render();
-    return;
-  }
-
-  if (canChoosePublicCards()) {
-    if (state.selectedCards.length >= 3) {
-      state.error = "Choose exactly 3 cards.";
-      render();
-      return;
-    }
-    state.selectedCards = [...state.selectedCards, card];
-    state.error = "";
-    render();
-    return;
-  }
-
-  if (currentGameState() === "DURING_GAME") {
-    const nonJokerRank = selectedNonJokerRank();
-    if (isJokerCard(card)) {
-      if (nonJokerRank !== null && !jokerAllowedRanks.includes(nonJokerRank)) {
-        state.error = "Jokers cannot be 2, 5, or 10.";
-        render();
-        return;
-      }
-      state.selectedCards = [...state.selectedCards, card];
-      state.error = "";
-      syncJokerSelection();
-    } else if (
-      selectedHasJoker() &&
-      nonJokerRank === null &&
-      state.selectedCards.length > 0
-    ) {
-      if (!jokerAllowedRanks.includes(card.rank)) {
-        state.error = "Jokers cannot be 2, 5, or 10.";
-        render();
-        return;
-      }
-      state.selectedCards = [...state.selectedCards, card];
-      state.error = "";
-      syncJokerSelection();
-    } else if (state.selectedCards.length === 0 || nonJokerRank === card.rank) {
-      if (selectedHasJoker() && !jokerAllowedRanks.includes(card.rank)) {
-        state.error = "Jokers cannot be 2, 5, or 10.";
-        render();
-        return;
-      }
-      state.selectedCards = [...state.selectedCards, card];
-      state.error = "";
-      syncJokerSelection();
-    } else {
-      state.error = "You can only select cards of the same rank.";
-    }
-    render();
-  }
+  gameUiController?.toggleCard(card);
 }
 
 function submitChoosePublicCards() {
-  if (state.selectedCards.length !== 3) {
-    state.error = "Choose exactly 3 cards.";
-    render();
-    return;
-  }
-  sessionController.sendAction({
-    type: "choose_public_cards",
-    cards: state.selectedCards,
-  });
-  resetSelection();
+  gameUiController?.submitChoosePublicCards();
 }
 
 function submitPlayCards() {
-  if (state.localPlaySendTimer !== null) {
-    return;
-  }
-  if (state.selectedCards.length === 0) {
-    state.error = "Select at least one card.";
-    render();
-    return;
-  }
-  if (selectedHasJoker() && !state.jokerRank) {
-    state.error = "Choose what the joker should be first.";
-    render();
-    return;
-  }
-  if (
-    playRank() === state.snapshot.data.rules.high_low_rank &&
-    !["HIGHER", "LOWER"].includes(state.highLowChoice)
-  ) {
-    state.error =
-      "Choose whether the next player must go higher or may go lower.";
-    render();
-    return;
-  }
-  const selectedCards = [...state.selectedCards];
-  const payload = {
-    type: "play_private_cards",
-    cards: selectedCards,
-    choice:
-      playRank() === state.snapshot.data.rules.high_low_rank
-        ? state.highLowChoice
-        : "",
-    joker_rank: selectedHasJoker() ? state.jokerRank : null,
-  };
-  const capturedCards = captureLocalPlaySelection();
-  const shouldStageLocalThrow =
-    !prefersReducedMotion() &&
-    Array.isArray(capturedCards) &&
-    capturedCards.length > 0;
-  const throwCards = shouldStageLocalThrow
-    ? buildLocalPlayThrowMotions(capturedCards)
-    : [];
-  sessionController.sendPlayPrivateCards(payload, {
-    stageOptimistic: shouldStageLocalThrow,
-    throwCards,
-    capturedCards: Array.isArray(capturedCards) ? capturedCards : [],
-  });
+  gameUiController?.submitPlayCards();
 }
 
 function submitTakePile() {
-  sessionController.sendAction({ type: "take_play_pile" });
+  gameUiController?.submitTakePile();
 }
 
 function submitShoutout(shoutoutKey) {
-  if (!shoutoutKey) {
-    return;
-  }
-  closeShoutoutMenu({ rerender: false });
-  state.error = "";
-  const sent = sessionController.sendAction({
-    type: "send_shoutout",
-    shoutout_key: shoutoutKey,
-  });
-  if (!sent) {
-    return;
-  }
-  sessionController.primeLocalShoutoutCooldown();
-  syncShoutoutTriggerState();
-  syncShoutoutUnlockTimer();
+  gameUiController?.submitShoutout(shoutoutKey);
 }
 
 function submitHiddenCard() {
-  sessionController.sendAction({ type: "play_hidden_card" });
+  gameUiController?.submitHiddenCard();
 }
 
 function submitResolveJoker() {
-  if (!hasPendingJokerSelection()) {
-    state.error = "No joker is waiting to be resolved.";
-    render();
-    return;
-  }
-  const pendingCard = pendingJokerCard();
-  const pendingRevealedJoker = isJokerCard(pendingCard);
-  const needsHighLowChoice = pendingRevealedJoker
-    ? state.jokerRank === state.snapshot.data.rules.high_low_rank
-    : true;
-
-  if (pendingRevealedJoker) {
-    if (!state.jokerRank) {
-      state.error = "Choose what the joker should be first.";
-      render();
-      return;
-    }
-    if (needsHighLowChoice && !["HIGHER", "LOWER"].includes(state.highLowChoice)) {
-      state.error =
-        "Choose whether the next player must go higher or may go lower.";
-      render();
-      return;
-    }
-  } else if (!["HIGHER", "LOWER"].includes(state.highLowChoice)) {
-    state.error =
-      "Choose whether the next player must go higher or may go lower.";
-    render();
-    return;
-  }
-
-  const choice = pendingRevealedJoker
-    ? needsHighLowChoice
-      ? state.highLowChoice
-      : ""
-    : state.highLowChoice;
-
-  sessionController.sendAction({
-    type: "resolve_joker",
-    choice,
-    joker_rank: pendingRevealedJoker ? state.jokerRank : null,
-  });
-  resetSelection();
+  gameUiController?.submitResolveJoker();
 }
 
 function onSubmit(event) {
@@ -3507,26 +3126,17 @@ function onAppClick(event) {
 
   const jokerRankButton = closestAppTarget(event, "[data-joker-rank]");
   if (jokerRankButton) {
-    state.jokerRank = Number(jokerRankButton.dataset.jokerRank);
-    if (state.jokerRank !== state.snapshot?.data?.rules.high_low_rank) {
-      state.highLowChoice = "";
-    }
-    state.error = "";
-    render();
+    gameUiController?.setJokerRank(jokerRankButton.dataset.jokerRank);
     return;
   }
 
   if (closestAppTarget(event, "#choose-higher")) {
-    state.highLowChoice = "HIGHER";
-    state.error = "";
-    render();
+    gameUiController?.setHighLowChoice("HIGHER");
     return;
   }
 
   if (closestAppTarget(event, "#choose-lower")) {
-    state.highLowChoice = "LOWER";
-    state.error = "";
-    render();
+    gameUiController?.setHighLowChoice("LOWER");
     return;
   }
 
@@ -3719,23 +3329,34 @@ function render({ force = false } = {}) {
   syncShoutoutMenu();
 }
 
-sessionController = createSessionController({
-  appendShoutoutBubble,
-  clearGameStateForLobby,
-  clearMotionState,
-  clearSession,
+gameUiController = createGameUiController({
+  render,
+  isJokerCard,
+  jokerAllowedRanks,
+  shoutoutCooldownMs,
   closeShoutoutMenu,
   detectAnimationEvents,
-  isShoutoutOnCooldown,
-  queueLocalMotion,
-  render,
+  clearMotionState,
+  resetLeaveConfirmation,
   resetKickSeatConfirmation,
-  shoutoutCooldownMs,
-  syncKickSeatConfirmation,
-  syncShoutoutTriggerState,
-  syncShoutoutUnlockTimer,
-  syncTurnNotice,
+  captureLocalPlaySelection,
+  buildLocalPlayThrowMotions,
+  prefersReducedMotion,
+  queueLocalMotion,
+  turnNoticeContext: {
+    isMobileLayout: (snapshot) => isMobileActiveGameLayout(snapshot),
+    build: (snapshot) => turnNoticePayload(snapshot),
+  },
 });
+
+sessionController = createSessionController({
+  appendShoutoutBubble,
+  clearMotionState,
+  clearSession,
+  gameUiController,
+  render,
+});
+gameUiController.bindSessionController(sessionController);
 
 loadStoredSession();
 loadInviteLink();

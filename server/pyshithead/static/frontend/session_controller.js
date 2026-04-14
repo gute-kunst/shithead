@@ -1,5 +1,4 @@
 import {
-  clearPendingLocalPlay,
   clearReconnectTimer,
   clearRestoreRetryTimer,
   hasSavedSession,
@@ -16,40 +15,6 @@ import {
 const restoreUnavailableMessage =
   "Your saved session is no longer available. Join the game again if it is still active.";
 
-function cardId(card) {
-  return `${card.rank}-${card.suit}`;
-}
-
-function cardMultiset(cards = []) {
-  const counts = new Map();
-  cards.forEach((card) => {
-    const key = cardId(card);
-    counts.set(key, (counts.get(key) || 0) + 1);
-  });
-  return counts;
-}
-
-function collectAddedCards(previousCards = [], nextCards = [], limit = Infinity) {
-  const counts = cardMultiset(previousCards);
-  const added = [];
-  nextCards.forEach((card) => {
-    const key = cardId(card);
-    const remaining = counts.get(key) || 0;
-    if (remaining > 0) {
-      counts.set(key, remaining - 1);
-      return;
-    }
-    if (added.length < limit) {
-      added.push(card);
-    }
-  });
-  return added;
-}
-
-function isMyTurn(snapshot = state.snapshot?.data) {
-  return snapshot?.current_turn_seat === state.seat;
-}
-
 function isPermanentRestoreError(error) {
   return (
     ["auth", "not_found"].includes(error.kind) ||
@@ -57,48 +22,12 @@ function isPermanentRestoreError(error) {
   );
 }
 
-function isShoutoutCooldownOnlyUpdate(previousPrivateData, nextPrivateData) {
-  if (!previousPrivateData || !nextPrivateData) {
-    return false;
-  }
-  if (
-    previousPrivateData.shoutout_next_available_at ===
-    nextPrivateData.shoutout_next_available_at
-  ) {
-    return false;
-  }
-
-  const comparableKeys = [
-    "seat",
-    "private_cards",
-    "pending_joker_selection",
-    "pending_joker_card",
-    "pending_hidden_take",
-  ];
-
-  return comparableKeys.every(
-    (key) =>
-      JSON.stringify(previousPrivateData[key]) ===
-      JSON.stringify(nextPrivateData[key]),
-  );
-}
-
 export function createSessionController({
   render,
   clearMotionState,
-  clearGameStateForLobby,
   clearSession,
-  syncKickSeatConfirmation,
-  syncTurnNotice,
-  closeShoutoutMenu,
-  syncShoutoutTriggerState,
-  syncShoutoutUnlockTimer,
-  detectAnimationEvents,
   appendShoutoutBubble,
-  isShoutoutOnCooldown,
-  resetKickSeatConfirmation,
-  queueLocalMotion,
-  shoutoutCooldownMs = 4000,
+  gameUiController,
 }) {
   function closeWebSocket({ allowReconnect = false } = {}) {
     clearReconnectTimer();
@@ -172,9 +101,8 @@ export function createSessionController({
     resetSelection();
     clearRestoreRetryTimer();
     state.restoreRetryCount = 0;
-    syncKickSeatConfirmation(payload.snapshot);
+    gameUiController.onAuthPayloadApplied(payload.snapshot);
     persistSession();
-    syncTurnNotice(payload.snapshot, { suppress: true });
     render();
     connectWebSocket();
   }
@@ -183,19 +111,11 @@ export function createSessionController({
     const { previousSnapshot, snapshot } = applySessionSnapshot(payload, {
       touchPresence: true,
     });
-    detectAnimationEvents(previousSnapshot, snapshot);
     if (!snapshot?.players?.some((player) => player.seat === state.seat)) {
       clearSession(restoreUnavailableMessage);
       return;
     }
-    syncKickSeatConfirmation(snapshot);
-    syncTurnNotice(snapshot);
-    if (snapshot.status === "LOBBY" && previousSnapshot?.status === "GAME_OVER") {
-      clearGameStateForLobby();
-    }
-    if (snapshot.status === "GAME_OVER" || !isMyTurn(snapshot)) {
-      resetSelection();
-    }
+    gameUiController.onRealtimeSessionSnapshotApplied(previousSnapshot, snapshot);
     render();
   }
 
@@ -205,39 +125,20 @@ export function createSessionController({
       previousPrivateCards,
       privateState,
     } = applyPrivateState(payload);
-    if (
-      state.pendingLocalPlay &&
-      Number.isInteger(state.pendingLocalPlay.expectedDrawCount) &&
-      state.pendingLocalPlay.expectedDrawCount > 0
-    ) {
-      state.pendingLocalDrawAnimation = collectAddedCards(
-        previousPrivateCards,
-        privateState?.private_cards || [],
-        state.pendingLocalPlay.expectedDrawCount,
-      );
-    }
-    state.hiddenLocalHandCardIds = [];
-    state.pendingLocalPlay = null;
-    if (isShoutoutOnCooldown(privateState)) {
-      closeShoutoutMenu({ rerender: false });
-    }
-    if (isShoutoutCooldownOnlyUpdate(previousPrivateState, privateState)) {
-      syncShoutoutTriggerState();
-      syncShoutoutUnlockTimer();
+    const outcome = gameUiController.onRealtimePrivateStateApplied({
+      previousPrivateState,
+      previousPrivateCards,
+      privateState,
+    });
+    if (outcome?.skipRender) {
       return;
-    }
-    if (privateState?.pending_joker_selection || privateState?.pending_hidden_take) {
-      state.selectedCards = [];
-      state.jokerRank = privateState?.pending_joker_card?.effective_rank || null;
-      state.highLowChoice = "";
     }
     render();
   }
 
   function handleActionError(message) {
     applyServerError(message);
-    clearPendingLocalPlay();
-    state.pendingLocalDrawAnimation = null;
+    gameUiController.onActionError();
     render();
   }
 
@@ -343,9 +244,9 @@ export function createSessionController({
 
   function applyActionSnapshot(snapshotPayload, { detectAnimations = false } = {}) {
     const { previousSnapshot } = applySessionSnapshot(snapshotPayload);
-    if (detectAnimations) {
-      detectAnimationEvents(previousSnapshot, snapshotPayload.data);
-    }
+    gameUiController.onActionSnapshotApplied(previousSnapshot, snapshotPayload.data, {
+      detectAnimations,
+    });
     state.error = "";
   }
 
@@ -426,7 +327,7 @@ export function createSessionController({
         body: JSON.stringify({ player_token: state.playerToken }),
       });
       applyActionSnapshot(response, { detectAnimations: true });
-      syncTurnNotice(response.data);
+      gameUiController.syncTurnNotice(response.data);
       render();
     } catch (error) {
       applyServerError(error.message);
@@ -442,9 +343,9 @@ export function createSessionController({
           player_token: state.playerToken,
         }),
       });
-      clearGameStateForLobby();
+      gameUiController.clearGameStateForLobby();
       applyActionSnapshot(response);
-      syncTurnNotice(response.data, { suppress: true });
+      gameUiController.syncTurnNotice(response.data, { suppress: true });
       render();
     } catch (error) {
       applyServerError(error.message);
@@ -475,13 +376,13 @@ export function createSessionController({
         method: "POST",
         body: JSON.stringify({ player_token: state.playerToken }),
       });
-      resetKickSeatConfirmation();
+      gameUiController.resetKickSeatConfirmation();
       applyActionSnapshot(response);
-      syncTurnNotice(response.data);
+      gameUiController.syncTurnNotice(response.data);
       render();
     } catch (error) {
       applyServerError(error.message);
-      resetKickSeatConfirmation();
+      gameUiController.resetKickSeatConfirmation();
       render();
     }
   }
@@ -496,83 +397,15 @@ export function createSessionController({
     return true;
   }
 
-  function sendPlayPrivateCards(
-    payload,
-    {
-      stageOptimistic = false,
-      throwCards = [],
-      capturedCards = [],
-      delayMs = 140,
-    } = {},
-  ) {
-    if (!stageOptimistic) {
-      const sent = sendAction(payload);
-      resetSelection();
-      return sent;
-    }
-
-    state.pendingLocalPlay = {
-      throwCards: throwCards.map((motion) => ({
-        card: motion.card,
-        fromRect: motion.toRect,
-        delay: motion.delay,
-        rotate: motion.rotate,
-      })),
-      expectedDrawCount: 0,
-      actionSent: false,
-    };
-    state.hiddenLocalHandCardIds = capturedCards.map((entry) => cardId(entry.card));
-    throwCards.forEach((motion) => queueLocalMotion(motion));
-    resetSelection();
-    render();
-    state.localPlaySendTimer = window.setTimeout(() => {
-      state.localPlaySendTimer = null;
-      const sent = sendAction(payload);
-      if (!sent) {
-        clearPendingLocalPlay();
-        render();
-        return;
-      }
-      if (state.pendingLocalPlay) {
-        state.pendingLocalPlay.actionSent = true;
-      }
-    }, delayMs);
-    return true;
-  }
-
-  function primeLocalShoutoutCooldown() {
-    const nextAvailableAt = new Date(Date.now() + shoutoutCooldownMs).toISOString();
-    if (state.privateState?.data) {
-      state.privateState = {
-        ...state.privateState,
-        data: {
-          ...state.privateState.data,
-          shoutout_next_available_at: nextAvailableAt,
-        },
-      };
-      return;
-    }
-    state.privateState = {
-      type: "private_state",
-      data: {
-        seat: Number.isInteger(state.seat) ? state.seat : 0,
-        private_cards: [],
-        shoutout_next_available_at: nextAvailableAt,
-      },
-    };
-  }
-
   return {
     attemptSessionRecovery,
     closeWebSocket,
     createGame,
     joinGame,
     kickPlayer,
-    primeLocalShoutoutCooldown,
     rematchGame,
     restoreSession,
     sendAction,
-    sendPlayPrivateCards,
     startGame,
     updateGameSettings,
   };
