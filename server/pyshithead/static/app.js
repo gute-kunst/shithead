@@ -25,6 +25,11 @@ import {
   applyServerSync,
   applySessionSnapshot as applyInboundSessionSnapshot,
 } from "./frontend/transport.js";
+import {
+  renderAppView,
+  renderGameTopbarView,
+  renderLandingView,
+} from "./frontend/view/root.js";
 const playPilePreviewLimit = 6;
 const jokerRank = 15;
 const jokerAllowedRanks = [3, 4, 6, 7, 8, 9, 11, 13, 12, 14];
@@ -35,6 +40,7 @@ const handDragThreshold = 14;
 const mouseDragInputId = -1;
 
 const app = document.getElementById("app");
+let appDelegatedEventsWired = false;
 
 function loadInviteLink() {
   const params = new URLSearchParams(window.location.search);
@@ -309,7 +315,6 @@ function syncShoutoutMenu() {
     return;
   }
 
-  wireShoutoutMenuLayer(nextLayer);
   if (currentLayer) {
     currentLayer.replaceWith(nextLayer);
   } else {
@@ -341,33 +346,6 @@ function closeShoutoutMenu({ rerender = false } = {}) {
     render();
     return;
   }
-}
-
-function wireShoutoutMenuLayer(layer) {
-  if (!layer || layer.dataset.wired === "true") {
-    return;
-  }
-
-  layer.dataset.wired = "true";
-  layer.addEventListener("click", (event) => {
-    const target = event.target instanceof Element ? event.target : null;
-    if (!target) {
-      return;
-    }
-
-    if (target.closest("#close-shoutout-menu-backdrop")) {
-      closeShoutoutMenu({ rerender: false });
-      return;
-    }
-    if (target.closest("#close-shoutout-menu")) {
-      closeShoutoutMenu({ rerender: false });
-      return;
-    }
-    const chip = target.closest("[data-shoutout-key]");
-    if (chip) {
-      submitShoutout(chip.dataset.shoutoutKey || "");
-    }
-  });
 }
 
 function toggleShoutoutMenu() {
@@ -1886,10 +1864,15 @@ function submitResolveJoker() {
 }
 
 function onSubmit(event) {
+  const formElement =
+    event.target instanceof HTMLFormElement ? event.target : null;
+  if (!formElement || !app.contains(formElement)) {
+    return;
+  }
   event.preventDefault();
   state.error = "";
-  const form = new FormData(event.currentTarget);
-  const mode = event.currentTarget.dataset.mode;
+  const form = new FormData(formElement);
+  const mode = formElement.dataset.mode;
   if (mode === "create") {
     createGame(form).catch((error) => {
       state.error = error.message;
@@ -2853,143 +2836,19 @@ function currentPrompt(snapshot) {
   return "Waiting for the game to begin.";
 }
 
-function renderLandingTopbar() {
-  return `
-    <div class="game-topbar">
-      <div class="game-topbar-title">
-        <strong class="game-topbar-name">Shithead</strong>
-        <span class="game-topbar-eyebrow">Private Mobile Alpha</span>
-      </div>
-    </div>
-  `;
-}
-
-function renderLandingBucket(bucket) {
-  const expanded = state.landingOpenBucket === bucket;
-  const isCreate = bucket === "create";
-  const title = isCreate ? "Create table" : "Join a table";
-  const copy = isCreate
-    ? "Start a private lobby and get an invite code for the other players."
-    : "Enter the invite code and your display name to claim a seat.";
-  const buttonLabel = isCreate ? "Create game" : "Join game";
-  const formMarkup = isCreate
-    ? `
-      <form class="stack" data-mode="create">
-        <div class="field">
-          <label for="create-name">Display name</label>
-          <input id="create-name" name="display_name" maxlength="24" required placeholder="your-name" />
-        </div>
-        <button class="button accent" type="submit">${buttonLabel}</button>
-      </form>
-    `
-    : `
-      <form class="stack" data-mode="join">
-        <div class="field">
-          <label for="join-code">Invite code</label>
-          <input id="join-code" name="invite_code" maxlength="6" required placeholder="AB12CD" value="${escapeHtml(state.landingInviteCode)}" />
-        </div>
-        <div class="field">
-          <label for="join-name">Display name</label>
-          <input id="join-name" name="display_name" maxlength="24" required placeholder="your-name" />
-        </div>
-        <button class="button" type="submit">${buttonLabel}</button>
-      </form>
-    `;
-
-  return `
-    <article class="landing-table-card ${expanded ? "landing-table-card-expanded" : "landing-table-card-collapsed"} stack">
-      <button
-        class="landing-bucket-toggle"
-        type="button"
-        data-landing-bucket="${bucket}"
-        aria-expanded="${expanded ? "true" : "false"}"
-      >
-        <span class="landing-bucket-copy">
-          <strong>${title}</strong>
-        </span>
-        <span class="landing-bucket-icon" aria-hidden="true">${expanded ? "-" : "+"}</span>
-      </button>
-      <div class="landing-bucket-panel" aria-hidden="${expanded ? "false" : "true"}">
-        <div class="landing-bucket-panel-inner stack">
-          <p class="muted">${copy}</p>
-          ${formMarkup}
-        </div>
-      </div>
-    </article>
-  `;
-}
-
 function renderLanding() {
-  const showSavedSessionCard = hasSavedSession();
-  const landingBuckets = state.landingJoinFirst
-    ? [renderLandingBucket("join"), renderLandingBucket("create")]
-    : [renderLandingBucket("create"), renderLandingBucket("join")];
-  return `
-    ${renderLandingTopbar()}
-    <section class="game-screen landing-screen">
-      <section class="panel table-stage landing-table-stage">
-        <div class="table-map landing-table-map">
-          <div class="table-surface"></div>
-          <div class="landing-table-content">
-            <div class="landing-table-banner-row">
-              <section class="landing-table-banner landing-alpha-banner">
-                <strong>Alpha notice</strong>
-                <p>Switching tabs or apps is okay for a while. Live games can still reset after a deploy, restart, or a long period of inactivity.</p>
-              </section>
-            </div>
-            <div class="landing-form-row">
-              ${landingBuckets.join("")}
-            </div>
-            ${
-              showSavedSessionCard
-                ? `
-              <div class="landing-table-banner-row landing-table-banner-row-bottom">
-                <section class="landing-table-banner landing-table-resume stack">
-                  <div>
-                    <strong>${state.restoringSession ? "Restoring your game" : "Resume saved game"}</strong>
-                    <p class="muted">
-                      ${
-                        state.restoringSession
-                          ? "Reclaiming your seat and reconnecting to live updates."
-                          : "A saved game was found on this device. You can restore it or forget it."
-                      }
-                    </p>
-                  </div>
-                  <div class="status-strip">
-                    <span class="status-chip">Invite ${escapeHtml(state.inviteCode)}</span>
-                    ${state.displayName ? `<span class="status-chip">${escapeHtml(state.displayName)}</span>` : ""}
-                  </div>
-                  ${state.error ? `<div class="dock-error">${escapeHtml(state.error)}</div>` : ""}
-                  ${
-                    !state.restoringSession
-                      ? `
-                    <div class="secondary-action-row">
-                      <button class="button accent" id="restore-session">Restore saved session</button>
-                      <button class="button secondary" id="forget-session">Forget saved session</button>
-                    </div>
-                  `
-                      : ""
-                  }
-                </section>
-              </div>
-            `
-                : state.error
-                  ? `
-              <div class="landing-table-banner-row landing-table-banner-row-bottom">
-                <section class="landing-table-banner landing-table-error">
-                  <strong>${escapeHtml(state.error)}</strong>
-                </section>
-              </div>
-            `
-                  : ""
-            }
-          </div>
-          <button class="table-help-trigger" id="open-rules-menu" type="button" aria-label="Open rules" title="Rules">?</button>
-          ${renderRulesMenu()}
-        </div>
-      </section>
-    </section>
-  `;
+  return renderLandingView({
+    landingJoinFirst: state.landingJoinFirst,
+    landingOpenBucket: state.landingOpenBucket,
+    landingInviteCode: state.landingInviteCode,
+    showSavedSessionCard: hasSavedSession(),
+    restoringSession: state.restoringSession,
+    inviteCode: state.inviteCode,
+    displayName: state.displayName,
+    error: state.error,
+    rulesMenuHtml: renderRulesMenu(),
+    escapeHtml,
+  });
 }
 
 function renderStandings(snapshot) {
@@ -3212,37 +3071,11 @@ function renderGameTopbar(snapshot) {
     resetLeaveConfirmation();
     return "";
   }
-  const showCompactBrand = isMobileActiveGameLayout(snapshot);
-  const leaveButtonLabel = "Leave";
-  const leaveButtonTitle = state.leaveArmed ? "Click again to leave" : "Leave";
-
-  return `
-    <div class="game-topbar ${showCompactBrand ? "" : "actions-only"}">
-      ${
-        showCompactBrand
-          ? `
-        <div class="game-topbar-title">
-          <strong class="game-topbar-name">Shithead</strong>
-          <span class="game-topbar-eyebrow">Private Mobile Alpha</span>
-        </div>
-      `
-          : ""
-      }
-      <div class="game-topbar-actions">
-        <span
-          class="connection-indicator ${state.wsReady ? "connected" : "reconnecting"}"
-          title="${state.wsReady ? "Live sync connected" : "Reconnecting"}"
-          aria-label="${state.wsReady ? "Live sync connected" : "Reconnecting"}"
-        ></span>
-        <button
-          class="button secondary button-inline ${state.leaveArmed ? "armed-leave" : ""}"
-          id="leave-game-header"
-          title="${leaveButtonTitle}"
-          aria-label="${leaveButtonTitle}"
-        >${leaveButtonLabel}</button>
-      </div>
-    </div>
-  `;
+  return renderGameTopbarView({
+    showCompactBrand: isMobileActiveGameLayout(snapshot),
+    wsReady: state.wsReady,
+    leaveArmed: state.leaveArmed,
+  });
 }
 
 function renderTurnToast(snapshot) {
@@ -3840,15 +3673,18 @@ function renderApp() {
     .filter(Boolean)
     .join(" ");
 
-  return `
-    ${renderGameTopbar(snapshot)}
-    <section class="${gameScreenClasses}">
-      ${renderTable(snapshot)}
-      ${showMobileLobbyLayout || localPlayerFinished ? "" : renderActions(snapshot)}
-      ${renderMotionLayer(snapshot)}
-    </section>
-    ${!isMobileActiveGameLayout(snapshot) && state.error ? `<section class="panel error">${escapeHtml(state.error)}</section>` : ""}
-  `;
+  return renderAppView({
+    gameTopbarHtml: renderGameTopbar(snapshot),
+    gameScreenClasses,
+    tableHtml: renderTable(snapshot),
+    actionsHtml:
+      showMobileLobbyLayout || localPlayerFinished ? "" : renderActions(snapshot),
+    motionLayerHtml: renderMotionLayer(snapshot),
+    globalErrorHtml:
+      !isMobileActiveGameLayout(snapshot) && state.error
+        ? `<section class="panel error">${escapeHtml(state.error)}</section>`
+        : "",
+  });
 }
 
 function syncMobileGameLayout() {
@@ -4068,230 +3904,228 @@ function wireHandFanInteractions(handFan) {
   handFan.addEventListener("mouseleave", finishMouseDrag);
 }
 
-function wireEvents() {
-  app
-    .querySelectorAll("form")
-    .forEach((form) => form.addEventListener("submit", onSubmit));
+function closestAppTarget(event, selector) {
+  const origin = event.target instanceof Element ? event.target : null;
+  if (!origin) {
+    return null;
+  }
+  const target = origin.closest(selector);
+  if (!target || !app.contains(target)) {
+    return null;
+  }
+  return target;
+}
 
-  const handFan = app.querySelector(".hand-fan");
-  if (handFan) {
-    wireHandFanInteractions(handFan);
+async function handleCopyInviteCodeClick() {
+  try {
+    await navigator.clipboard.writeText(state.inviteCode);
+    state.error = "Invite code copied.";
+  } catch (error) {
+    state.error = "Copy failed. You can still share the code manually.";
+  }
+  render();
+}
+
+async function handleShareInviteClick() {
+  const inviteUrl = buildInviteLink();
+  try {
+    if (typeof navigator.share === "function") {
+      await navigator.share({
+        title: "Shithead invite",
+        text: `Join my Shithead game with invite code ${state.inviteCode}.`,
+        url: inviteUrl,
+      });
+      state.error = "Invite link shared.";
+    } else {
+      await navigator.clipboard.writeText(inviteUrl);
+      state.error = "Invite link copied.";
+    }
+  } catch (error) {
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      state.error = "Invite link copied.";
+    } catch (clipboardError) {
+      state.error = "Share failed. You can still share the invite link manually.";
+    }
+  }
+  render();
+}
+
+function onAppClick(event) {
+  const cardButton = closestAppTarget(event, "[data-card-id]");
+  if (cardButton) {
+    if (Date.now() < state.suppressCardTapUntil) {
+      return;
+    }
+    const card = privateCards().find(
+      (entry) => cardId(entry) === cardButton.dataset.cardId,
+    );
+    if (card) {
+      toggleCard(card);
+    }
+    return;
   }
 
-  app.querySelectorAll("[data-card-id]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (Date.now() < state.suppressCardTapUntil) {
-        return;
-      }
-      const card = privateCards().find(
-        (entry) => cardId(entry) === button.dataset.cardId,
-      );
-      if (card) {
-        toggleCard(card);
-      }
-    });
-  });
-
-  const handPrimaryAction = document.getElementById("hand-primary-action");
+  const handPrimaryAction = closestAppTarget(event, "#hand-primary-action");
   if (handPrimaryAction) {
-    handPrimaryAction.addEventListener("click", () => {
-      const { handAction } = handPrimaryAction.dataset;
-      if (handAction === "choose-public") {
-        submitChoosePublicCards();
-      } else if (handAction === "play-cards") {
-        submitPlayCards();
-      } else if (handAction === "play-hidden") {
-        submitHiddenCard();
-      } else if (handAction === "resolve-joker") {
-        submitResolveJoker();
-      }
-    });
+    const { handAction } = handPrimaryAction.dataset;
+    if (handAction === "choose-public") {
+      submitChoosePublicCards();
+    } else if (handAction === "play-cards") {
+      submitPlayCards();
+    } else if (handAction === "play-hidden") {
+      submitHiddenCard();
+    } else if (handAction === "resolve-joker") {
+      submitResolveJoker();
+    }
+    return;
   }
 
-  const takePile = document.getElementById("take-pile");
-  if (takePile) {
-    takePile.addEventListener("click", submitTakePile);
+  if (
+    closestAppTarget(event, "#take-pile") ||
+    closestAppTarget(event, "#take-pile-overlay")
+  ) {
+    submitTakePile();
+    return;
   }
 
-  const takePileOverlay = document.getElementById("take-pile-overlay");
-  if (takePileOverlay) {
-    takePileOverlay.addEventListener("click", submitTakePile);
+  if (closestAppTarget(event, "#play-hidden")) {
+    submitHiddenCard();
+    return;
   }
 
-  const playHidden = document.getElementById("play-hidden");
-  if (playHidden) {
-    playHidden.addEventListener("click", submitHiddenCard);
+  const jokerRankButton = closestAppTarget(event, "[data-joker-rank]");
+  if (jokerRankButton) {
+    state.jokerRank = Number(jokerRankButton.dataset.jokerRank);
+    if (state.jokerRank !== state.snapshot?.data?.rules.high_low_rank) {
+      state.highLowChoice = "";
+    }
+    state.error = "";
+    render();
+    return;
   }
 
-  app.querySelectorAll("[data-joker-rank]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.jokerRank = Number(button.dataset.jokerRank);
-      if (state.jokerRank !== state.snapshot?.data?.rules.high_low_rank) {
-        state.highLowChoice = "";
-      }
-      state.error = "";
-      render();
-    });
-  });
-
-  const chooseHigher = document.getElementById("choose-higher");
-  if (chooseHigher) {
-    chooseHigher.addEventListener("click", () => {
-      state.highLowChoice = "HIGHER";
-      state.error = "";
-      render();
-    });
+  if (closestAppTarget(event, "#choose-higher")) {
+    state.highLowChoice = "HIGHER";
+    state.error = "";
+    render();
+    return;
   }
 
-  const chooseLower = document.getElementById("choose-lower");
-  if (chooseLower) {
-    chooseLower.addEventListener("click", () => {
-      state.highLowChoice = "LOWER";
-      state.error = "";
-      render();
-    });
+  if (closestAppTarget(event, "#choose-lower")) {
+    state.highLowChoice = "LOWER";
+    state.error = "";
+    render();
+    return;
   }
 
-  const startButton = document.getElementById("start-game");
-  if (startButton) {
-    startButton.addEventListener("click", startGame);
+  if (closestAppTarget(event, "#start-game")) {
+    startGame();
+    return;
   }
 
-  const rematchButton = document.getElementById("rematch-game");
-  if (rematchButton) {
-    rematchButton.addEventListener("click", rematchGame);
+  if (closestAppTarget(event, "#rematch-game")) {
+    rematchGame();
+    return;
   }
 
-  const copyInviteCodeButton = document.getElementById("copy-invite-code");
-  if (copyInviteCodeButton) {
-    copyInviteCodeButton.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(state.inviteCode);
-        state.error = "Invite code copied.";
-      } catch (error) {
-        state.error = "Copy failed. You can still share the code manually.";
-      }
-      render();
-    });
+  if (closestAppTarget(event, "#copy-invite-code")) {
+    void handleCopyInviteCodeClick();
+    return;
   }
 
-  const restoreSessionButton = document.getElementById("restore-session");
-  if (restoreSessionButton) {
-    restoreSessionButton.addEventListener("click", () => {
-      restoreSession({ resetRetry: true });
-    });
+  if (closestAppTarget(event, "#restore-session")) {
+    restoreSession({ resetRetry: true });
+    return;
   }
 
-  app.querySelectorAll("[data-landing-bucket]").forEach((button) => {
-    button.addEventListener("click", () => {
-      toggleLandingBucket(button.dataset.landingBucket);
-    });
-  });
-
-  const forgetSessionButton = document.getElementById("forget-session");
-  if (forgetSessionButton) {
-    forgetSessionButton.addEventListener("click", forgetSavedSession);
+  const landingBucketButton = closestAppTarget(event, "[data-landing-bucket]");
+  if (landingBucketButton) {
+    toggleLandingBucket(landingBucketButton.dataset.landingBucket);
+    return;
   }
 
-  const shareInviteButton = document.getElementById("share-invite");
-  if (shareInviteButton) {
-    shareInviteButton.addEventListener("click", async () => {
-      const inviteUrl = buildInviteLink();
-      try {
-        if (typeof navigator.share === "function") {
-          await navigator.share({
-            title: "Shithead invite",
-            text: `Join my Shithead game with invite code ${state.inviteCode}.`,
-            url: inviteUrl,
-          });
-          state.error = "Invite link shared.";
-        } else {
-          await navigator.clipboard.writeText(inviteUrl);
-          state.error = "Invite link copied.";
-        }
-      } catch (error) {
-        try {
-          await navigator.clipboard.writeText(inviteUrl);
-          state.error = "Invite link copied.";
-        } catch (clipboardError) {
-          state.error =
-            "Share failed. You can still share the invite link manually.";
-        }
-      }
-      render();
-    });
+  if (closestAppTarget(event, "#forget-session")) {
+    forgetSavedSession();
+    return;
   }
 
-  const optionalTakeToggle = document.getElementById(
-    "toggle-optional-take-pile",
-  );
+  if (closestAppTarget(event, "#share-invite")) {
+    void handleShareInviteClick();
+    return;
+  }
+
+  const optionalTakeToggle = closestAppTarget(event, "#toggle-optional-take-pile");
   if (optionalTakeToggle) {
-    optionalTakeToggle.addEventListener("click", () => {
-      updateGameSettings(
-        optionalTakeToggle.getAttribute("aria-checked") !== "true",
-      );
-    });
+    updateGameSettings(optionalTakeToggle.getAttribute("aria-checked") !== "true");
+    return;
   }
 
-  app.querySelectorAll("[data-kick-seat]").forEach((button) => {
-    button.addEventListener("click", () => {
-      handleKickSeatClick(Number(button.dataset.kickSeat));
-    });
-  });
-
-  const openRulesMenuButton = document.getElementById("open-rules-menu");
-  if (openRulesMenuButton) {
-    openRulesMenuButton.addEventListener("click", openRulesMenu);
+  const kickSeatButton = closestAppTarget(event, "[data-kick-seat]");
+  if (kickSeatButton) {
+    handleKickSeatClick(Number(kickSeatButton.dataset.kickSeat));
+    return;
   }
 
-  const openShoutoutMenuButton = document.getElementById("open-shoutout-menu");
-  if (openShoutoutMenuButton) {
-    openShoutoutMenuButton.addEventListener("click", toggleShoutoutMenu);
+  if (closestAppTarget(event, "#open-rules-menu")) {
+    openRulesMenu();
+    return;
   }
 
-  const closeRulesMenuButton = document.getElementById("close-rules-menu");
-  if (closeRulesMenuButton) {
-    closeRulesMenuButton.addEventListener("click", closeRulesMenu);
+  if (closestAppTarget(event, "#open-shoutout-menu")) {
+    toggleShoutoutMenu();
+    return;
   }
 
-  const closeRulesMenuBackdrop = document.getElementById(
-    "close-rules-menu-backdrop",
-  );
-  if (closeRulesMenuBackdrop) {
-    closeRulesMenuBackdrop.addEventListener("click", closeRulesMenu);
+  if (
+    closestAppTarget(event, "#close-rules-menu") ||
+    closestAppTarget(event, "#close-rules-menu-backdrop")
+  ) {
+    closeRulesMenu();
+    return;
   }
 
-  const closeShoutoutMenuButton = document.getElementById(
-    "close-shoutout-menu",
-  );
-  if (closeShoutoutMenuButton) {
-    closeShoutoutMenuButton.addEventListener("click", closeShoutoutMenu);
+  if (
+    closestAppTarget(event, "#close-shoutout-menu") ||
+    closestAppTarget(event, "#close-shoutout-menu-backdrop")
+  ) {
+    closeShoutoutMenu({ rerender: false });
+    return;
   }
 
-  const closeShoutoutMenuBackdrop = document.getElementById(
-    "close-shoutout-menu-backdrop",
-  );
-  if (closeShoutoutMenuBackdrop) {
-    closeShoutoutMenuBackdrop.addEventListener("click", closeShoutoutMenu);
+  const shoutoutChip = closestAppTarget(event, "[data-shoutout-key]");
+  if (shoutoutChip) {
+    submitShoutout(shoutoutChip.dataset.shoutoutKey || "");
+    return;
   }
 
-  app.querySelectorAll("[data-shoutout-key]").forEach((button) => {
-    button.addEventListener("click", () => {
-      submitShoutout(button.dataset.shoutoutKey || "");
-    });
-  });
-
-  const leaveButton = document.getElementById("leave-game");
-  if (leaveButton) {
-    leaveButton.addEventListener("click", clearSession);
+  if (closestAppTarget(event, "#leave-game")) {
+    clearSession();
+    return;
   }
 
-  const headerLeaveButton = document.getElementById("leave-game-header");
-  if (headerLeaveButton) {
-    headerLeaveButton.addEventListener("click", handleLeaveClick);
-  } else {
-    resetLeaveConfirmation();
+  if (closestAppTarget(event, "#leave-game-header")) {
+    handleLeaveClick();
   }
+}
+
+function wireDelegatedAppEvents() {
+  if (appDelegatedEventsWired) {
+    return;
+  }
+  app.addEventListener("click", onAppClick);
+  app.addEventListener("submit", onSubmit);
+  appDelegatedEventsWired = true;
+}
+
+function wireEvents() {
+  wireDelegatedAppEvents();
+  const handFan = app.querySelector(".hand-fan");
+  if (!handFan || handFan.dataset.wired === "true") {
+    return;
+  }
+  handFan.dataset.wired = "true";
+  wireHandFanInteractions(handFan);
 }
 
 function captureHandFanScrollBeforeRender() {
@@ -4333,6 +4167,9 @@ function render({ force = false } = {}) {
       joinNameInput.focus();
       state.pendingLandingNameFocus = false;
     }
+  }
+  if (!document.getElementById("leave-game-header")) {
+    resetLeaveConfirmation();
   }
   wireEvents();
   window.requestAnimationFrame(() => {
