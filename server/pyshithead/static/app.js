@@ -31,6 +31,7 @@ import {
   renderRulesMenuView,
   syncGameplayPresenceView,
   syncGameplayShoutoutView,
+  syncGameplayWinnerCelebrationView,
 } from "./frontend/view/gameplay_screen.js";
 import {
   deriveGameplayUiState,
@@ -301,6 +302,33 @@ function syncShoutoutView(snapshot = state.snapshot?.data) {
     root: app,
     snapshot,
     viewState: shoutoutViewState,
+  });
+}
+
+function syncWinnerCelebrationView(snapshot = state.snapshot?.data) {
+  if (!snapshot) {
+    return;
+  }
+  const gameplayUi = buildGameplayUiState(snapshot);
+  const winnerCelebration =
+    gameUiController?.buildWinnerCelebrationRenderViewState(
+      snapshot,
+      gameplayUi,
+    ) || {
+      active: false,
+      isTie: false,
+      winnerSeats: [],
+      burstWinnerSeats: [],
+      burstElapsedMs: 0,
+      burstDurationMs: 0,
+      reducedMotion: prefersReducedMotion(),
+    };
+  syncGameplayWinnerCelebrationView({
+    root: app,
+    snapshot,
+    viewState: {
+      winnerCelebration,
+    },
   });
 }
 
@@ -724,6 +752,25 @@ function renderCardBody(card) {
         : `<span class="card-suit">${suitLabel(card.suit)}</span>`
     }
   `;
+}
+
+function specialCardVariantClass(card) {
+  if (isJokerCard(card)) {
+    return "card-variant-joker";
+  }
+  if (!card) {
+    return "";
+  }
+  if (card.rank === 2) {
+    return "card-variant-reset";
+  }
+  if (card.rank === 5) {
+    return "card-variant-ghost";
+  }
+  if (card.rank === 10) {
+    return "card-variant-burn";
+  }
+  return "";
 }
 
 function playerMap(snapshot) {
@@ -1349,7 +1396,7 @@ function renderLocalMotionCard(animation) {
       aria-hidden="true"
     >
       <span class="motion-card-shell">
-        <span class="card motion-card-face ${isJokerCard(animation.card) ? "joker" : ""} ${isRedSuit(animation.card.suit) ? "red" : ""}">
+        <span class="card motion-card-face ${isJokerCard(animation.card) ? "joker" : ""} ${isRedSuit(animation.card.suit) ? "red" : ""} ${specialCardVariantClass(animation.card)}">
           ${renderCardBody(animation.card)}
         </span>
       </span>
@@ -2066,6 +2113,7 @@ gameUiController = createGameUiController({
   shoutoutDisplayDurationMs: () => (prefersReducedMotion() ? 320 : 1500),
   closeShoutoutMenu,
   syncShoutoutView,
+  syncWinnerCelebrationView,
   detectAnimationEvents,
   clearMotionState,
   resetLeaveConfirmation,

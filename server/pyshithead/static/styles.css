@@ -1030,6 +1030,8 @@ button {
   display: grid;
   align-content: space-between;
   font-weight: 800;
+  overflow: hidden;
+  isolation: isolate;
 }
 
 .seat-mini-card.red {
@@ -1038,6 +1040,11 @@ button {
 
 .seat-mini-card.joker {
   background: linear-gradient(180deg, #fff6e4 0%, #f0d8af 100%);
+}
+
+.seat-mini-card > span {
+  position: relative;
+  z-index: 1;
 }
 
 .seat-mini-rank {
@@ -1281,6 +1288,9 @@ button {
   align-content: space-between;
   font-size: 0.78rem;
   font-weight: 700;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
 }
 
 .mini-card-rank-line {
@@ -1310,6 +1320,11 @@ button {
 
 .mini-card.joker {
   background: linear-gradient(180deg, #fff2d9 0%, #efd5aa 100%);
+}
+
+.mini-card > span {
+  position: relative;
+  z-index: 1;
 }
 
 .pile-empty,
@@ -1782,6 +1797,9 @@ button {
   justify-items: start;
   align-content: space-between;
   transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
 }
 
 .card.selected {
@@ -1815,6 +1833,11 @@ button {
   background: linear-gradient(180deg, #fff6e4 0%, #f0d8af 100%);
 }
 
+.card > span {
+  position: relative;
+  z-index: 1;
+}
+
 .card-joker-tag {
   align-self: end;
   padding: 0.2rem 0.45rem;
@@ -1825,6 +1848,169 @@ button {
   line-height: 0.9;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.card.card-variant-reset,
+.mini-card.card-variant-reset,
+.seat-mini-card.card-variant-reset,
+.card.card-variant-ghost,
+.mini-card.card-variant-ghost,
+.seat-mini-card.card-variant-ghost,
+.card.card-variant-burn,
+.mini-card.card-variant-burn,
+.seat-mini-card.card-variant-burn,
+.card.card-variant-joker,
+.mini-card.card-variant-joker,
+.seat-mini-card.card-variant-joker {
+  border-color: var(--special-card-border, rgba(16, 38, 31, 0.14));
+  background: var(--special-card-background, linear-gradient(180deg, #fffdf8 0%, #f2e7d9 100%));
+  box-shadow:
+    var(--special-card-glow, 0 0 0 rgba(0, 0, 0, 0)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    var(--special-card-shadow, 0 8px 18px rgba(16, 38, 31, 0.12));
+}
+
+.card.card-variant-reset::before,
+.mini-card.card-variant-reset::before,
+.seat-mini-card.card-variant-reset::before,
+.card.card-variant-ghost::before,
+.mini-card.card-variant-ghost::before,
+.seat-mini-card.card-variant-ghost::before,
+.card.card-variant-burn::before,
+.mini-card.card-variant-burn::before,
+.seat-mini-card.card-variant-burn::before,
+.card.card-variant-joker::before,
+.mini-card.card-variant-joker::before,
+.seat-mini-card.card-variant-joker::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--special-card-overlay, none);
+  opacity: var(--special-card-overlay-opacity, 1);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.card.card-variant-reset {
+  --special-card-border: rgba(96, 180, 226, 0.72);
+  --special-card-background:
+    radial-gradient(circle at 78% 20%, rgba(255, 255, 255, 0.92) 0 16%, transparent 42%),
+    linear-gradient(180deg, #fcfeff 0%, #dff4ff 55%, #bfe9ff 100%);
+  --special-card-overlay:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.76) 0%, rgba(255, 255, 255, 0.12) 36%, rgba(143, 216, 255, 0.34) 100%);
+  --special-card-glow: 0 0 0 1px rgba(143, 216, 255, 0.18);
+  --special-card-shadow: 0 12px 24px rgba(80, 162, 205, 0.18);
+}
+
+.mini-card.card-variant-reset,
+.seat-mini-card.card-variant-reset {
+  --special-card-border: rgba(96, 180, 226, 0.66);
+  --special-card-background:
+    radial-gradient(circle at 78% 20%, rgba(255, 255, 255, 0.88) 0 14%, transparent 38%),
+    linear-gradient(180deg, #fcfeff 0%, #e4f6ff 58%, #c9edff 100%);
+  --special-card-overlay:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.1) 34%, rgba(143, 216, 255, 0.3) 100%);
+  --special-card-glow: 0 0 0 1px rgba(143, 216, 255, 0.14);
+}
+
+.card.card-variant-ghost {
+  --special-card-border: rgba(160, 184, 198, 0.7);
+  --special-card-background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(237, 244, 248, 0.98) 44%, rgba(221, 233, 239, 0.98) 100%);
+  --special-card-overlay:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.12) 34%, rgba(187, 208, 220, 0.24) 72%, rgba(255, 255, 255, 0.46) 100%),
+    repeating-linear-gradient(145deg, rgba(255, 255, 255, 0.24) 0 10px, rgba(190, 206, 217, 0.08) 10px 20px);
+  --special-card-glow: 0 0 0 1px rgba(223, 236, 244, 0.32);
+  --special-card-shadow: 0 12px 24px rgba(99, 120, 133, 0.16);
+}
+
+.mini-card.card-variant-ghost,
+.seat-mini-card.card-variant-ghost {
+  --special-card-border: rgba(168, 189, 202, 0.68);
+  --special-card-background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(239, 246, 249, 0.98) 48%, rgba(226, 237, 242, 0.98) 100%);
+  --special-card-overlay:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.1) 32%, rgba(187, 208, 220, 0.22) 72%, rgba(255, 255, 255, 0.42) 100%),
+    repeating-linear-gradient(145deg, rgba(255, 255, 255, 0.22) 0 8px, rgba(190, 206, 217, 0.07) 8px 16px);
+  --special-card-glow: 0 0 0 1px rgba(223, 236, 244, 0.24);
+}
+
+.card.card-variant-burn {
+  --special-card-border: rgba(236, 156, 78, 0.76);
+  --special-card-background:
+    radial-gradient(circle at 82% 18%, rgba(255, 244, 220, 0.86) 0 16%, transparent 40%),
+    linear-gradient(180deg, #fff9f1 0%, #ffe2ba 56%, #ffbf70 100%);
+  --special-card-overlay:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.1) 38%, rgba(255, 154, 57, 0.22) 100%);
+  --special-card-glow: 0 0 0 1px rgba(255, 179, 92, 0.2);
+  --special-card-shadow: 0 12px 24px rgba(176, 102, 34, 0.18);
+}
+
+.mini-card.card-variant-burn,
+.seat-mini-card.card-variant-burn {
+  --special-card-border: rgba(236, 156, 78, 0.7);
+  --special-card-background:
+    radial-gradient(circle at 82% 18%, rgba(255, 246, 226, 0.82) 0 14%, transparent 38%),
+    linear-gradient(180deg, #fff9f2 0%, #ffe5c4 58%, #ffc57b 100%);
+  --special-card-overlay:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.58) 0%, rgba(255, 255, 255, 0.08) 36%, rgba(255, 154, 57, 0.2) 100%);
+  --special-card-glow: 0 0 0 1px rgba(255, 179, 92, 0.16);
+}
+
+.card.card-variant-joker,
+.mini-card.card-variant-joker,
+.seat-mini-card.card-variant-joker {
+  --special-card-border: rgba(156, 90, 255, 0.7);
+  --special-card-background:
+    radial-gradient(circle at 82% 18%, rgba(255, 244, 255, 0.82) 0 16%, transparent 38%),
+    linear-gradient(155deg, #fbf6ff 0%, #b38bff 44%, #d946ef 100%);
+  --special-card-overlay:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.08) 28%, rgba(124, 77, 255, 0.18) 56%, rgba(217, 70, 239, 0.26) 100%);
+  --special-card-glow: 0 0 0 1px rgba(217, 70, 239, 0.14);
+  --special-card-shadow: 0 12px 24px rgba(113, 55, 160, 0.18);
+}
+
+.card.card-variant-joker {
+  color: #3c175d;
+}
+
+.mini-card.card-variant-joker,
+.seat-mini-card.card-variant-joker {
+  color: #4b1d72;
+}
+
+.card.card-variant-joker .card-joker-tag {
+  background: rgba(72, 24, 108, 0.12);
+}
+
+.card.selected.card-variant-reset {
+  box-shadow:
+    0 0 0 1px rgba(143, 216, 255, 0.22),
+    0 18px 28px rgba(216, 91, 50, 0.2),
+    0 12px 26px rgba(80, 162, 205, 0.2);
+}
+
+.card.selected.card-variant-ghost {
+  box-shadow:
+    0 0 0 1px rgba(223, 236, 244, 0.3),
+    0 18px 28px rgba(216, 91, 50, 0.18),
+    0 12px 24px rgba(99, 120, 133, 0.18);
+}
+
+.card.selected.card-variant-burn {
+  box-shadow:
+    0 0 0 1px rgba(255, 179, 92, 0.24),
+    0 18px 28px rgba(216, 91, 50, 0.24),
+    0 12px 24px rgba(176, 102, 34, 0.18);
+}
+
+.card.selected.card-variant-joker {
+  box-shadow:
+    0 0 0 1px rgba(217, 70, 239, 0.18),
+    0 18px 28px rgba(216, 91, 50, 0.2),
+    0 12px 24px rgba(113, 55, 160, 0.18);
 }
 
 .actions,

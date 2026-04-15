@@ -85,6 +85,7 @@ export function createGameUiController({
   shoutoutDisplayDurationMs,
   closeShoutoutMenu,
   syncShoutoutView,
+  syncWinnerCelebrationView,
   detectAnimationEvents,
   clearMotionState,
   resetLeaveConfirmation,
@@ -153,7 +154,7 @@ export function createGameUiController({
     winnerCelebrationTimer = window.setTimeout(() => {
       winnerCelebrationTimer = null;
       winnerCelebrationBurst = null;
-      render();
+      syncWinnerCelebrationView();
     }, durationMs);
   }
 

@@ -45,6 +45,25 @@ function isRedSuit(suit) {
   return suit === 1 || suit === 2 || suit === 5;
 }
 
+function specialCardVariantClass(card) {
+  if (isJokerCard(card)) {
+    return "card-variant-joker";
+  }
+  if (!card) {
+    return "";
+  }
+  if (card.rank === 2) {
+    return "card-variant-reset";
+  }
+  if (card.rank === 5) {
+    return "card-variant-ghost";
+  }
+  if (card.rank === 10) {
+    return "card-variant-burn";
+  }
+  return "";
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -269,6 +288,7 @@ function renderCardBody(card) {
 
 function renderCard(card, selected, clickable = true, hidden = false) {
   const classes = ["card"];
+  const variantClass = specialCardVariantClass(card);
   if (selected) {
     classes.push("selected");
   }
@@ -280,6 +300,9 @@ function renderCard(card, selected, clickable = true, hidden = false) {
   }
   if (isRedSuit(card.suit)) {
     classes.push("red");
+  }
+  if (variantClass) {
+    classes.push(variantClass);
   }
   const disabled = clickable ? "" : "disabled";
   return `
@@ -319,8 +342,9 @@ function renderSeatHandFan(privateCardsCount) {
 
 function renderSeatMiniCard(card) {
   const isJoker = isJokerCard(card);
+  const variantClass = specialCardVariantClass(card);
   return `
-    <span class="seat-mini-card ${isRedSuit(card.suit) ? "red" : ""} ${isJoker ? "joker" : ""}">
+    <span class="seat-mini-card ${isRedSuit(card.suit) ? "red" : ""} ${isJoker ? "joker" : ""} ${variantClass}">
       <span class="seat-mini-rank">${isJoker ? jokerSymbol : rankLabel(card.rank)}</span>
       <span class="seat-mini-suit">${isJoker ? (card.effective_rank ? rankLabel(card.effective_rank) : "?") : suitLabel(card.suit)}</span>
     </span>
@@ -697,13 +721,20 @@ function renderSeat({
       }
       ${
         showWinnerBurst
-          ? renderWinnerFireworks({
-              seat: player.seat,
-              burstElapsedMs: winnerCelebration.burstElapsedMs,
-              reducedMotion: winnerCelebration.reducedMotion,
-            })
+          ? ""
           : ""
       }
+      <div class="seat-winner-burst-region" data-winner-burst-seat="${player.seat}">
+        ${
+          showWinnerBurst
+            ? renderWinnerFireworks({
+                seat: player.seat,
+                burstElapsedMs: winnerCelebration.burstElapsedMs,
+                reducedMotion: winnerCelebration.reducedMotion,
+              })
+            : ""
+        }
+      </div>
       <div class="seat-badge-rail">
         ${seatBadges}
         <span
@@ -761,8 +792,9 @@ function renderMiniCard(card, attributes = "") {
         ? "\u25BC"
         : "";
   const rankMarkup = isJokerCard(card) ? jokerSymbol : rankLabel(card.rank);
+  const variantClass = specialCardVariantClass(card);
   return `
-    <div class="mini-card ${isRedSuit(card.suit) ? "red" : ""} ${isJokerCard(card) ? "joker" : ""}" ${attributes}>
+    <div class="mini-card ${isRedSuit(card.suit) ? "red" : ""} ${isJokerCard(card) ? "joker" : ""} ${variantClass}" ${attributes}>
       <span class="mini-card-rank-line">${rankMarkup}${highLowArrow ? `<span class="mini-card-arrow" aria-hidden="true">${highLowArrow}</span>` : ""}</span>
       <span>${isJokerCard(card) ? (card.effective_rank ? `as ${rankLabel(card.effective_rank)}` : "wild") : suitLabel(card.suit)}</span>
     </div>
@@ -1506,6 +1538,54 @@ export function syncGameplayShoutoutView({
     if (region.dataset.shoutoutBadgeSignature !== nextSignature) {
       region.innerHTML = nextMarkup;
       region.dataset.shoutoutBadgeSignature = nextSignature;
+    }
+  });
+}
+
+export function syncGameplayWinnerCelebrationView({
+  root = document,
+  snapshot,
+  viewState,
+}) {
+  if (!root || !snapshot || !viewState) {
+    return;
+  }
+
+  const winnerCelebration = viewState.winnerCelebration || {
+    winnerSeats: [],
+    burstWinnerSeats: [],
+    burstElapsedMs: 0,
+    burstDurationMs: 0,
+    reducedMotion: false,
+  };
+
+  root.querySelectorAll("[data-winner-burst-seat]").forEach((region) => {
+    const seat = Number(region.getAttribute("data-winner-burst-seat"));
+    const seatPanel = region.closest(".seat-panel");
+    const isWinner =
+      snapshot.status === "GAME_OVER" &&
+      winnerCelebration.winnerSeats.includes(seat);
+    const showWinnerBurst =
+      isWinner &&
+      winnerCelebration.burstWinnerSeats.includes(seat) &&
+      winnerCelebration.burstDurationMs > 0;
+    const nextMarkup = showWinnerBurst
+      ? renderWinnerFireworks({
+          seat,
+          burstElapsedMs: winnerCelebration.burstElapsedMs,
+          reducedMotion: winnerCelebration.reducedMotion,
+        })
+      : "";
+    const nextSignature = showWinnerBurst
+      ? `${seat}:${winnerCelebration.burstElapsedMs}:${winnerCelebration.burstDurationMs}:${winnerCelebration.reducedMotion ? "reduced" : "full"}`
+      : "";
+
+    if (seatPanel) {
+      seatPanel.classList.toggle("winner-bursting", showWinnerBurst);
+    }
+    if (region.dataset.winnerBurstSignature !== nextSignature) {
+      region.innerHTML = nextMarkup;
+      region.dataset.winnerBurstSignature = nextSignature;
     }
   });
 }
