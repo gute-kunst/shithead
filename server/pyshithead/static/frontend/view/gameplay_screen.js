@@ -640,6 +640,8 @@ function renderSeat({
       winnerCelebration?.burstWinnerSeats?.includes(player.seat) &&
       winnerCelebration?.burstDurationMs > 0,
   );
+  const hasVisibleShoutouts =
+    (visibleShoutoutsBySeat?.[player.seat] || []).length > 0;
   const isYou = player.seat === localSeat;
   const placementBadge = placementBadgeForPlayer(snapshot, player);
   const seatClasses = [
@@ -649,6 +651,7 @@ function renderSeat({
     turnArrivalSeat === player.seat ? "turn-arrival" : "",
     isWinner ? "winner" : "",
     showWinnerBurst ? "winner-bursting" : "",
+    hasVisibleShoutouts ? "active-shoutout" : "",
     isYou ? "you" : "",
     seatHasActiveMotion(animations, player.seat, ["deal"])
       ? "motion-deal-target"
@@ -728,14 +731,6 @@ function renderSeat({
           kickSeatArmed,
         })}
       </div>
-      <div class="seat-shoutout-region" data-shoutout-seat="${player.seat}">
-        ${renderSeatShoutouts({
-          snapshot,
-          player,
-          localSeat,
-          shoutouts: visibleShoutoutsBySeat?.[player.seat] || [],
-        })}
-      </div>
       <div class="seat-hand-row" data-motion-anchor="seat-hand-${player.seat}">${renderSeatHandFan(player.private_cards_count)}</div>
       <div
         class="seat-public-cards"
@@ -744,7 +739,15 @@ function renderSeat({
         <div class="seat-public-anchor">
           ${renderSeatCardStack({ snapshot, localSeat, player })}
         </div>
+        </div>
       </div>
+      <div class="seat-shoutout-region" data-shoutout-seat="${player.seat}">
+        ${renderSeatShoutouts({
+          snapshot,
+          player,
+          localSeat,
+          shoutouts: visibleShoutoutsBySeat?.[player.seat] || [],
+        })}
       </div>
     </div>
   `;
@@ -1466,6 +1469,7 @@ export function syncGameplayShoutoutView({
     const seat = Number(region.getAttribute("data-shoutout-seat"));
     const shoutouts = viewState.visibleShoutoutsBySeat?.[seat] || [];
     const player = playerForSeat(snapshot, seat);
+    const seatPanel = region.closest(".seat-panel");
     const nextMarkup = player
       ? renderSeatShoutouts({
           snapshot,
@@ -1480,6 +1484,9 @@ export function syncGameplayShoutoutView({
           `${shoutout.id}:${shoutout.expiresAt}:${shoutout.text}:${shoutout.emoji || ""}`,
       )
       .join("|");
+    if (seatPanel) {
+      seatPanel.classList.toggle("active-shoutout", shoutouts.length > 0);
+    }
     if (region.dataset.shoutoutSignature !== nextSignature) {
       region.innerHTML = nextMarkup;
       region.dataset.shoutoutSignature = nextSignature;

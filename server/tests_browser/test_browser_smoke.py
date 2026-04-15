@@ -78,6 +78,50 @@ def wait_for_visible_shoutout_text(page, text: str, timeout: int = 5000):
     )
 
 
+def shoutout_paints_on_top_of_badges(page, seat: int, text: str):
+    return page.evaluate(
+        """([seat, targetText]) => {
+            const seatNode = document.querySelector(
+                `[data-motion-anchor="seat-seat-${seat}"]`
+            );
+            const shoutoutRegion = seatNode?.querySelector(
+                `[data-shoutout-seat="${seat}"]`
+            );
+            const badgeRail = seatNode?.querySelector(".seat-badge-rail");
+            const shoutout = Array.from(document.querySelectorAll(".motion-shoutout")).find(
+                (node) =>
+                    Number.parseFloat(getComputedStyle(node).opacity || "0") > 0.05 &&
+                    (node.textContent || "").includes(targetText)
+            );
+            if (!seatNode || !shoutout || !shoutoutRegion || !badgeRail) {
+                return false;
+            }
+            const rect = shoutout.getBoundingClientRect();
+            const overlappingBadge = Array.from(
+                badgeRail.querySelectorAll(".seat-badge")
+            ).find((badge) => {
+                const badgeRect = badge.getBoundingClientRect();
+                return (
+                    Math.min(rect.right, badgeRect.right) >
+                        Math.max(rect.left, badgeRect.left) &&
+                    Math.min(rect.bottom, badgeRect.bottom) >
+                        Math.max(rect.top, badgeRect.top)
+                );
+            });
+            if (!overlappingBadge) {
+                return false;
+            }
+            return (
+                seatNode.classList.contains("active-shoutout") &&
+                shoutoutRegion.parentElement === seatNode &&
+                Number.parseInt(getComputedStyle(shoutoutRegion).zIndex || "0", 10) >
+                    Number.parseInt(getComputedStyle(badgeRail).zIndex || "0", 10)
+            );
+        }""",
+        [seat, text],
+    )
+
+
 LOBBY_SHOUTOUT_SIGNATURE = [
     ["custom", "Custom"],
     ["lets-gooo", "Let's gooo!"],
@@ -811,6 +855,22 @@ def test_chromium_mobile_hand_fan_long_touch_resize_keeps_scroll_position_and_al
         guest_context.close()
         host_context.close()
         browser.close()
+
+
+def test_lobby_shoutout_renders_above_seat_badges(live_server, browser_factory):
+    host_page = open_page(browser_factory(), live_server)
+    create_table(host_page, "Host")
+    invite_code = extract_invite_code(host_page)
+
+    guest_page = open_page(browser_factory(), live_server)
+    join_table(guest_page, invite_code, "Guest")
+
+    host_page.locator("#open-shoutout-menu").click()
+    expect(host_page.locator(".shoutout-menu")).to_be_visible()
+    host_page.locator("[data-shoutout-key='lets-gooo']").click()
+
+    wait_for_visible_shoutout_text(host_page, "Let's gooo!")
+    assert shoutout_paints_on_top_of_badges(host_page, 0, "Let's gooo!")
 
 
 def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_factory):

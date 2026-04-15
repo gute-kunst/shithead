@@ -627,6 +627,10 @@ button {
   z-index: 3;
 }
 
+.seat-panel.active-shoutout {
+  z-index: 5;
+}
+
 .seat-winner-surface {
   position: absolute;
   inset: 0;
