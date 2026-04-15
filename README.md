@@ -15,9 +15,24 @@ Development guide: [docs/dev.md](docs/dev.md)
 Work tracking: [work/INDEX.md](work/INDEX.md)
 Draw.io diagram: [docs/architecture.drawio](docs/architecture.drawio)
 
-## Mobile Browser Alpha
+## Current Repo Shape
 
-The server now exposes a playable browser-based private alpha:
+This repo is no longer in the earliest "just add behavior wherever it fits" phase.
+
+It is still a small, fast-moving codebase, but frontend work should preserve the extracted ownership boundaries instead of drifting back into `server/pyshithead/static/app.js`.
+
+The current browser app shape is:
+
+- `server/pyshithead/static/frontend/session_controller.js` owns REST, WebSocket, session sync, and inbound session application.
+- `server/pyshithead/static/frontend/game_ui_controller.js` owns gameplay interaction flow, legality handling, optimistic gameplay behavior, and shoutout submission/cooldown behavior.
+- `server/pyshithead/static/frontend/gameplay_ui_state.js` owns derived gameplay UI state, prompts, and turn guidance.
+- `server/pyshithead/static/frontend/view/gameplay_screen.js` owns gameplay rendering.
+- Shoutouts flow through normal frontend state and rendering, not imperative DOM injection.
+- `server/pyshithead/static/app.js` is mostly composition/wiring plus remaining motion and gesture infrastructure. It should not regain gameplay or shoutout decision/rendering ownership.
+
+For new features, extend the current owner module first, not the easiest file. Prefer explicit state/render flow over ad hoc DOM patching, especially around gameplay, shoutouts, and transport.
+
+## Browser App
 
 - `GET /` serves the mobile-friendly app shell.
 - `POST /api/games` creates a lobby and host seat.
@@ -27,7 +42,7 @@ The server now exposes a playable browser-based private alpha:
 - `POST /api/games/{invite_code}/players/{seat}/kick` removes an offline non-host player.
 - `WS /api/games/{invite_code}/ws?token=...` streams realtime updates and player actions.
 
-The browser client in `server/pyshithead/static` is the supported alpha surface.
+The browser client in `server/pyshithead/static` is the supported product surface.
 
 Current multiplayer behavior is mobile-friendly by default:
 
@@ -45,7 +60,7 @@ The repo now includes a Render blueprint at `render.yaml` for a single free web 
 - health endpoint: `GET /healthz`
 - start command: `poetry run python -m uvicorn pyshithead.main:app --host 0.0.0.0 --port $PORT`
 
-The current alpha persists session state in SQLite, but deploys, restarts, or free-tier idle spin-downs can still interrupt active games.
+The current app persists session state in SQLite, but deploys, restarts, or free-tier idle spin-downs can still interrupt active games.
 
 ## Development
 

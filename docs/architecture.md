@@ -2,13 +2,31 @@
 
 ## Overview
 
-The current alpha is a single FastAPI service that serves a browser client and persists session state in SQLite.
+The current app is a single FastAPI service that serves a browser client and persists session state in SQLite.
 
 - `server/pyshithead/main.py` exposes the REST endpoints, the per-game WebSocket, and the static app shell.
 - `server/pyshithead/models/session` owns lobby/session state, player connectivity, snapshots, reconnects, and timeout handling.
 - `server/pyshithead/models/common/game_manager.py` adapts transport-layer requests into game-engine calls.
 - `server/pyshithead/models/game` contains the actual Shithead rules, card state, turn order, and play-pile behavior.
-- `server/pyshithead/static` contains the browser alpha client, CSS, manifest, and service worker.
+- `server/pyshithead/static` contains the browser client, CSS, manifest, and service worker.
+
+The repo is still compact, but it is no longer in the earliest prototype stage where structure is optional. New frontend work should extend the current ownership boundaries instead of pushing behavior back into the entrypoint file.
+
+## Frontend Ownership
+
+- `server/pyshithead/static/frontend/session_controller.js` owns REST calls, WebSocket lifecycle, session restore/reconnect flow, and inbound snapshot/private-state application.
+- `server/pyshithead/static/frontend/game_ui_controller.js` owns gameplay interaction flow, legality handling, optimistic gameplay behavior, and shoutout submission/cooldown behavior.
+- `server/pyshithead/static/frontend/gameplay_ui_state.js` owns derived gameplay UI state, prompts, action availability, and turn guidance.
+- `server/pyshithead/static/frontend/view/gameplay_screen.js` owns gameplay rendering.
+- Shoutouts now move through first-class frontend state and render paths rather than imperative DOM injection.
+- `server/pyshithead/static/app.js` is mostly composition/wiring plus remaining motion and gesture infrastructure. That remaining hotspot is not a reason to put new gameplay, shoutout, or transport ownership there.
+
+Practical expectation for feature work:
+
+- use the existing owner module when touching gameplay rendering, gameplay derivation, shoutouts, or transport
+- prefer explicit state and rendering flow over post-render DOM patching
+- treat real ownership change as an architectural decision, not a casual convenience move
+- avoid broad rewrites when a local extension of the current boundary is enough
 
 ## Runtime Flow
 
@@ -46,7 +64,7 @@ Presence is transport-based:
 1. Browser actions are sent over the WebSocket as typed `ActionRequest` payloads.
 1. `GameSession.apply_action()` converts them into engine requests, updates pending-joker state/status messaging, and broadcasts fresh state.
 
-## Important Alpha Constraints
+## Current Constraints
 
 - Sessions are stored in SQLite and can survive a short restart, but deploys or long idle periods can still end live games.
 - Session snapshots are the source of truth for the browser UI. The client stores only reconnect/seat metadata in `localStorage`.
@@ -56,4 +74,4 @@ Presence is transport-based:
   - 5 minute active-turn fallback before an offline turn is auto-resolved
   - host-managed removal for offline non-host players
   - longer idle-session reaping when nobody is connected
-- The browser alpha is the supported product surface.
+- The browser app is the supported product surface.
