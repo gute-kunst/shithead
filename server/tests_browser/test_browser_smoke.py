@@ -1006,6 +1006,33 @@ def test_custom_shoutout_composer_and_recent_history_work_for_all_players(
     assert all("Second clap" not in text for text in visible_replay_texts)
 
 
+def test_custom_shoutout_composer_stays_focused_while_offline_presence_updates(
+    live_server, browser_factory
+):
+    host_page = open_page(browser_factory(), live_server)
+    create_table(host_page, "Host")
+    invite_code = extract_invite_code(host_page)
+
+    guest_page = open_page(browser_factory(), live_server)
+    join_table(guest_page, invite_code, "Guest")
+    guest_page.close()
+
+    expect(host_page.locator(".seat-panel.disconnected")).to_contain_text("Guest")
+
+    host_page.locator("#open-shoutout-menu").click()
+    host_page.locator("#open-custom-shoutout").click()
+    composer = host_page.locator("#custom-shoutout-text")
+    expect(composer).to_be_focused()
+    composer.fill("steady signal")
+
+    assert remember_dom_node(host_page, "__customShoutoutInput", "#custom-shoutout-text")
+    host_page.wait_for_timeout(2200)
+
+    expect(host_page.locator("#custom-shoutout-text")).to_be_focused()
+    expect(host_page.locator("#custom-shoutout-text")).to_have_value("steady signal")
+    assert same_dom_node(host_page, "__customShoutoutInput", "#custom-shoutout-text")
+
+
 def test_during_game_shoutouts_show_phase_specific_presets(live_server, browser_factory):
     host_page = open_page(browser_factory(), live_server)
     create_table(host_page, "Host")

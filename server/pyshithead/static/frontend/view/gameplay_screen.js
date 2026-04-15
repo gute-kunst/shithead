@@ -719,13 +719,15 @@ function renderSeat({
           <strong>${escapeHtml(player.display_name)}</strong>
         </div>
       </div>
-      ${renderOfflinePresence({
-        player,
-        snapshot,
-        localSeat,
-        presenceNow,
-        kickSeatArmed,
-      })}
+      <div class="seat-presence-region" data-seat-presence-seat="${player.seat}">
+        ${renderOfflinePresence({
+          player,
+          snapshot,
+          localSeat,
+          presenceNow,
+          kickSeatArmed,
+        })}
+      </div>
       <div class="seat-shoutout-region" data-shoutout-seat="${player.seat}">
         ${renderSeatShoutouts({
           snapshot,
@@ -1497,6 +1499,34 @@ export function syncGameplayShoutoutView({
     if (region.dataset.shoutoutBadgeSignature !== nextSignature) {
       region.innerHTML = nextMarkup;
       region.dataset.shoutoutBadgeSignature = nextSignature;
+    }
+  });
+}
+
+export function syncGameplayPresenceView({
+  root = document,
+  snapshot,
+  viewState,
+}) {
+  if (!root || !snapshot || !viewState) {
+    return;
+  }
+
+  root.querySelectorAll("[data-seat-presence-seat]").forEach((region) => {
+    const seat = Number(region.getAttribute("data-seat-presence-seat"));
+    const player = playerForSeat(snapshot, seat);
+    const nextMarkup = player
+      ? renderOfflinePresence({
+          player,
+          snapshot,
+          localSeat: viewState.localSeat,
+          presenceNow: viewState.presenceNow,
+          kickSeatArmed: viewState.kickSeatArmed,
+        })
+      : "";
+    if (region.dataset.presenceSignature !== nextMarkup) {
+      region.innerHTML = nextMarkup;
+      region.dataset.presenceSignature = nextMarkup;
     }
   });
 }

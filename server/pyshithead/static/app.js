@@ -29,6 +29,7 @@ import {
   deriveTableLayoutVariant,
   renderGameplayScreenView,
   renderRulesMenuView,
+  syncGameplayPresenceView,
   syncGameplayShoutoutView,
 } from "./frontend/view/gameplay_screen.js";
 import {
@@ -303,6 +304,21 @@ function syncShoutoutView(snapshot = state.snapshot?.data) {
   });
 }
 
+function syncPresenceView(snapshot = state.snapshot?.data) {
+  if (!snapshot) {
+    return;
+  }
+  syncGameplayPresenceView({
+    root: app,
+    snapshot,
+    viewState: {
+      localSeat: state.seat,
+      presenceNow: state.presenceNow,
+      kickSeatArmed: state.kickSeatArmed,
+    },
+  });
+}
+
 function openShoutoutMenu() {
   if (isShoutoutOnCooldown()) {
     state.shoutoutMenuOpen = false;
@@ -545,7 +561,7 @@ function syncPresenceTicker() {
   }
   state.presenceTicker = window.setInterval(() => {
     state.presenceNow = Date.now();
-    render();
+    syncPresenceView();
   }, 1000);
 }
 
