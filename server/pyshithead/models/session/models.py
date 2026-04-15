@@ -38,6 +38,8 @@ class PlayerSnapshot(BaseModel):
     finished_position: int | None = None
     public_cards: list[CardModel] = Field(default_factory=list)
     hidden_cards_count: int = 0
+    hidden_cards_revealed: bool = False
+    revealed_hidden_cards: list[CardModel] = Field(default_factory=list)
     private_cards_count: int = 0
 
 
@@ -157,6 +159,7 @@ class ActionRequest(BaseModel):
         "choose_public_cards",
         "play_private_cards",
         "play_hidden_card",
+        "reveal_hidden_cards",
         "resolve_joker",
         "take_play_pile",
         "send_shoutout",

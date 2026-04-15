@@ -304,6 +304,7 @@ class GameSession:
         self.pending_joker_seat: int | None = None
         self.pending_joker_card: Card | None = None
         self.pending_hidden_take_seat: int | None = None
+        self.revealed_hidden_seats: set[int] = set()
         self.active_turn_disconnect_grace_seconds = self.ACTIVE_TURN_DISCONNECT_GRACE_SECONDS
         self.setup_disconnect_grace_seconds = self.SETUP_DISCONNECT_GRACE_SECONDS
         self.disconnect_timeout_tasks: dict[int, asyncio.Task] = {}
@@ -386,6 +387,7 @@ class GameSession:
         self.pending_joker_seat = None
         self.pending_joker_card = None
         self.pending_hidden_take_seat = None
+        self.revealed_hidden_seats = set()
         self._finalize_state_change()
 
     def update_settings(self, player_token: str, *, allow_optional_take_pile: bool):
@@ -410,6 +412,7 @@ class GameSession:
         self.last_status_message = None
         self._clear_pending_joker()
         self._clear_pending_hidden_take()
+        self.revealed_hidden_seats = set()
         self._finalize_state_change()
 
     def _serialize_card(self, card: Card) -> CardModel:
@@ -922,6 +925,40 @@ class GameSession:
 
         return (None, False)
 
+    def _seat_hidden_cards_are_revealed(self, seat: int) -> bool:
+        return seat in self.revealed_hidden_seats
+
+    def _build_revealed_hidden_cards(
+        self, seat: int, game_player: Player | None
+    ) -> list[CardModel]:
+        if (
+            self.status != SessionStatus.GAME_OVER
+            or game_player is None
+            or not self._seat_hidden_cards_are_revealed(seat)
+        ):
+            return []
+        revealed_cards = sorted(
+            game_player.hidden_cards.cards,
+            key=lambda card: (rank_precedence(self._effective_rank(card)), int(card.suit)),
+        )
+        return [self._serialize_card(card) for card in revealed_cards]
+
+    def _reveal_hidden_cards(self, player: SessionPlayer):
+        self._sync_status()
+        if self.status != SessionStatus.GAME_OVER or self.game_manager is None:
+            raise ValueError("Hidden cards can only be revealed after the game ends.")
+
+        game_player, _ = self._find_game_player(player.seat)
+        if game_player is None:
+            raise ValueError("Could not find that player in the finished game.")
+        if len(game_player.hidden_cards) <= 0:
+            raise ValueError("There are no hidden cards left to reveal.")
+        if self._seat_hidden_cards_are_revealed(player.seat):
+            raise ValueError("Hidden cards have already been revealed for this seat.")
+
+        self.revealed_hidden_seats.add(player.seat)
+        self.last_status_message = f"{player.display_name} revealed their hidden cards."
+
     def _sync_status(self):
         if self.game_manager is None:
             self.status = SessionStatus.LOBBY
@@ -944,6 +981,8 @@ class GameSession:
             game_player, has_finished = self._find_game_player(player.seat)
             public_cards = []
             hidden_cards_count = 0
+            hidden_cards_revealed = False
+            revealed_hidden_cards = []
             private_cards_count = 0
 
             if game_player is not None:
@@ -951,6 +990,10 @@ class GameSession:
                     self._serialize_card(card) for card in game_player.public_cards.cards
                 ]
                 hidden_cards_count = len(game_player.hidden_cards)
+                hidden_cards_revealed = (
+                    hidden_cards_count > 0 and self._seat_hidden_cards_are_revealed(player.seat)
+                )
+                revealed_hidden_cards = self._build_revealed_hidden_cards(player.seat, game_player)
                 private_cards_count = len(game_player.private_cards)
 
             players.append(
@@ -970,6 +1013,8 @@ class GameSession:
                     finished_position=finished_positions.get(player.seat),
                     public_cards=public_cards,
                     hidden_cards_count=hidden_cards_count,
+                    hidden_cards_revealed=hidden_cards_revealed,
+                    revealed_hidden_cards=revealed_hidden_cards,
                     private_cards_count=private_cards_count,
                 )
             )
@@ -1095,6 +1140,11 @@ class GameSession:
 
         if self.game_manager is None:
             raise ValueError("Game has not started yet.")
+
+        if action.type == "reveal_hidden_cards":
+            self._reveal_hidden_cards(player)
+            self._finalize_state_change()
+            return None
 
         game = self.game_manager.game
         previous_play_pile = list(game.play_pile.cards)
@@ -1413,6 +1463,7 @@ class GameSessionManager:
             "game_id": game.game_id,
             "state": str(game.state),
             "valid_ranks": sorted(int(rank) for rank in game.valid_ranks),
+            "revealed_hidden_seats": sorted(session.revealed_hidden_seats),
             "deck": [self._serialize_card(card) for card in game.deck.cards],
             "play_pile": [self._serialize_card(card) for card in game.play_pile.cards],
             "active_player_order": [
@@ -1558,6 +1609,9 @@ class GameSessionManager:
         )
         session.last_activity_at = datetime.fromisoformat(record["last_activity_at"])
         session.settings = SessionSettings(**record["settings"])
+        session.revealed_hidden_seats = {
+            int(seat) for seat in (record.get("game_state") or {}).get("revealed_hidden_seats", [])
+        }
         session.game_manager = self._deserialize_game_state(record["game_state"])
         return session
 

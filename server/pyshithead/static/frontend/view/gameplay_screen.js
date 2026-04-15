@@ -327,11 +327,7 @@ function renderSeatMiniCard(card) {
   `;
 }
 
-function renderSeatPublicStack(publicCards, hiddenCardsCount) {
-  if (publicCards.length === 0) {
-    return hiddenCardsCount > 0 ? renderSeatHiddenStack(hiddenCardsCount) : "";
-  }
-
+function renderSeatPublicCards(publicCards) {
   return `
     <div class="seat-public-stack">
       ${publicCards
@@ -358,6 +354,110 @@ function renderSeatHiddenStack(hiddenCardsCount) {
       ${Array.from({ length: hiddenCardsCount }, () => '<span class="seat-back-card hidden-row"></span>').join("")}
     </div>
   `;
+}
+
+function renderSeatRevealedHiddenCards(cards = []) {
+  if (!Array.isArray(cards) || cards.length === 0) {
+    return "";
+  }
+
+  return `
+    <div class="seat-hidden-revealed-cards">
+      ${cards
+        .map(
+          (card) => `
+        <span class="seat-hidden-revealed-card">
+          ${renderSeatMiniCard(card)}
+        </span>
+      `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function shouldShowRevealHiddenButton(snapshot, localSeat, player) {
+  return (
+    snapshot?.status === "GAME_OVER" &&
+    player.seat === localSeat &&
+    player.hidden_cards_count > 0 &&
+    !player.hidden_cards_revealed
+  );
+}
+
+function renderSeatHiddenArea({ snapshot, localSeat, player }) {
+  const showRevealButton = shouldShowRevealHiddenButton(snapshot, localSeat, player);
+  const hiddenCardsMarkup = player.hidden_cards_revealed
+    ? renderSeatRevealedHiddenCards(player.revealed_hidden_cards)
+    : renderSeatHiddenStack(player.hidden_cards_count);
+
+  if (!showRevealButton && !hiddenCardsMarkup) {
+    return "";
+  }
+
+  return `
+    <div
+      class="seat-hidden-area ${showRevealButton ? "has-reveal-overlay" : ""}"
+      data-hidden-cards-seat="${player.seat}"
+    >
+      ${
+        showRevealButton
+          ? `
+        <button
+          class="button secondary button-inline seat-reveal-hidden-button"
+          type="button"
+          data-reveal-hidden-seat="${player.seat}"
+        >Reveal</button>
+      `
+          : ""
+      }
+      ${hiddenCardsMarkup}
+    </div>
+  `;
+}
+
+function renderSeatCardStack({ snapshot, localSeat, player }) {
+  const hiddenAreaMarkup = renderSeatHiddenArea({ snapshot, localSeat, player });
+
+  if (snapshot?.status === "GAME_OVER") {
+    if (player.public_cards.length === 0 && !hiddenAreaMarkup) {
+      return "";
+    }
+
+    return `
+      <div class="seat-card-stack">
+        ${
+          player.public_cards.length > 0
+            ? renderSeatPublicCards(player.public_cards)
+            : ""
+        }
+        ${
+          hiddenAreaMarkup
+            ? `
+          <div
+            class="seat-hidden-row"
+            data-motion-anchor="seat-hidden-${player.seat}"
+          >
+            ${hiddenAreaMarkup}
+          </div>
+        `
+            : ""
+        }
+      </div>
+    `;
+  }
+
+  if (player.public_cards.length === 0) {
+    return player.hidden_cards_count > 0
+      ? `
+        <div data-motion-anchor="seat-hidden-${player.seat}">
+          ${renderSeatHiddenStack(player.hidden_cards_count)}
+        </div>
+      `
+      : "";
+  }
+
+  return renderSeatPublicCards(player.public_cards);
 }
 
 function renderSeatShoutouts({
@@ -639,8 +739,8 @@ function renderSeat({
         class="seat-public-cards"
         data-motion-anchor="seat-public-${player.seat}"
       >
-        <div class="seat-public-anchor" data-motion-anchor="seat-hidden-${player.seat}">
-          ${renderSeatPublicStack(player.public_cards, player.hidden_cards_count)}
+        <div class="seat-public-anchor">
+          ${renderSeatCardStack({ snapshot, localSeat, player })}
         </div>
       </div>
       </div>

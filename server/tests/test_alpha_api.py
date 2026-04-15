@@ -109,6 +109,10 @@ def private_card_signature(cards):
     ]
 
 
+def snapshot_player(snapshot, seat: int):
+    return next(player for player in snapshot.players if player.seat == seat)
+
+
 def test_create_and_join_alpha_lobby():
     session_manager.sessions.clear()
     with TestClient(app, base_url="http://localhost") as client:
@@ -1254,6 +1258,160 @@ def test_snapshot_exposes_player_name_when_pile_is_taken():
 
         snapshot = session.build_snapshot()
         assert snapshot.status_message == "Host took the play pile."
+
+
+def test_hidden_cards_stay_private_until_post_game_reveal():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        game = session.game_manager.game
+        game.state = GameState.DURING_GAME
+        game.deck = PileOfCards()
+        game.play_pile = PileOfCards([Card(6, Suit.HEART)])
+        game.valid_ranks = {6, 9, 10}
+
+        host_player = game.get_player(0)
+        guest_player = game.get_player(1)
+        host_player.private_cards = SetOfCards([Card(9, Suit.HEART)])
+        host_player.public_cards = SetOfCards()
+        host_player.hidden_cards = SetOfCards([Card(4, Suit.CLOVERS)])
+        guest_player.private_cards = SetOfCards([Card(10, Suit.HEART)])
+        guest_player.public_cards = SetOfCards([Card(11, Suit.CLOVERS)])
+        guest_player.hidden_cards = SetOfCards([Card(8, Suit.HEART), Card(12, Suit.PIKES)])
+        session._finalize_state_change()
+
+        snapshot = session.build_snapshot()
+        guest_snapshot = snapshot_player(snapshot, 1)
+        assert guest_snapshot.hidden_cards_count == 2
+        assert guest_snapshot.hidden_cards_revealed is False
+        assert guest_snapshot.revealed_hidden_cards == []
+
+        restored = restore_session(client, host["invite_code"], host["player_token"])
+        assert restored.status_code == 200
+        restored_guest = next(
+            player for player in restored.json()["snapshot"]["players"] if player["seat"] == 1
+        )
+        assert restored_guest["hidden_cards_count"] == 2
+        assert restored_guest["hidden_cards_revealed"] is False
+        assert restored_guest["revealed_hidden_cards"] == []
+
+        assert private_card_signature(restored.json()["private_state"]["private_cards"]) == [
+            (9, Suit.HEART, None)
+        ]
+        assert private_card_signature(session.build_private_state(0).private_cards) == [
+            (9, Suit.HEART, None)
+        ]
+        assert private_card_signature(session.build_private_state(1).private_cards) == [
+            (10, Suit.HEART, None)
+        ]
+
+
+def test_game_over_hidden_reveal_is_public_owner_gated_and_persists_on_restore():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        guest = join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        game = session.game_manager.game
+        game.deck = PileOfCards()
+        game.play_pile = PileOfCards()
+
+        host_player = game.get_player(0)
+        guest_player = game.get_player(1)
+        host_player.private_cards = SetOfCards()
+        host_player.public_cards = SetOfCards()
+        host_player.hidden_cards = SetOfCards()
+        guest_player.private_cards = SetOfCards([Card(12, Suit.HEART)])
+        guest_player.public_cards = SetOfCards([Card(9, Suit.CLOVERS)])
+        guest_player.hidden_cards = SetOfCards([Card(4, Suit.HEART), Card(11, Suit.PIKES)])
+        game.ranking = [host_player]
+        game.active_players.remove_node(host_player)
+        game.check_for_game_over()
+        session.last_status_message = "Host won the game."
+        session._finalize_state_change()
+
+        with pytest.raises(ValueError, match="There are no hidden cards left to reveal."):
+            session.apply_action(host["player_token"], ActionRequest(type="reveal_hidden_cards"))
+
+        unrevealed_snapshot = session.build_snapshot()
+        unrevealed_guest = snapshot_player(unrevealed_snapshot, 1)
+        assert unrevealed_guest.hidden_cards_revealed is False
+        assert unrevealed_guest.revealed_hidden_cards == []
+
+        session.apply_action(guest["player_token"], ActionRequest(type="reveal_hidden_cards"))
+
+        revealed_snapshot = session.build_snapshot()
+        revealed_guest = snapshot_player(revealed_snapshot, 1)
+        assert revealed_snapshot.status == "GAME_OVER"
+        assert revealed_guest.hidden_cards_count == 2
+        assert revealed_guest.hidden_cards_revealed is True
+        assert {card.rank for card in revealed_guest.revealed_hidden_cards} == {4, 11}
+        assert private_card_signature(revealed_guest.revealed_hidden_cards) == [
+            (4, Suit.HEART, None),
+            (11, Suit.PIKES, None),
+        ]
+
+        host_restored = restore_session(client, host["invite_code"], host["player_token"])
+        guest_restored = restore_session(client, host["invite_code"], guest["player_token"])
+        assert host_restored.status_code == 200
+        assert guest_restored.status_code == 200
+
+        host_restored_guest = next(
+            player for player in host_restored.json()["snapshot"]["players"] if player["seat"] == 1
+        )
+        guest_restored_guest = next(
+            player for player in guest_restored.json()["snapshot"]["players"] if player["seat"] == 1
+        )
+        assert host_restored_guest["hidden_cards_revealed"] is True
+        assert guest_restored_guest["hidden_cards_revealed"] is True
+        assert private_card_signature(host_restored_guest["revealed_hidden_cards"]) == [
+            (4, Suit.HEART, None),
+            (11, Suit.PIKES, None),
+        ]
+        assert private_card_signature(guest_restored_guest["revealed_hidden_cards"]) == [
+            (4, Suit.HEART, None),
+            (11, Suit.PIKES, None),
+        ]
+
+        with pytest.raises(ValueError, match="already been revealed"):
+            session.apply_action(guest["player_token"], ActionRequest(type="reveal_hidden_cards"))
+
+
+def test_post_game_hidden_reveal_is_rejected_during_active_play():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        join_game(client, host["invite_code"], "Guest")
+
+        session = session_manager.get_session(host["invite_code"])
+        session.start(host["player_token"])
+        game = session.game_manager.game
+        game.state = GameState.DURING_GAME
+        game.deck = PileOfCards()
+        game.play_pile = PileOfCards()
+
+        host_player = game.get_player(0)
+        host_player.private_cards = SetOfCards()
+        host_player.public_cards = SetOfCards()
+        host_player.hidden_cards = SetOfCards([Card(6, Suit.HEART)])
+        session._finalize_state_change()
+
+        with pytest.raises(
+            ValueError, match="Hidden cards can only be revealed after the game ends."
+        ):
+            session.apply_action(host["player_token"], ActionRequest(type="reveal_hidden_cards"))
+
+        snapshot = session.build_snapshot()
+        host_snapshot = snapshot_player(snapshot, 0)
+        assert snapshot.status == "IN_GAME"
+        assert host_snapshot.hidden_cards_revealed is False
+        assert host_snapshot.revealed_hidden_cards == []
 
 
 def test_hidden_joker_requires_resolution_and_stays_visible_on_play_pile():

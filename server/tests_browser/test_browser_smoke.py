@@ -1130,6 +1130,85 @@ def test_game_over_score_page_shoutouts_and_rematch_back_to_lobby(
     expect(host_page.get_by_role("button", name="Rematch")).to_have_count(0)
 
 
+def test_game_over_hidden_reveal_is_owner_only_public_and_survives_refresh(
+    live_app_server_factory,
+    browser_factory,
+    browser_profile_name,
+):
+    debug_app, seed = create_debug_app("game-over")
+    game = seed.session.game_manager.game
+    host_player = next(player for player in game.ranking if player.id_ == 0)
+    guest_player = game.get_player(1)
+    host_player.private_cards = SetOfCards()
+    host_player.public_cards = SetOfCards()
+    host_player.hidden_cards = SetOfCards()
+    guest_player.private_cards = SetOfCards([Card(12, Suit.HEART)])
+    guest_player.public_cards = SetOfCards([Card(9, Suit.CLOVERS)])
+    guest_player.hidden_cards = SetOfCards([Card(4, Suit.HEART), Card(11, Suit.PIKES)])
+    seed.session.revealed_hidden_seats = set()
+    seed.session.last_status_message = "Host won the debug game."
+    seed.session._finalize_state_change()
+
+    base_url = live_app_server_factory(debug_app)
+    host = seed.session.get_player_by_seat(0)
+    guest = seed.session.get_player_by_seat(1)
+    host_page = open_page(
+        browser_factory(),
+        base_url,
+        f"/debug/session?invite={seed.session.invite_code}&token={host.token}",
+    )
+    guest_page = open_page(
+        browser_factory(),
+        base_url,
+        f"/debug/session?invite={seed.session.invite_code}&token={guest.token}",
+    )
+
+    expect(host_page.locator("[data-reveal-hidden-seat='1']")).to_have_count(0)
+    expect(host_page.locator("[data-reveal-hidden-seat='0']")).to_have_count(0)
+    expect(guest_page.locator("[data-reveal-hidden-seat='1']")).to_be_visible()
+    expect(guest_page.locator("[data-reveal-hidden-seat='0']")).to_have_count(0)
+    expect(
+        host_page.locator("[data-hidden-cards-seat='1'] .seat-hidden-stack .seat-back-card")
+    ).to_have_count(2)
+    expect(
+        guest_page.locator("[data-motion-anchor='seat-seat-1'] .seat-hand-row .seat-back-card")
+    ).to_have_count(1)
+
+    guest_page.locator("[data-reveal-hidden-seat='1']").click()
+
+    expect(host_page.locator("[data-reveal-hidden-seat='1']")).to_have_count(0)
+    expect(guest_page.locator("[data-reveal-hidden-seat='1']")).to_have_count(0)
+    expect(
+        host_page.locator(
+            "[data-hidden-cards-seat='1'] .seat-hidden-revealed-cards .seat-mini-card"
+        )
+    ).to_have_count(2)
+    expect(
+        guest_page.locator(
+            "[data-hidden-cards-seat='1'] .seat-hidden-revealed-cards .seat-mini-card"
+        )
+    ).to_have_count(2)
+    expect(
+        guest_page.locator("[data-motion-anchor='seat-seat-1'] .seat-hand-row .seat-back-card")
+    ).to_have_count(1)
+
+    host_page.reload(wait_until="networkidle")
+    guest_page.reload(wait_until="networkidle")
+
+    expect(host_page.locator("[data-reveal-hidden-seat='1']")).to_have_count(0)
+    expect(guest_page.locator("[data-reveal-hidden-seat='1']")).to_have_count(0)
+    expect(
+        host_page.locator(
+            "[data-hidden-cards-seat='1'] .seat-hidden-revealed-cards .seat-mini-card"
+        )
+    ).to_have_count(2)
+    expect(
+        guest_page.locator(
+            "[data-hidden-cards-seat='1'] .seat-hidden-revealed-cards .seat-mini-card"
+        )
+    ).to_have_count(2)
+
+
 def test_service_worker_registers_and_reload_keeps_app_usable(live_server, browser_factory):
     page = open_page(browser_factory(), live_server)
 

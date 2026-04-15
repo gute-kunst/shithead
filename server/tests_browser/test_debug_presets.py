@@ -28,6 +28,15 @@ def test_debug_bootstrap_link_opens_hidden_take_preset(live_app_server_factory, 
     expect(page.locator("#take-pile-overlay")).to_be_visible()
 
 
+def test_debug_hidden_reveal_control_stays_hidden_during_active_game(
+    live_app_server_factory, browser_factory
+):
+    page, _seed = _open_debug_session(live_app_server_factory, browser_factory, "hidden-reveal")
+
+    expect(page.locator("[data-reveal-hidden-seat]")).to_have_count(0)
+    expect(page.locator("[data-hidden-cards-seat='0']")).to_have_count(0)
+
+
 def _open_debug_session(live_app_server_factory, browser_factory, preset_name: str):
     debug_app, seed = create_debug_app(preset_name)
     base_url = live_app_server_factory(debug_app)

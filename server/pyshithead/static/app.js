@@ -1795,6 +1795,11 @@ function onAppClick(event) {
     return;
   }
 
+  if (closestAppTarget(event, "[data-reveal-hidden-seat]")) {
+    gameUiController?.submitRevealHiddenCards();
+    return;
+  }
+
   const jokerRankButton = closestAppTarget(event, "[data-joker-rank]");
   if (jokerRankButton) {
     gameUiController?.setJokerRank(jokerRankButton.dataset.jokerRank);

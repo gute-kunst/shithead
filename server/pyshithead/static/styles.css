@@ -979,6 +979,12 @@ button {
   justify-content: center;
 }
 
+.seat-card-stack {
+  display: grid;
+  justify-items: center;
+  gap: 0.34rem;
+}
+
 .seat-public-stack {
   display: flex;
   flex-wrap: wrap;
@@ -1046,6 +1052,60 @@ button {
   justify-content: center;
   gap: 0.24rem;
   min-height: 2.18rem;
+}
+
+.seat-hidden-row {
+  min-height: 2.18rem;
+}
+
+.seat-hidden-area {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.28rem;
+  min-width: 2rem;
+}
+
+.seat-hidden-area.has-reveal-overlay {
+  min-height: 2.18rem;
+}
+
+.seat-hidden-revealed-cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.24rem;
+}
+
+.seat-hidden-revealed-card {
+  position: relative;
+  width: 1.55rem;
+  height: 2.22rem;
+}
+
+.seat-reveal-hidden-button {
+  position: relative;
+  z-index: 2;
+  min-height: 1.7rem;
+  padding: 0.18rem 0.42rem;
+  border-color: rgba(247, 239, 225, 0.45);
+  background: rgba(16, 38, 31, 0.56);
+  color: rgba(255, 252, 246, 0.92);
+  backdrop-filter: blur(5px);
+  box-shadow: 0 6px 12px rgba(8, 23, 19, 0.16);
+  font-size: 0.66rem;
+  line-height: 1.2;
+}
+
+.seat-hidden-area.has-reveal-overlay .seat-reveal-hidden-button {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.game-screen.game-over-screen .seat-public-cards {
+  min-height: 5.1rem;
 }
 
 .table-center {
@@ -2555,6 +2615,10 @@ body.game-active-mobile .seat-public-cards {
   min-height: 2rem;
 }
 
+body.game-active-mobile .seat-card-stack {
+  gap: 0.24rem;
+}
+
 body.game-active-mobile .seat-public-stack {
   gap: 0.22rem;
 }
@@ -2581,6 +2645,29 @@ body.game-active-mobile .seat-mini-suit {
 body.game-active-mobile .seat-hidden-stack {
   width: 2rem;
   height: 2.2rem;
+}
+
+body.game-active-mobile .seat-hidden-area {
+  gap: 0.2rem;
+}
+
+body.game-active-mobile .seat-hidden-revealed-cards {
+  gap: 0.2rem;
+}
+
+body.game-active-mobile .seat-hidden-revealed-card {
+  width: 1.34rem;
+  height: 1.92rem;
+}
+
+body.game-active-mobile .seat-reveal-hidden-button {
+  min-height: 1.5rem;
+  padding: 0.14rem 0.38rem;
+  font-size: 0.58rem;
+}
+
+body.game-active-mobile .game-screen.game-over-screen .seat-public-cards {
+  min-height: 4.45rem;
 }
 
 body.game-active-mobile .players-2 .seat-top {

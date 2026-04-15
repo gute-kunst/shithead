@@ -940,6 +940,10 @@ export function createGameUiController({
     sendAction({ type: "play_hidden_card" });
   }
 
+  function submitRevealHiddenCards() {
+    sendAction({ type: "reveal_hidden_cards" });
+  }
+
   function submitResolveJoker() {
     const gameplayUi = deriveCurrentGameplayUi();
     if (!gameplayUi.pendingJoker.active) {
@@ -1094,6 +1098,7 @@ export function createGameUiController({
     submitHiddenCard,
     submitPlayCards,
     submitPrimaryAction,
+    submitRevealHiddenCards,
     submitResolveJoker,
     submitShoutout,
     submitTakePile,
