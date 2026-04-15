@@ -118,8 +118,20 @@ def test_create_and_join_alpha_lobby():
     with TestClient(app, base_url="http://localhost") as client:
         root = client.get("/")
         assert root.status_code == 200
-        assert 'id="app" class="app-root"' in root.text
-        assert "/static/app.js" in root.text
+        assert "<title>Play Shithead Online | Multiplayer Card Game</title>" in root.text
+        assert "<h1>Play Shithead Online</h1>" in root.text
+        assert root.text.find("Create Table") < root.text.find("Quick to learn, fun to master")
+        assert root.text.find("Join Table") < root.text.find("Quick to learn, fun to master")
+        assert '<link rel="canonical" href="http://localhost/" />' in root.text
+        assert 'name="robots" content="index,follow"' in root.text
+        assert "/static/app.js" not in root.text
+
+        play = client.get("/play")
+        assert play.status_code == 200
+        assert 'id="app" class="app-root"' in play.text
+        assert "/static/app.js" in play.text
+        assert 'name="robots" content="noindex, nofollow"' in play.text
+        assert play.headers["x-robots-tag"] == "noindex, nofollow"
 
         health = client.get("/healthz")
         assert health.status_code == 200
@@ -184,6 +196,41 @@ def test_create_and_join_alpha_lobby():
             ("strong-game", "Strong game!", "💪"),
             ("sending-love", "Sending Love", "🫶"),
         ]
+
+
+def test_public_pages_publish_metadata_and_crawl_plumbing():
+    with TestClient(app, base_url="http://localhost") as client:
+        rules = client.get("/rules")
+        assert rules.status_code == 200
+        assert "<title>Shithead Rules | Quick Guide</title>" in rules.text
+        assert "<h1>How to play Shithead</h1>" in rules.text
+        assert 'href="http://localhost/rules"' in rules.text
+        assert 'name="robots" content="index,follow"' in rules.text
+        assert 'href="/play?mode=create"' in rules.text
+
+        legacy_invite = client.get("/?invite=ab12cd", follow_redirects=False)
+        assert legacy_invite.status_code == 307
+        assert legacy_invite.headers["location"] == "/play?invite=AB12CD"
+
+        robots = client.get("/robots.txt")
+        assert robots.status_code == 200
+        assert robots.text == "\n".join(
+            [
+                "User-agent: *",
+                "Allow: /",
+                "Disallow: /api/",
+                "Disallow: /debug/",
+                "Disallow: /stats",
+                "Disallow: /stats-ui",
+                "Sitemap: http://localhost/sitemap.xml",
+            ]
+        )
+
+        sitemap = client.get("/sitemap.xml")
+        assert sitemap.status_code == 200
+        assert "<loc>http://localhost/</loc>" in sitemap.text
+        assert "<loc>http://localhost/rules</loc>" in sitemap.text
+        assert "/play" not in sitemap.text
 
 
 def test_stats_endpoint_reports_public_rollups_and_zero_fills(monkeypatch):

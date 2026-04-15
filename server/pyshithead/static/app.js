@@ -51,9 +51,16 @@ let gameUiController = null;
 let viewportLayoutSyncFrame = 0;
 let viewportLayoutSyncNeedsGameplayRender = false;
 
-function loadInviteLink() {
+function loadLandingRouteState() {
   const params = new URLSearchParams(window.location.search);
+  const mode = (params.get("mode") || "").trim().toLowerCase();
   const inviteCode = (params.get("invite") || "").trim().toUpperCase();
+  if (mode === "create") {
+    state.landingOpenBucket = "create";
+  } else if (mode === "join") {
+    state.landingOpenBucket = "join";
+    state.landingJoinFirst = true;
+  }
   if (!inviteCode) {
     return;
   }
@@ -617,7 +624,7 @@ function restoreHandFanScroll() {
 }
 
 function buildInviteLink() {
-  const inviteUrl = new URL("/", window.location.origin);
+  const inviteUrl = new URL("/play", window.location.origin);
   inviteUrl.searchParams.set("invite", state.inviteCode);
   return inviteUrl.toString();
 }
@@ -2248,7 +2255,7 @@ sessionController = createSessionController({
 gameUiController.bindSessionController(sessionController);
 
 loadStoredSession();
-loadInviteLink();
+loadLandingRouteState();
 render();
 sessionController.restoreSession();
 

@@ -1,0 +1,263 @@
+:root {
+  color-scheme: light;
+  --bg: #f3efe6;
+  --bg-accent: #d7e4cc;
+  --surface: rgba(255, 251, 242, 0.9);
+  --surface-strong: #fffaf0;
+  --line: rgba(17, 35, 31, 0.12);
+  --text: #11231f;
+  --muted: #486159;
+  --accent: #1f5a44;
+  --accent-strong: #123b2d;
+  --button-text: #fff9f0;
+  --shadow: 0 18px 42px rgba(17, 35, 31, 0.12);
+  --radius: 24px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  margin: 0;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top, rgba(215, 228, 204, 0.85), transparent 42%),
+    linear-gradient(180deg, #f6f2e8 0%, #efe9dd 100%);
+}
+
+body.public-body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+}
+
+a {
+  color: inherit;
+}
+
+.public-page-shell {
+  width: min(100%, 1040px);
+  margin: 0 auto;
+  padding: 24px 18px 56px;
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.site-brand {
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+}
+
+.site-nav {
+  display: flex;
+  gap: 16px;
+  font-size: 0.98rem;
+}
+
+.site-nav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.site-main {
+  display: grid;
+  gap: 18px;
+}
+
+.site-main-narrow {
+  max-width: 760px;
+}
+
+.hero-card,
+.content-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+
+.hero-card {
+  padding: 28px;
+}
+
+.hero-card-compact {
+  padding-bottom: 24px;
+}
+
+.content-card {
+  padding: 24px;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1,
+h2 {
+  margin: 0;
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  line-height: 1.08;
+}
+
+h1 {
+  font-size: clamp(2.2rem, 5vw, 4.2rem);
+}
+
+h2 {
+  font-size: 1.55rem;
+  margin-bottom: 12px;
+}
+
+.lede,
+.content-card p,
+.content-card li,
+.content-card dd {
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.lede {
+  max-width: 62ch;
+  margin: 14px 0 0;
+  font-size: 1.08rem;
+}
+
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.button-link-primary {
+  background: var(--accent);
+  color: var(--button-text);
+}
+
+.button-link-primary:hover,
+.button-link-primary:focus-visible {
+  background: var(--accent-strong);
+}
+
+.button-link-secondary {
+  background: rgba(255, 255, 255, 0.56);
+  border: 1px solid var(--line);
+}
+
+.button-link-secondary:hover,
+.button-link-secondary:focus-visible {
+  background: var(--surface-strong);
+}
+
+.microcopy {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 0.96rem;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.detail-grid,
+.faq-list {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+}
+
+.detail-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.detail-grid dt,
+.faq-list dt {
+  font-weight: 700;
+}
+
+.detail-grid dd,
+.faq-list dd {
+  margin: 4px 0 0;
+}
+
+.rules-note {
+  margin: 16px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.text-link {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.content-card-cta {
+  background:
+    linear-gradient(135deg, rgba(31, 90, 68, 0.08), rgba(215, 228, 204, 0.55)),
+    var(--surface);
+}
+
+.scan-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  display: grid;
+  gap: 10px;
+}
+
+@media (max-width: 760px) {
+  .public-page-shell {
+    padding: 16px 14px 40px;
+  }
+
+  .site-header {
+    align-items: flex-start;
+    flex-direction: column;
+    margin-bottom: 20px;
+  }
+
+  .hero-card,
+  .content-card {
+    padding: 20px;
+  }
+
+  .content-grid,
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .button-link {
+    width: 100%;
+  }
+}
