@@ -368,6 +368,66 @@ def test_invite_link_prefills_and_prioritizes_join(live_server, browser_factory)
     )
 
 
+def test_mobile_landing_create_name_resize_keeps_table_shell_height(
+    live_server, touch_browser_factory
+):
+    page = open_page(touch_browser_factory(), live_server)
+    expand_bucket(page, "create")
+
+    create_name = page.locator("#create-name")
+    create_name.focus()
+    page.wait_for_function("() => document.activeElement?.id === 'create-name'")
+
+    initial_shell_height = page.evaluate(
+        "() => document.querySelector('.page-shell').getBoundingClientRect().height"
+    )
+    initial_viewport_height = page.evaluate(
+        "() => window.visualViewport?.height ?? window.innerHeight"
+    )
+    assert abs(initial_shell_height - initial_viewport_height) <= 12
+
+    page.set_viewport_size({"width": 390, "height": 600})
+    page.wait_for_function(
+        """(expectedHeight) => {
+            const shell = document.querySelector(".page-shell");
+            return (
+                shell &&
+                shell.getBoundingClientRect().height >= expectedHeight - 12
+            );
+        }""",
+        arg=initial_shell_height,
+    )
+
+    shrunken_shell_height = page.evaluate(
+        "() => document.querySelector('.page-shell').getBoundingClientRect().height"
+    )
+    assert shrunken_shell_height >= initial_shell_height - 12
+
+    create_name.evaluate("(element) => element.blur()")
+    page.wait_for_function("() => document.activeElement?.id !== 'create-name'")
+
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.wait_for_function(
+        """(expectedHeight) => {
+            const shell = document.querySelector(".page-shell");
+            const landingScreen = document.querySelector(".landing-screen");
+            if (!shell || !landingScreen) {
+                return false;
+            }
+            return (
+                Math.abs(shell.getBoundingClientRect().height - expectedHeight) <= 12 &&
+                landingScreen.getBoundingClientRect().height >= expectedHeight * 0.65
+            );
+        }""",
+        arg=initial_shell_height,
+    )
+
+    restored_shell_height = page.evaluate(
+        "() => document.querySelector('.page-shell').getBoundingClientRect().height"
+    )
+    assert restored_shell_height >= initial_shell_height - 12
+
+
 def test_multiplayer_lobby_start_public_selection_and_refresh_reconnect(
     live_server, browser_factory
 ):

@@ -2383,7 +2383,8 @@ body.game-active-mobile {
 }
 
 body.game-active-mobile .page-shell {
-  height: 100dvh;
+  height: var(--mobile-shell-height, 100dvh);
+  min-height: var(--mobile-shell-height, 100dvh);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
@@ -3818,7 +3819,8 @@ body.game-active-mobile .hand-layout-scroll .hand-fan.is-dragging {
 
   body.game-active-mobile .page-shell {
     width: min(100%, 35rem);
-    height: 100dvh;
+    height: var(--mobile-shell-height, 100dvh);
+    min-height: var(--mobile-shell-height, 100dvh);
     padding: calc(0.8rem + env(safe-area-inset-top)) 0.85rem calc(0.9rem + env(safe-area-inset-bottom));
   }
 

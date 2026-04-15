@@ -42,11 +42,14 @@ const shoutoutCooldownMs = 4000;
 const cardTapSuppressMs = 350;
 const handDragThreshold = 14;
 const mouseDragInputId = -1;
+const landingKeyboardInputSelector = "#create-name, #join-code, #join-name";
 
 const app = document.getElementById("app");
 let appDelegatedEventsWired = false;
 let sessionController = null;
 let gameUiController = null;
+let viewportLayoutSyncFrame = 0;
+let viewportLayoutSyncNeedsGameplayRender = false;
 
 function loadInviteLink() {
   const params = new URLSearchParams(window.location.search);
@@ -734,6 +737,28 @@ function onAppInput(event) {
   if (customShoutoutInput) {
     gameUiController?.setCustomShoutoutText(customShoutoutInput.value || "");
   }
+}
+
+function isLandingKeyboardInput(element) {
+  return element instanceof HTMLElement && element.matches(landingKeyboardInputSelector);
+}
+
+function syncLandingKeyboardFocusState() {
+  if (state.snapshot) {
+    state.landingKeyboardInputFocused = false;
+    return;
+  }
+  state.landingKeyboardInputFocused = isLandingKeyboardInput(document.activeElement);
+}
+
+function onAppFocusChange(event) {
+  if (!isLandingKeyboardInput(event.target)) {
+    return;
+  }
+  window.requestAnimationFrame(() => {
+    syncLandingKeyboardFocusState();
+    scheduleViewportLayoutSync({ rerenderGameplay: false });
+  });
 }
 
 function onAppAnimationEnd(event) {
@@ -1617,6 +1642,83 @@ function syncMobileGameLayout() {
   );
 }
 
+function buildLandingViewportMetrics() {
+  const visualViewport = window.visualViewport;
+  return {
+    width: Math.max(visualViewport?.width || window.innerWidth || 390, 1),
+    height: Math.max(visualViewport?.height || window.innerHeight || 844, 1),
+  };
+}
+
+function resetLandingViewportShellHeight() {
+  const root = document.documentElement;
+  state.landingKeyboardInputFocused = false;
+  state.landingViewportRestingHeight = 0;
+  state.landingViewportRestingWidth = 0;
+  state.landingViewportOrientation = "";
+  root.style.removeProperty("--mobile-shell-height");
+}
+
+function syncLandingViewportShellHeight() {
+  const root = document.documentElement;
+  if (state.snapshot || !document.body.classList.contains("game-active-mobile")) {
+    resetLandingViewportShellHeight();
+    return;
+  }
+
+  const { width, height } = buildLandingViewportMetrics();
+  const orientation = width >= height ? "landscape" : "portrait";
+  const widthChanged =
+    state.landingViewportRestingWidth > 0 &&
+    Math.abs(width - state.landingViewportRestingWidth) >= 24;
+
+  if (
+    state.landingViewportRestingHeight <= 0 ||
+    orientation !== state.landingViewportOrientation ||
+    widthChanged
+  ) {
+    state.landingViewportRestingHeight = height;
+  } else if (height > state.landingViewportRestingHeight) {
+    state.landingViewportRestingHeight = height;
+  }
+
+  state.landingViewportRestingWidth = width;
+  state.landingViewportOrientation = orientation;
+  const shellHeight = state.landingKeyboardInputFocused
+    ? state.landingViewportRestingHeight
+    : Math.max(height, state.landingViewportRestingHeight);
+  root.style.setProperty("--mobile-shell-height", `${Math.round(shellHeight)}px`);
+}
+
+function syncViewportLayoutStyles() {
+  syncLandingKeyboardFocusState();
+  syncLandingViewportShellHeight();
+  syncMobileGameLayout();
+}
+
+function scheduleViewportLayoutSync({ rerenderGameplay = Boolean(state.snapshot) } = {}) {
+  if (rerenderGameplay && state.snapshot) {
+    viewportLayoutSyncNeedsGameplayRender = true;
+  }
+  if (viewportLayoutSyncFrame) {
+    return;
+  }
+  viewportLayoutSyncFrame = window.requestAnimationFrame(() => {
+    viewportLayoutSyncFrame = 0;
+    const shouldRenderGameplay = viewportLayoutSyncNeedsGameplayRender;
+    viewportLayoutSyncNeedsGameplayRender = false;
+    if (state.snapshot && shouldRenderGameplay) {
+      const handFan = app.querySelector(".hand-fan");
+      if (handFan) {
+        state.handFanScrollLeft = handFan.scrollLeft;
+      }
+      render();
+      return;
+    }
+    syncViewportLayoutStyles();
+  });
+}
+
 function wireHandFanInteractions(handFan) {
   handFan.addEventListener(
     "scroll",
@@ -2006,6 +2108,8 @@ function wireDelegatedAppEvents() {
   }
   app.addEventListener("click", onAppClick);
   app.addEventListener("animationend", onAppAnimationEnd);
+  app.addEventListener("focusin", onAppFocusChange);
+  app.addEventListener("focusout", onAppFocusChange);
   app.addEventListener("input", onAppInput);
   app.addEventListener("submit", onSubmit);
   appDelegatedEventsWired = true;
@@ -2075,7 +2179,7 @@ function render({ force = false } = {}) {
   }
   wireEvents();
   window.requestAnimationFrame(() => {
-    syncMobileGameLayout();
+    syncViewportLayoutStyles();
     restoreHandFanScroll();
     window.requestAnimationFrame(() => {
       restoreHandFanScroll();
@@ -2164,23 +2268,15 @@ window.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("resize", () => {
-  if (state.snapshot) {
-    const handFan = app.querySelector(".hand-fan");
-    if (handFan) {
-      state.handFanScrollLeft = handFan.scrollLeft;
-    }
-    render();
-  }
+  scheduleViewportLayoutSync();
 });
 
 window.addEventListener("orientationchange", () => {
-  if (state.snapshot) {
-    const handFan = app.querySelector(".hand-fan");
-    if (handFan) {
-      state.handFanScrollLeft = handFan.scrollLeft;
-    }
-    render();
-  }
+  scheduleViewportLayoutSync();
+});
+
+window.visualViewport?.addEventListener("resize", () => {
+  scheduleViewportLayoutSync({ rerenderGameplay: false });
 });
 
 if ("serviceWorker" in navigator) {
