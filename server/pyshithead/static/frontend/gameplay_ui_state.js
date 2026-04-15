@@ -25,6 +25,39 @@ function playerForSeat(snapshot, seat) {
   return snapshot?.players?.find((player) => player.seat === seat) || null;
 }
 
+function winnerPlayers(snapshot) {
+  if (snapshot?.status !== "GAME_OVER") {
+    return [];
+  }
+  return (snapshot.players || []).filter(
+    (player) => player.finished_position === 1,
+  );
+}
+
+function winnerHeadlineLabel(players = []) {
+  if (players.length === 0) {
+    return "A player";
+  }
+  if (players.length === 1) {
+    return players[0].display_name || "A player";
+  }
+  if (players.length === 2) {
+    return `${players[0].display_name || "A player"} & ${players[1].display_name || "A player"}`;
+  }
+  return `${players[0].display_name || "A player"} +${players.length - 1}`;
+}
+
+export function deriveWinnerCelebration(snapshot) {
+  const winners = winnerPlayers(snapshot);
+  return {
+    active: winners.length > 0,
+    isTie: winners.length > 1,
+    winnerSeats: winners.map((player) => player.seat),
+    winnerNames: winners.map((player) => player.display_name || "A player"),
+    winnerHeadlineLabel: winnerHeadlineLabel(winners),
+  };
+}
+
 export function currentGameState(snapshot) {
   return snapshot?.game_state || null;
 }
@@ -278,11 +311,9 @@ function buildTurnNotice(snapshot, { isMyTurn, prompt }) {
     };
   }
 
+  const winnerCelebration = deriveWinnerCelebration(snapshot);
   if (snapshot.status === "GAME_OVER") {
-    headline = `${
-      snapshot.players?.find((player) => player.finished_position === 1)
-        ?.display_name || "A player"
-    } won`;
+    headline = `${winnerCelebration.winnerHeadlineLabel} won`;
   } else if (snapshot.status === "LOBBY") {
     headline = "Lobby";
   } else if (isMyTurn) {
@@ -426,6 +457,7 @@ export function deriveGameplayUiState({
 
   return {
     currentGameState: gameState,
+    winnerCelebration: deriveWinnerCelebration(snapshot),
     isMyTurn: myTurn,
     canChoosePublicCards: choosingPublicCards,
     canPlayHiddenCard: hiddenCardPlayable,

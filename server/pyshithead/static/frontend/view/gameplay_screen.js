@@ -426,6 +426,98 @@ function renderSeatShoutoutReplayBadge({ seat, shoutout = null }) {
   `;
 }
 
+const winnerFireworkBursts = Object.freeze([
+  {
+    key: "north-west",
+    left: "17%",
+    top: "10%",
+    delayMs: 0,
+    sparks: [
+      { x: 0, y: -38, color: "#ffe89c" },
+      { x: 31, y: -18, color: "#fff8d9" },
+      { x: 34, y: 13, color: "#f6b744" },
+      { x: 0, y: 34, color: "#ffd972" },
+      { x: -31, y: 17, color: "#fff3c0" },
+      { x: -33, y: -15, color: "#e7a73c" },
+    ],
+  },
+  {
+    key: "north-east",
+    left: "84%",
+    top: "16%",
+    delayMs: 180,
+    sparks: [
+      { x: 0, y: -34, color: "#fff6cf" },
+      { x: 28, y: -15, color: "#ffd36a" },
+      { x: 33, y: 15, color: "#fff8e1" },
+      { x: 0, y: 31, color: "#f4ba53" },
+      { x: -29, y: 17, color: "#ffd876" },
+      { x: -31, y: -14, color: "#fff0a9" },
+    ],
+  },
+  {
+    key: "south",
+    left: "50%",
+    top: "92%",
+    delayMs: 340,
+    sparks: [
+      { x: 0, y: -34, color: "#fff2b5" },
+      { x: 24, y: -22, color: "#ffd76c" },
+      { x: 31, y: 0, color: "#fff9df" },
+      { x: 22, y: 22, color: "#edb14f" },
+      { x: 0, y: 32, color: "#ffe08a" },
+      { x: -23, y: 22, color: "#fff4c8" },
+      { x: -31, y: 0, color: "#f1bd62" },
+      { x: -24, y: -22, color: "#fff7d5" },
+    ],
+  },
+]);
+
+function renderWinnerFireworks({
+  seat,
+  burstElapsedMs = 0,
+  reducedMotion = false,
+}) {
+  return `
+    <div
+      class="seat-winner-fireworks ${reducedMotion ? "reduced-motion" : ""}"
+      data-winner-fireworks-seat="${seat}"
+      aria-hidden="true"
+    >
+      ${winnerFireworkBursts
+        .map(
+          (burst) => `
+          <span
+            class="seat-firework-cluster seat-firework-cluster-${burst.key}"
+            style="left:${burst.left}; top:${burst.top};"
+          >
+            <span
+              class="seat-firework-bloom"
+              style="animation-delay:${burst.delayMs - burstElapsedMs}ms;"
+            ></span>
+            ${burst.sparks
+              .map(
+                (spark, index) => `
+                  <span
+                    class="seat-firework-spark"
+                    style="
+                      --winner-spark-x:${spark.x}px;
+                      --winner-spark-y:${spark.y}px;
+                      --winner-spark-color:${spark.color};
+                      animation-delay:${burst.delayMs + index * 28 - burstElapsedMs}ms;
+                    "
+                  ></span>
+                `,
+              )
+              .join("")}
+          </span>
+        `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function renderSeat({
   snapshot,
   player,
@@ -436,9 +528,18 @@ function renderSeat({
   kickSeatArmed,
   visibleShoutoutsBySeat,
   savedShoutoutsBySeat,
+  winnerCelebration,
 }) {
   const isCurrentTurn = player.seat === snapshot.current_turn_seat;
-  const isWinner = player.finished_position === 1;
+  const isWinner = Boolean(
+    snapshot.status === "GAME_OVER" &&
+      winnerCelebration?.winnerSeats?.includes(player.seat),
+  );
+  const showWinnerBurst = Boolean(
+    isWinner &&
+      winnerCelebration?.burstWinnerSeats?.includes(player.seat) &&
+      winnerCelebration?.burstDurationMs > 0,
+  );
   const isYou = player.seat === localSeat;
   const placementBadge = placementBadgeForPlayer(snapshot, player);
   const seatClasses = [
@@ -447,6 +548,7 @@ function renderSeat({
     isCurrentTurn ? "current-turn" : "",
     turnArrivalSeat === player.seat ? "turn-arrival" : "",
     isWinner ? "winner" : "",
+    showWinnerBurst ? "winner-bursting" : "",
     isYou ? "you" : "",
     seatHasActiveMotion(animations, player.seat, ["deal"])
       ? "motion-deal-target"
@@ -480,6 +582,25 @@ function renderSeat({
 
   return `
     <div class="${seatClasses}" data-motion-anchor="seat-seat-${player.seat}">
+      ${
+        isWinner
+          ? `
+        <div class="seat-winner-surface" aria-hidden="true">
+          <span class="seat-winner-glow"></span>
+          <span class="seat-winner-shimmer"></span>
+        </div>
+      `
+          : ""
+      }
+      ${
+        showWinnerBurst
+          ? renderWinnerFireworks({
+              seat: player.seat,
+              burstElapsedMs: winnerCelebration.burstElapsedMs,
+              reducedMotion: winnerCelebration.reducedMotion,
+            })
+          : ""
+      }
       <div class="seat-badge-rail">
         ${seatBadges}
         <span
@@ -492,6 +613,7 @@ function renderSeat({
           })}
         </span>
       </div>
+      <div class="seat-panel-body">
       <div class="seat-header">
         <div class="seat-title-row">
           <strong>${escapeHtml(player.display_name)}</strong>
@@ -520,6 +642,7 @@ function renderSeat({
         <div class="seat-public-anchor" data-motion-anchor="seat-hidden-${player.seat}">
           ${renderSeatPublicStack(player.public_cards, player.hidden_cards_count)}
         </div>
+      </div>
       </div>
     </div>
   `;
@@ -1089,6 +1212,7 @@ function renderTable({ snapshot, gameplayUi, viewState }) {
               kickSeatArmed: viewState.kickSeatArmed,
               visibleShoutoutsBySeat: viewState.visibleShoutoutsBySeat,
               savedShoutoutsBySeat: viewState.savedShoutoutsBySeat,
+              winnerCelebration: viewState.winnerCelebration,
             }),
           )
           .join("")}
@@ -1192,6 +1316,7 @@ export function renderGameplayScreenView({ snapshot, gameplayUi, viewState }) {
     `players-${snapshot.players.length}`,
     "mobile-one-screen",
     `layout-${viewState.tableLayoutVariant}`,
+    snapshot.status === "GAME_OVER" ? "game-over-screen" : "",
     localPlayerFinished ? "local-player-finished" : "",
   ]
     .filter(Boolean)

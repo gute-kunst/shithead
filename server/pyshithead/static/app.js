@@ -607,6 +607,16 @@ function buildGameplayScreenViewState(
   const viewport = buildViewportInputs();
   const shoutoutViewState =
     gameUiController?.buildShoutoutRenderViewState(snapshot) || null;
+  const winnerCelebrationViewState =
+    gameUiController?.buildWinnerCelebrationRenderViewState(snapshot, gameplayUi) || {
+      active: false,
+      isTie: false,
+      winnerSeats: [],
+      burstWinnerSeats: [],
+      burstElapsedMs: 0,
+      burstDurationMs: 0,
+      reducedMotion: prefersReducedMotion(),
+    };
   return {
     localSeat: state.seat,
     errorMessage: state.error,
@@ -633,6 +643,7 @@ function buildGameplayScreenViewState(
     shoutoutMenu: shoutoutViewState?.shoutoutMenu || null,
     visibleShoutoutsBySeat: shoutoutViewState?.visibleShoutoutsBySeat || {},
     savedShoutoutsBySeat: shoutoutViewState?.savedShoutoutsBySeat || {},
+    winnerCelebration: winnerCelebrationViewState,
     rulesMenu: buildRulesMenuViewState(snapshot),
   };
 }

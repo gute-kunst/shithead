@@ -561,11 +561,18 @@ button {
   z-index: 2;
   width: min(11.2rem, 41vw);
   padding: 0.7rem 0.75rem;
+  overflow: visible;
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(12, 31, 25, 0.5);
   box-shadow: 0 12px 28px rgba(8, 23, 19, 0.16);
   backdrop-filter: blur(10px);
+  isolation: isolate;
+}
+
+.seat-panel-body {
+  position: relative;
+  z-index: 1;
 }
 
 .seat-badge-rail {
@@ -606,9 +613,112 @@ button {
 .seat-panel.winner {
   border-color: rgba(255, 215, 117, 0.8);
   box-shadow:
-    0 0 0 1px rgba(255, 215, 117, 0.15),
-    0 12px 28px rgba(8, 23, 19, 0.16),
-    inset 0 0 0 1px rgba(255, 235, 160, 0.08);
+    0 0 0 1px rgba(255, 235, 160, 0.24),
+    0 0 0 5px rgba(255, 215, 117, 0.12),
+    0 16px 38px rgba(8, 23, 19, 0.24),
+    0 0 36px rgba(255, 205, 88, 0.14);
+}
+
+.game-screen.game-over-screen .seat-panel.winner.current-turn {
+  animation: winnerSeatPulse 3200ms ease-in-out infinite;
+}
+
+.seat-panel.winner-bursting {
+  z-index: 3;
+}
+
+.seat-winner-surface {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at top, rgba(255, 247, 214, 0.3), transparent 48%),
+    linear-gradient(145deg, rgba(76, 54, 10, 0.28), rgba(255, 212, 110, 0.08) 38%, rgba(11, 38, 30, 0) 68%),
+    linear-gradient(180deg, rgba(48, 33, 8, 0.18), rgba(11, 39, 31, 0.06));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 250, 225, 0.24),
+    inset 0 -18px 42px rgba(45, 28, 0, 0.2);
+}
+
+.seat-winner-glow {
+  position: absolute;
+  inset: -14%;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255, 241, 191, 0.52), transparent 42%),
+    radial-gradient(circle at 50% 110%, rgba(255, 194, 64, 0.26), transparent 50%);
+  filter: blur(11px);
+  opacity: 0.92;
+}
+
+.seat-winner-shimmer {
+  position: absolute;
+  inset: -30% -10%;
+  background: linear-gradient(
+    102deg,
+    transparent 28%,
+    rgba(255, 255, 255, 0.04) 40%,
+    rgba(255, 245, 190, 0.72) 50%,
+    rgba(255, 255, 255, 0.14) 57%,
+    transparent 69%
+  );
+  mix-blend-mode: screen;
+  opacity: 0.96;
+  transform: translateX(-70%) skewX(-18deg);
+  animation: winnerShimmer 2900ms ease-in-out infinite;
+}
+
+.seat-winner-fireworks {
+  position: absolute;
+  inset: -1.4rem;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.seat-firework-cluster {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.seat-firework-bloom {
+  position: absolute;
+  left: -1.2rem;
+  top: -1.2rem;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 233, 164, 0.72);
+  box-shadow:
+    0 0 0 1px rgba(255, 252, 236, 0.26),
+    0 0 24px rgba(255, 209, 97, 0.3);
+  opacity: 0;
+  animation: winnerFireworkBloom 920ms cubic-bezier(0.18, 0.9, 0.32, 1) forwards;
+}
+
+.seat-firework-spark {
+  position: absolute;
+  left: -0.22rem;
+  top: -0.22rem;
+  width: 0.44rem;
+  height: 0.44rem;
+  border-radius: 999px;
+  background: var(--winner-spark-color, #ffe89c);
+  box-shadow:
+    0 0 14px var(--winner-spark-color, #ffe89c),
+    0 0 4px rgba(255, 255, 255, 0.5);
+  opacity: 0;
+  animation: winnerFireworkSpark 860ms cubic-bezier(0.12, 0.92, 0.28, 1) forwards;
+}
+
+.seat-winner-fireworks.reduced-motion .seat-firework-bloom {
+  animation-duration: 240ms;
+}
+
+.seat-winner-fireworks.reduced-motion .seat-firework-spark {
+  animation-duration: 200ms;
 }
 
 .seat-panel.disconnected {
@@ -3033,6 +3143,25 @@ body.game-active-mobile .hand-layout-scroll .hand-fan.is-dragging {
   }
 }
 
+@keyframes winnerSeatPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(255, 235, 160, 0.24),
+      0 0 0 5px rgba(255, 215, 117, 0.12),
+      0 16px 38px rgba(8, 23, 19, 0.24),
+      0 0 34px rgba(255, 205, 88, 0.16);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(255, 247, 204, 0.36),
+      0 0 0 9px rgba(255, 222, 129, 0.18),
+      0 20px 44px rgba(8, 23, 19, 0.3),
+      0 0 52px rgba(255, 208, 92, 0.24);
+  }
+}
+
 @keyframes seatReceiveGlow {
   0%,
   100% {
@@ -3043,6 +3172,59 @@ body.game-active-mobile .hand-layout-scroll .hand-fan.is-dragging {
     box-shadow:
       0 0 0 6px rgba(247, 239, 225, 0.1),
       0 18px 34px rgba(8, 23, 19, 0.22);
+  }
+}
+
+@keyframes winnerShimmer {
+  0% {
+    transform: translateX(-70%) skewX(-18deg);
+    opacity: 0.2;
+  }
+
+  22% {
+    opacity: 0.9;
+  }
+
+  50% {
+    transform: translateX(18%) skewX(-18deg);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateX(88%) skewX(-18deg);
+    opacity: 0.16;
+  }
+}
+
+@keyframes winnerFireworkBloom {
+  0% {
+    opacity: 0;
+    transform: scale(0.22);
+  }
+
+  28% {
+    opacity: 0.96;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.55);
+  }
+}
+
+@keyframes winnerFireworkSpark {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.16);
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--winner-spark-x), var(--winner-spark-y), 0) scale(0.9);
   }
 }
 
@@ -3304,6 +3486,16 @@ body.game-active-mobile .hand-layout-scroll .hand-fan.is-dragging {
     animation: none;
   }
 
+  .seat-panel.winner.current-turn {
+    animation: none;
+  }
+
+  .seat-winner-shimmer {
+    animation: none;
+    opacity: 0.72;
+    transform: translateX(-8%) skewX(-18deg);
+  }
+
   .seat-panel.turn-arrival,
   .seat-panel.motion-deal-target,
   .seat-panel.motion-lock-target,
@@ -3321,6 +3513,14 @@ body.game-active-mobile .hand-layout-scroll .hand-fan.is-dragging {
   .motion-shoutout,
   .turn-toast {
     animation-duration: 1ms;
+  }
+
+  .seat-firework-bloom {
+    animation-duration: 220ms;
+  }
+
+  .seat-firework-spark {
+    animation-duration: 180ms;
   }
 }
 

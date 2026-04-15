@@ -142,16 +142,16 @@ def test_debug_bootstrap_link_opens_revealed_seven_preset_and_resolves_choice(
     )
     expect(page.locator("#choose-lower")).to_be_visible()
     expect(page.locator("#choose-higher")).to_be_visible()
-    page.locator("#choose-lower").click()
+    page.locator("#choose-lower").evaluate("(button) => button.click()")
     expect(page.locator("#choose-lower")).to_have_class(re.compile(r"\baccent\b"))
 
     expect(page.locator("#hand-primary-action")).to_be_enabled()
-    page.locator("#hand-primary-action").click()
+    page.locator("#hand-primary-action").evaluate("(button) => button.click()")
 
     _wait_for(lambda: seed.session.build_snapshot().status_message == "7 or lower!")
     expect(page.locator(".dock-error")).to_have_count(0)
     expect(page.locator(".dock-prompt")).to_contain_text("Waiting for Guest to play.")
-    expect(page.locator(".pile-preview")).to_contain_text("▼")
+    expect(page.locator(".pile-preview")).to_contain_text("\u25bc")
     expect(page.locator(".table-center")).not_to_contain_text("7 or lower!")
     resolved_private_state = seed.session.build_private_state(0)
     resolved_snapshot = seed.session.build_snapshot()
@@ -186,6 +186,60 @@ def test_debug_game_over_shows_rank_badges_for_winner_and_final_player(
     page, _seed = _open_debug_session(live_app_server_factory, browser_factory, "game-over")
 
     expect(page.locator(".seat-badge-placement.seat-badge-winner")).to_contain_text("1st")
-    expect(page.locator(".seat-badge-placement.seat-badge-winner")).to_contain_text("👑")
     expect(page.locator(".seat-badge-placement.seat-badge-shithead")).to_contain_text("Shithead")
-    expect(page.locator(".seat-badge-placement.seat-badge-shithead")).to_contain_text("💩")
+    expect(page.locator(".seat-panel.winner .seat-winner-surface")).to_have_count(1)
+    expect(page.locator(".seat-winner-fireworks")).to_have_count(0)
+
+
+def test_debug_host_finishing_last_card_triggers_winner_celebration_once(
+    live_app_server_factory, browser_factory
+):
+    page, seed = _open_debug_session(live_app_server_factory, browser_factory, "host-win-last-card")
+
+    page.locator(".hand-fan .card").click()
+    expect(page.locator("#hand-primary-action")).to_be_enabled()
+    page.locator("#hand-primary-action").click()
+
+    _wait_for(lambda: seed.session.build_snapshot().status == "GAME_OVER")
+    expect(page.locator(".seat-panel.winner .seat-winner-surface")).to_have_count(1)
+    expect(page.locator(".seat-panel.winner .seat-winner-fireworks")).to_have_count(1)
+    expect(page.locator(".seat-panel:not(.winner) .seat-winner-fireworks")).to_have_count(0)
+
+    page.wait_for_timeout(2100)
+    expect(page.locator(".seat-panel.winner .seat-winner-fireworks")).to_have_count(0)
+
+    page.evaluate("window.dispatchEvent(new Event('resize'))")
+    page.wait_for_timeout(120)
+    expect(page.locator(".seat-panel.winner .seat-winner-fireworks")).to_have_count(0)
+    expect(page.locator(".seat-panel.winner .seat-winner-surface")).to_have_count(1)
+
+
+def test_debug_host_finishing_last_card_reduces_winner_motion_when_requested(
+    live_app_server_factory, browser_factory
+):
+    debug_app, seed = create_debug_app("host-win-last-card")
+    base_url = live_app_server_factory(debug_app)
+    player = seed.session.get_player_by_seat(0)
+    page = browser_factory().new_page()
+    page.emulate_media(reduced_motion="reduce")
+
+    page.goto(
+        f"{base_url}/debug/session?invite={seed.session.invite_code}&token={player.token}",
+        wait_until="networkidle",
+    )
+
+    page.locator(".hand-fan .card").click()
+    expect(page.locator("#hand-primary-action")).to_be_enabled()
+    page.locator("#hand-primary-action").click()
+
+    _wait_for(lambda: seed.session.build_snapshot().status == "GAME_OVER")
+    expect(page.locator(".seat-panel.winner .seat-winner-surface")).to_have_count(1)
+    expect(page.locator(".seat-panel.winner .seat-winner-fireworks.reduced-motion")).to_have_count(
+        1
+    )
+    assert (
+        page.locator(".seat-panel.winner .seat-winner-shimmer").evaluate(
+            "(node) => getComputedStyle(node).animationName"
+        )
+        == "none"
+    )

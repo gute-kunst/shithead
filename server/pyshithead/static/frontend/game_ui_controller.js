@@ -10,6 +10,7 @@ import { applyShoutoutEvent, pruneExpiredShoutouts } from "./transport.js";
 import {
   canChoosePublicCards as deriveCanChoosePublicCards,
   deriveGameplayUiState,
+  deriveWinnerCelebration,
   GAMEPLAY_PRIMARY_ACTIONS,
   getJokerOptions,
   getPendingJokerCard,
@@ -94,6 +95,67 @@ export function createGameUiController({
   queueLocalMotion,
 }) {
   let sessionController = null;
+  let winnerCelebrationBurst = null;
+  let winnerCelebrationTimer = null;
+
+  function clearWinnerCelebrationTimer() {
+    if (winnerCelebrationTimer !== null) {
+      window.clearTimeout(winnerCelebrationTimer);
+      winnerCelebrationTimer = null;
+    }
+  }
+
+  function clearWinnerCelebrationState() {
+    clearWinnerCelebrationTimer();
+    winnerCelebrationBurst = null;
+  }
+
+  function winnerCelebrationBurstDurationMs() {
+    return prefersReducedMotion() ? 420 : 1850;
+  }
+
+  function winnerCelebrationSignature(snapshot, winnerCelebration) {
+    return [
+      snapshot?.invite_code || "",
+      winnerCelebration.winnerSeats.join(","),
+      winnerCelebration.isTie ? "tie" : "solo",
+    ].join(":");
+  }
+
+  function syncWinnerCelebration(previousSnapshot, snapshot, { allowBurst = true } = {}) {
+    const celebration = deriveWinnerCelebration(snapshot);
+    if (!celebration.active) {
+      clearWinnerCelebrationState();
+      return;
+    }
+
+    if (!allowBurst) {
+      clearWinnerCelebrationTimer();
+      winnerCelebrationBurst = null;
+      return;
+    }
+
+    const enteredGameOver =
+      snapshot?.status === "GAME_OVER" && previousSnapshot?.status !== "GAME_OVER";
+    if (!enteredGameOver) {
+      return;
+    }
+
+    const durationMs = winnerCelebrationBurstDurationMs();
+    winnerCelebrationBurst = {
+      signature: winnerCelebrationSignature(snapshot, celebration),
+      winnerSeats: celebration.winnerSeats,
+      startedAt: Date.now(),
+      durationMs,
+      reducedMotion: prefersReducedMotion(),
+    };
+    clearWinnerCelebrationTimer();
+    winnerCelebrationTimer = window.setTimeout(() => {
+      winnerCelebrationTimer = null;
+      winnerCelebrationBurst = null;
+      render();
+    }, durationMs);
+  }
 
   function bindSessionController(controller) {
     sessionController = controller;
@@ -194,6 +256,34 @@ export function createGameUiController({
       jokerRank: state.jokerRank,
       highLowChoice: state.highLowChoice,
     });
+  }
+
+  function buildWinnerCelebrationRenderViewState(
+    snapshot = state.snapshot?.data,
+    gameplayUi = deriveCurrentGameplayUi(snapshot),
+  ) {
+    const winnerCelebration =
+      gameplayUi?.winnerCelebration || deriveWinnerCelebration(snapshot);
+    const burstActive =
+      winnerCelebrationBurst &&
+      winnerCelebrationBurst.signature ===
+        winnerCelebrationSignature(snapshot, winnerCelebration)
+        ? {
+            winnerSeats: winnerCelebrationBurst.winnerSeats,
+            elapsedMs: Math.max(0, Date.now() - winnerCelebrationBurst.startedAt),
+            durationMs: winnerCelebrationBurst.durationMs,
+            reducedMotion: winnerCelebrationBurst.reducedMotion,
+          }
+        : null;
+    return {
+      active: winnerCelebration.active,
+      isTie: winnerCelebration.isTie,
+      winnerSeats: winnerCelebration.winnerSeats,
+      burstWinnerSeats: burstActive?.winnerSeats || [],
+      burstElapsedMs: burstActive?.elapsedMs || 0,
+      burstDurationMs: burstActive?.durationMs || 0,
+      reducedMotion: burstActive?.reducedMotion || prefersReducedMotion(),
+    };
   }
 
   function syncJokerSelection() {
@@ -585,6 +675,7 @@ export function createGameUiController({
   }
 
   function clearGameStateForLobby() {
+    clearWinnerCelebrationState();
     clearMotionState();
     clearPendingLocalPlay();
     resetSelection();
@@ -898,12 +989,14 @@ export function createGameUiController({
   }
 
   function onAuthPayloadApplied(snapshot) {
+    syncWinnerCelebration(null, snapshot, { allowBurst: false });
     syncKickSeatConfirmation(snapshot);
     syncTurnNotice(snapshot, { suppress: true });
   }
 
   function onRealtimeSessionSnapshotApplied(previousSnapshot, snapshot) {
     detectAnimationEvents(previousSnapshot, snapshot);
+    syncWinnerCelebration(previousSnapshot, snapshot);
     syncKickSeatConfirmation(snapshot);
     syncTurnNotice(snapshot);
     if (snapshot.status === "LOBBY" && previousSnapshot?.status === "GAME_OVER") {
@@ -961,12 +1054,14 @@ export function createGameUiController({
     if (detectAnimations) {
       detectAnimationEvents(previousSnapshot, snapshot);
     }
+    syncWinnerCelebration(previousSnapshot, snapshot);
   }
 
   return {
     applyRealtimeShoutout,
     bindSessionController,
     buildShoutoutRenderViewState,
+    buildWinnerCelebrationRenderViewState,
     canChoosePublicCards,
     canSendShoutouts,
     clearGameStateForLobby,
