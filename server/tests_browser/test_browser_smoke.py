@@ -1153,6 +1153,35 @@ def test_custom_shoutout_composer_stays_focused_while_offline_presence_updates(
     assert same_dom_node(host_page, "__customShoutoutInput", "#custom-shoutout-text")
 
 
+def test_mobile_custom_shoutout_composer_keeps_focus_during_keyboard_resize(
+    live_server, touch_browser_factory
+):
+    host_page = open_page(touch_browser_factory(), live_server)
+    create_table(host_page, "Host")
+    invite_code = extract_invite_code(host_page)
+
+    guest_page = open_page(touch_browser_factory(), live_server)
+    join_table(guest_page, invite_code, "Guest")
+
+    host_page.locator("#start-game").click()
+    finish_public_selection(invite_code)
+
+    host_page.locator("#open-shoutout-menu").click()
+    host_page.locator("#open-custom-shoutout").click()
+    composer = host_page.locator("#custom-shoutout-text")
+    expect(composer).to_be_focused()
+    composer.fill("steady signal")
+
+    assert remember_dom_node(host_page, "__mobileCustomShoutoutInput", "#custom-shoutout-text")
+
+    host_page.set_viewport_size({"width": 390, "height": 600})
+    host_page.wait_for_timeout(200)
+
+    expect(host_page.locator("#custom-shoutout-text")).to_be_focused()
+    expect(host_page.locator("#custom-shoutout-text")).to_have_value("steady signal")
+    assert same_dom_node(host_page, "__mobileCustomShoutoutInput", "#custom-shoutout-text")
+
+
 def test_during_game_shoutouts_show_phase_specific_presets(live_server, browser_factory):
     host_page = open_page(browser_factory(), live_server)
     create_table(host_page, "Host")

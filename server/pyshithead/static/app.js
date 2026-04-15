@@ -751,6 +751,13 @@ function syncLandingKeyboardFocusState() {
   state.landingKeyboardInputFocused = isLandingKeyboardInput(document.activeElement);
 }
 
+function customShoutoutComposerShouldPreserveFocus() {
+  if (!state.snapshot || !state.shoutoutMenuOpen || !state.shoutoutComposerOpen) {
+    return false;
+  }
+  return Boolean(document.getElementById("custom-shoutout-text"));
+}
+
 function onAppFocusChange(event) {
   if (!isLandingKeyboardInput(event.target)) {
     return;
@@ -1697,7 +1704,11 @@ function syncViewportLayoutStyles() {
 }
 
 function scheduleViewportLayoutSync({ rerenderGameplay = Boolean(state.snapshot) } = {}) {
-  if (rerenderGameplay && state.snapshot) {
+  if (
+    rerenderGameplay &&
+    state.snapshot &&
+    !customShoutoutComposerShouldPreserveFocus()
+  ) {
     viewportLayoutSyncNeedsGameplayRender = true;
   }
   if (viewportLayoutSyncFrame) {
