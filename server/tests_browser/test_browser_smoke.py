@@ -49,12 +49,37 @@ def extract_invite_code(page) -> str:
 
 
 def shoutout_menu_signature(page):
-    return page.locator("[data-shoutout-key]").evaluate_all(
-        "(nodes) => nodes.map((node) => [node.dataset.shoutoutKey, node.title])"
+    return page.locator(".shoutout-grid > button").evaluate_all(
+        """(nodes) => nodes.map((node) => [
+            node.dataset.shoutoutKey || (node.id === "open-custom-shoutout" ? "custom" : ""),
+            node.title,
+        ])"""
+    )
+
+
+def wait_for_no_visible_shoutouts(page, timeout: int = 5000):
+    page.wait_for_function(
+        """() => Array.from(document.querySelectorAll(".motion-shoutout")).every(
+            (node) => Number.parseFloat(getComputedStyle(node).opacity || "0") <= 0.05
+        )""",
+        timeout=timeout,
+    )
+
+
+def wait_for_visible_shoutout_text(page, text: str, timeout: int = 5000):
+    page.wait_for_function(
+        """(targetText) => Array.from(document.querySelectorAll(".motion-shoutout")).some(
+            (node) =>
+                Number.parseFloat(getComputedStyle(node).opacity || "0") > 0.05 &&
+                (node.textContent || "").includes(targetText)
+        )""",
+        arg=text,
+        timeout=timeout,
     )
 
 
 LOBBY_SHOUTOUT_SIGNATURE = [
+    ["custom", "Custom"],
     ["lets-gooo", "Let's gooo!"],
     ["shuffle-up-and-deal", "Shuffle up and deal."],
     ["optional-pile-takes", "Shall we allow optional pile takes?"],
@@ -64,6 +89,7 @@ LOBBY_SHOUTOUT_SIGNATURE = [
 ]
 
 IN_GAME_SHOUTOUT_SIGNATURE = [
+    ["custom", "Custom"],
     ["hahaha", "HAHAHA"],
     ["great-move", "*!\u2667@#\u2662%^&"],
     ["wtf", "Eat the pile, loser!"],
@@ -77,6 +103,7 @@ IN_GAME_SHOUTOUT_SIGNATURE = [
 ]
 
 GAME_OVER_SHOUTOUT_SIGNATURE = [
+    ["custom", "Custom"],
     ["expletive-burst", "*!\u2667@#\u2662%^&"],
     ["rematch-immediately", "Remaaatch."],
     ["that-doesnt-count", "That doesn't count."],
@@ -797,7 +824,7 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
     expect(host_page.locator("#open-shoutout-menu")).to_be_visible()
     host_page.locator("#open-shoutout-menu").click()
     expect(host_page.locator(".shoutout-menu")).to_be_visible()
-    expect(host_page.locator(".shoutout-chip")).to_have_count(6)
+    expect(host_page.locator(".shoutout-chip")).to_have_count(7)
     table_map_box = _box(host_page.locator(".table-map"))
     shoutout_menu_box = _box(host_page.locator(".shoutout-menu"))
     shoutout_trigger_box = _box(host_page.locator("#open-shoutout-menu"))
@@ -845,6 +872,20 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
     expect(guest_page.locator(".motion-shoutout")).to_have_count(1)
     expect(host_page.locator(".motion-shoutout")).to_contain_text("Let's gooo!")
     expect(guest_page.locator(".motion-shoutout")).to_contain_text("Let's gooo!")
+    host_page.wait_for_timeout(1700)
+    assert host_page.evaluate(
+        """() => {
+            const node = document.querySelector('.motion-shoutout');
+            if (!node) return false;
+            const style = getComputedStyle(node);
+            const minWidth = Number.parseFloat(style.minWidth || "0");
+            const maxWidth = Number.parseFloat(style.maxWidth || "0");
+            return Number.parseFloat(style.opacity || "0") > 0.05 &&
+                minWidth >= 182 &&
+                maxWidth >= 239 &&
+                (node.textContent || "").includes("Let's gooo!");
+        }"""
+    )
     second_host_event_id = host_page.locator(".motion-shoutout").get_attribute(
         "data-shoutout-event-id"
     )
@@ -853,6 +894,116 @@ def test_lobby_shoutouts_lock_and_unlock_after_cooldown(live_server, browser_fac
     )
     assert second_host_event_id
     assert second_host_event_id == second_guest_event_id
+
+
+def test_custom_shoutout_composer_and_recent_history_work_for_all_players(
+    live_server, browser_factory
+):
+    host_page = open_page(browser_factory(), live_server)
+    create_table(host_page, "Host")
+    invite_code = extract_invite_code(host_page)
+
+    guest_page = open_page(browser_factory(), live_server)
+    join_table(guest_page, invite_code, "Guest")
+
+    def send_custom(page, text: str, emoji: str | None = None):
+        page.locator("#open-shoutout-menu").click()
+        expect(page.locator(".shoutout-menu")).to_be_visible()
+        assert shoutout_menu_signature(page)[0] == ["custom", "Custom"]
+        page.locator("#open-custom-shoutout").click()
+        expect(page.locator("#custom-shoutout-text")).to_be_visible()
+        assert page.locator("[data-shoutout-emoji]").evaluate_all(
+            "(nodes) => nodes.map((node) => node.getAttribute('data-shoutout-emoji'))"
+        ) == [
+            "😀",
+            "😎",
+            "😂",
+            "😅",
+            "😘",
+            "🥳",
+            "🤔",
+            "🤯",
+            "🤡",
+            "😮",
+            "😭",
+            "😡",
+            "😈",
+            "🔥",
+            "💀",
+            "👀",
+            "💪",
+            "🙌",
+            "👍",
+            "👎",
+            "💋",
+            "❤️",
+            "💔",
+            "🎉",
+            "🚀",
+        ]
+        page.locator("#custom-shoutout-text").fill(text)
+        if emoji:
+            page.locator(f"[data-shoutout-emoji='{emoji}']").click()
+        page.get_by_role("button", name="Send").click()
+
+    send_custom(host_page, "  First flames  ", "🔥")
+
+    expect(host_page.locator(".motion-shoutout")).to_have_count(1)
+    expect(guest_page.locator(".motion-shoutout")).to_have_count(1)
+    expect(host_page.locator(".motion-shoutout")).to_contain_text("First flames")
+    expect(guest_page.locator(".motion-shoutout")).to_contain_text("First flames")
+    expect(guest_page.locator(".motion-shoutout")).to_contain_text("🔥")
+    assert (
+        guest_page.evaluate(
+            """() => getComputedStyle(
+            document.querySelector('.motion-shoutout[data-shoutout-source="custom"] .motion-shoutout-emoji')
+        ).backgroundColor"""
+        )
+        in {"rgb(255, 255, 255)", "rgba(255, 255, 255, 0.98)"}
+    )
+
+    host_page.wait_for_timeout(4100)
+    guest_page.wait_for_timeout(250)
+    wait_for_no_visible_shoutouts(host_page)
+    wait_for_no_visible_shoutouts(guest_page)
+    expect(
+        host_page.locator(
+            '[data-motion-anchor="seat-seat-0"] .seat-badge-rail [data-shoutout-history-seat="0"]'
+        )
+    ).to_be_visible()
+    expect(
+        guest_page.locator(
+            '[data-motion-anchor="seat-seat-0"] .seat-badge-rail [data-shoutout-history-seat="0"]'
+        )
+    ).to_be_visible()
+    expect(guest_page.locator("[data-shoutout-history-seat='0']")).to_have_text("🔥")
+    expect(
+        guest_page.locator("[data-shoutout-history-seat='0'] .seat-shoutout-replay-dot")
+    ).to_have_count(0)
+
+    send_custom(host_page, "Second clap", "🙌")
+    host_page.wait_for_timeout(4100)
+
+    send_custom(host_page, "Plain finish")
+    host_page.wait_for_timeout(4100)
+    wait_for_no_visible_shoutouts(host_page)
+    wait_for_no_visible_shoutouts(guest_page)
+    expect(guest_page.locator("[data-shoutout-history-seat='0']")).to_be_visible()
+    expect(
+        guest_page.locator("[data-shoutout-history-seat='0'] .seat-shoutout-replay-dot")
+    ).to_be_visible()
+    assert guest_page.locator("[data-shoutout-history-seat='0']").inner_text().strip() == ""
+
+    guest_page.locator("[data-shoutout-history-seat='0']").evaluate("(button) => button.click()")
+    wait_for_visible_shoutout_text(guest_page, "Plain finish")
+    wait_for_no_visible_shoutouts(host_page)
+    visible_replay_texts = guest_page.evaluate(
+        """() => Array.from(document.querySelectorAll(".motion-shoutout"))
+            .filter((node) => Number.parseFloat(getComputedStyle(node).opacity || "0") > 0.05)
+            .map((node) => node.textContent || "")"""
+    )
+    assert any("Plain finish" in text for text in visible_replay_texts)
+    assert all("Second clap" not in text for text in visible_replay_texts)
 
 
 def test_during_game_shoutouts_show_phase_specific_presets(live_server, browser_factory):
@@ -869,7 +1020,7 @@ def test_during_game_shoutouts_show_phase_specific_presets(live_server, browser_
     expect(host_page.locator("#open-shoutout-menu")).to_be_visible()
     host_page.locator("#open-shoutout-menu").click()
     expect(host_page.locator(".shoutout-menu")).to_be_visible()
-    expect(host_page.locator(".shoutout-chip")).to_have_count(10)
+    expect(host_page.locator(".shoutout-chip")).to_have_count(11)
     assert shoutout_menu_signature(host_page) == IN_GAME_SHOUTOUT_SIGNATURE
 
     host_page.locator("[data-shoutout-key='faster']").click()
@@ -907,8 +1058,9 @@ def test_game_over_score_page_shoutouts_and_rematch_back_to_lobby(
     assert remember_dom_node(host_page, "__hostTableMap", ".table-map")
     host_page.locator("#open-shoutout-menu").click()
     expect(host_page.locator(".shoutout-menu")).to_be_visible()
-    expect(host_page.locator(".shoutout-chip")).to_have_count(6)
-    assert shoutout_menu_signature(host_page) == [
+    expect(host_page.locator(".shoutout-chip")).to_have_count(7)
+    assert shoutout_menu_signature(host_page)[0] == ["custom", "Custom"]
+    assert shoutout_menu_signature(host_page)[1:] == [
         ["expletive-burst", "*!♧@#♢%^&"],
         ["rematch-immediately", "Remaaatch."],
         ["that-doesnt-count", "That doesn't count."],
@@ -931,10 +1083,11 @@ def test_game_over_score_page_shoutouts_and_rematch_back_to_lobby(
     expect(guest_page.locator(".motion-shoutout")).to_have_count(1)
 
     host_page.wait_for_timeout(4050)
+    guest_page.wait_for_timeout(250)
     expect(host_page.locator("#open-shoutout-menu")).to_be_enabled()
     expect(host_page.locator(".shoutout-trigger-fill")).to_have_count(1)
-    expect(host_page.locator(".motion-shoutout")).to_have_count(0)
-    expect(guest_page.locator(".motion-shoutout")).to_have_count(0)
+    wait_for_no_visible_shoutouts(host_page)
+    wait_for_no_visible_shoutouts(guest_page)
 
     guest_host_panel, guest_host_rail, guest_host_badge_offsets = _seat_badge_geometry(
         guest_page, 0

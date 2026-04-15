@@ -658,11 +658,40 @@ button {
   display: grid;
   justify-items: center;
   text-align: center;
+  gap: 0.2rem;
 }
 
 .seat-title-row {
   display: flex;
   justify-content: center;
+}
+
+.seat-badge-replay-region {
+  display: contents;
+}
+
+.seat-shoutout-replay-badge {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.seat-shoutout-replay-emoji {
+  flex: 0 0 auto;
+  font-size: 0.95rem;
+  line-height: 1.1;
+}
+
+.seat-shoutout-replay-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  display: inline-block;
+  border-radius: 999px;
+  background: rgba(247, 239, 225, 0.96);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .seat-header strong {
@@ -1288,6 +1317,10 @@ button {
   margin-top: 0.85rem;
 }
 
+.shoutout-chip-custom .shoutout-chip-emoji {
+  font-weight: 900;
+}
+
 .shoutout-chip {
   --shoutout-accent: #d85b32;
   display: flex;
@@ -1344,6 +1377,93 @@ button {
   font-weight: 900;
   line-height: 1.2;
   white-space: pre-line;
+}
+
+.shoutout-composer {
+  display: grid;
+  gap: 0.72rem;
+  margin-top: 0.85rem;
+}
+
+.shoutout-composer-header,
+.shoutout-composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.shoutout-composer-title,
+.shoutout-composer-copy,
+.shoutout-composer-label {
+  margin: 0;
+}
+
+.shoutout-composer-title {
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.shoutout-composer-field {
+  display: grid;
+  gap: 0.34rem;
+}
+
+.shoutout-composer-label {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.shoutout-composer-input {
+  width: 100%;
+  padding: 0.82rem 0.95rem;
+  border-radius: 16px;
+  border: 1px solid rgba(16, 38, 31, 0.12);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--ink);
+}
+
+.shoutout-composer-copy {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.shoutout-emoji-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+}
+
+.shoutout-emoji-option {
+  width: 2.3rem;
+  height: 2.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  border: 1px solid rgba(16, 38, 31, 0.12);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+  font-size: 1.02rem;
+  box-shadow: 0 8px 14px rgba(11, 39, 31, 0.08);
+}
+
+.shoutout-emoji-option.selected {
+  border-color: rgba(216, 91, 50, 0.6);
+  background: rgba(216, 91, 50, 0.14);
+  box-shadow: 0 10px 18px rgba(216, 91, 50, 0.18);
+}
+
+.shoutout-composer-error {
+  padding: 0.48rem 0.64rem;
+  border-radius: 14px;
+  background: rgba(216, 91, 50, 0.12);
+  border: 1px solid rgba(216, 91, 50, 0.2);
+  color: #9d2612;
+  font-size: 0.74rem;
+  font-weight: 800;
 }
 
 .rules-menu-header {
@@ -1643,8 +1763,8 @@ button {
   left: 0;
   top: 0;
   z-index: 4;
-  min-width: 7.6rem;
-  max-width: 10rem;
+  min-width: 11.4rem;
+  max-width: 15rem;
   padding: 0.58rem 0.78rem;
   border-radius: 999px;
   border: 1px solid var(--shoutout-accent, rgba(216, 91, 50, 0.34));
@@ -1668,6 +1788,10 @@ button {
   gap: 0.52rem;
 }
 
+.motion-shoutout-body.no-emoji .motion-shoutout-emoji {
+  display: none;
+}
+
 .motion-shoutout-emoji {
   width: 1.9rem;
   height: 1.9rem;
@@ -1680,6 +1804,11 @@ button {
   color: #fffaf3;
   font-size: 1.05rem;
   box-shadow: 0 10px 18px rgba(11, 39, 31, 0.14);
+}
+
+.motion-shoutout-emoji.custom {
+  background: rgba(255, 255, 255, 0.98);
+  color: var(--ink);
 }
 
 .motion-shoutout-label {
@@ -2675,6 +2804,29 @@ body.game-active-mobile .shoutout-chip-emoji {
   width: 1.72rem;
   height: 1.72rem;
   font-size: 0.95rem;
+}
+
+body.game-active-mobile .shoutout-composer {
+  gap: 0.62rem;
+}
+
+body.game-active-mobile .shoutout-composer-input {
+  padding: 0.76rem 0.85rem;
+}
+
+body.game-active-mobile .shoutout-emoji-option {
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 12px;
+}
+
+body.game-active-mobile .seat-shoutout-replay-badge {
+  padding: 0.16rem 0.42rem;
+  font-size: 0.64rem;
+}
+
+body.game-active-mobile .seat-shoutout-replay-emoji {
+  font-size: 0.9rem;
 }
 
 body.game-active-mobile .hand-dock {

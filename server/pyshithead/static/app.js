@@ -36,7 +36,6 @@ import {
   isJokerCard,
   JOKER_SYMBOL as jokerSymbol,
 } from "./frontend/gameplay_ui_state.js";
-import { pruneExpiredShoutouts } from "./frontend/transport.js";
 const shoutoutCooldownMs = 4000;
 const cardTapSuppressMs = 350;
 const handDragThreshold = 14;
@@ -291,34 +290,9 @@ function closeRulesMenu() {
   render();
 }
 
-function buildVisibleShoutoutsBySeat(snapshot = state.snapshot?.data) {
-  pruneExpiredShoutouts();
-  const validSeats = new Set(
-    (snapshot?.players || []).map((player) => player.seat),
-  );
-  return state.shoutoutRecords.reduce((recordsBySeat, record) => {
-    if (!validSeats.has(record.seat)) {
-      return recordsBySeat;
-    }
-    const currentSeatRecords = recordsBySeat[record.seat] || [];
-    recordsBySeat[record.seat] = [...currentSeatRecords, record];
-    return recordsBySeat;
-  }, {});
-}
-
-function buildShoutoutRenderViewState(snapshot = state.snapshot?.data) {
-  if (!snapshot) {
-    return null;
-  }
-  return {
-    localSeat: state.seat,
-    shoutoutMenu: buildShoutoutMenuViewState(snapshot),
-    visibleShoutoutsBySeat: buildVisibleShoutoutsBySeat(snapshot),
-  };
-}
-
 function syncShoutoutView(snapshot = state.snapshot?.data) {
-  const shoutoutViewState = buildShoutoutRenderViewState(snapshot);
+  const shoutoutViewState =
+    gameUiController?.buildShoutoutRenderViewState(snapshot) || null;
   if (!shoutoutViewState) {
     return;
   }
@@ -345,6 +319,10 @@ function openShoutoutMenu() {
 
 function closeShoutoutMenu({ rerender = false } = {}) {
   state.shoutoutMenuOpen = false;
+  state.shoutoutComposerOpen = false;
+  state.shoutoutComposerText = "";
+  state.shoutoutComposerEmoji = "";
+  state.shoutoutComposerError = "";
   if (rerender) {
     render();
     return;
@@ -530,10 +508,6 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function shoutoutPresets(snapshot = state.snapshot?.data) {
-  return snapshot?.shoutout_presets || [];
-}
-
 function shoutoutTriggerState(
   snapshot = state.snapshot?.data,
   privateState = state.privateState?.data,
@@ -577,16 +551,6 @@ function syncPresenceTicker() {
 
 function getGameScreenRoot() {
   return document.querySelector(".game-screen");
-}
-
-function canSendShoutouts(snapshot = state.snapshot?.data) {
-  return Boolean(
-    snapshot &&
-    state.wsReady &&
-    (snapshot.status === "LOBBY" ||
-      snapshot.status === "IN_GAME" ||
-      snapshot.status === "GAME_OVER"),
-  );
 }
 
 function privateCards() {
@@ -636,21 +600,13 @@ function buildRulesMenuViewState(snapshot = state.snapshot?.data) {
   };
 }
 
-function buildShoutoutMenuViewState(snapshot = state.snapshot?.data) {
-  return {
-    open: state.shoutoutMenuOpen,
-    canSendShoutouts: canSendShoutouts(snapshot),
-    onCooldown: isShoutoutOnCooldown(),
-    presets: shoutoutPresets(snapshot),
-  };
-}
-
 function buildGameplayScreenViewState(
   snapshot = state.snapshot?.data,
   gameplayUi = buildGameplayUiState(snapshot),
 ) {
   const viewport = buildViewportInputs();
-  const shoutoutViewState = buildShoutoutRenderViewState(snapshot);
+  const shoutoutViewState =
+    gameUiController?.buildShoutoutRenderViewState(snapshot) || null;
   return {
     localSeat: state.seat,
     errorMessage: state.error,
@@ -674,8 +630,9 @@ function buildGameplayScreenViewState(
     }),
     tableLayoutVariant: deriveTableLayoutVariant(viewport),
     shoutoutTrigger: shoutoutTriggerState(snapshot),
-    shoutoutMenu: shoutoutViewState?.shoutoutMenu || buildShoutoutMenuViewState(snapshot),
+    shoutoutMenu: shoutoutViewState?.shoutoutMenu || null,
     visibleShoutoutsBySeat: shoutoutViewState?.visibleShoutoutsBySeat || {},
+    savedShoutoutsBySeat: shoutoutViewState?.savedShoutoutsBySeat || {},
     rulesMenu: buildRulesMenuViewState(snapshot),
   };
 }
@@ -702,7 +659,9 @@ function onSubmit(event) {
   state.error = "";
   const form = new FormData(formElement);
   const mode = formElement.dataset.mode;
-  if (mode === "create") {
+  if (mode === "custom-shoutout") {
+    gameUiController?.submitCustomShoutout();
+  } else if (mode === "create") {
     sessionController.createGame(form).catch((error) => {
       state.error = error.message;
       render();
@@ -712,6 +671,19 @@ function onSubmit(event) {
       state.error = error.message;
       render();
     });
+  }
+}
+
+function onAppInput(event) {
+  const customShoutoutInput = closestAppTarget(event, "#custom-shoutout-text");
+  if (customShoutoutInput) {
+    gameUiController?.setCustomShoutoutText(customShoutoutInput.value || "");
+  }
+}
+
+function onAppAnimationEnd(event) {
+  if (closestAppTarget(event, ".motion-shoutout")) {
+    gameUiController?.expireVisibleShoutouts();
   }
 }
 
@@ -1904,9 +1876,38 @@ function onAppClick(event) {
     return;
   }
 
+  if (closestAppTarget(event, "#open-custom-shoutout")) {
+    gameUiController?.openCustomShoutoutComposer();
+    return;
+  }
+
+  if (closestAppTarget(event, "#close-custom-shoutout")) {
+    gameUiController?.closeCustomShoutoutComposer();
+    return;
+  }
+
+  const shoutoutEmojiButton = closestAppTarget(event, "[data-shoutout-emoji]");
+  if (shoutoutEmojiButton) {
+    gameUiController?.toggleCustomShoutoutEmoji(
+      shoutoutEmojiButton.dataset.shoutoutEmoji || "",
+    );
+    return;
+  }
+
   const shoutoutChip = closestAppTarget(event, "[data-shoutout-key]");
   if (shoutoutChip) {
     submitShoutout(shoutoutChip.dataset.shoutoutKey || "");
+    return;
+  }
+
+  const shoutoutHistoryButton = closestAppTarget(
+    event,
+    "[data-shoutout-history-seat]",
+  );
+  if (shoutoutHistoryButton) {
+    gameUiController?.replaySavedShoutout(
+      Number(shoutoutHistoryButton.dataset.shoutoutHistorySeat),
+    );
     return;
   }
 
@@ -1925,6 +1926,8 @@ function wireDelegatedAppEvents() {
     return;
   }
   app.addEventListener("click", onAppClick);
+  app.addEventListener("animationend", onAppAnimationEnd);
+  app.addEventListener("input", onAppInput);
   app.addEventListener("submit", onSubmit);
   appDelegatedEventsWired = true;
 }

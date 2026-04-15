@@ -53,6 +53,16 @@ class ShoutoutPreset(BaseModel):
     color: str
 
 
+class ShoutoutEmojiOption(BaseModel):
+    value: str
+    label: str
+
+
+class ShoutoutCustomConfig(BaseModel):
+    max_text_length: int = 50
+    emoji_options: list[ShoutoutEmojiOption] = Field(default_factory=list)
+
+
 class SessionSnapshot(BaseModel):
     invite_code: str
     status: SessionStatus
@@ -67,6 +77,7 @@ class SessionSnapshot(BaseModel):
     play_pile: list[CardModel] = Field(default_factory=list)
     players: list[PlayerSnapshot] = Field(default_factory=list)
     shoutout_presets: list[ShoutoutPreset] = Field(default_factory=list)
+    shoutout_custom_config: ShoutoutCustomConfig = Field(default_factory=ShoutoutCustomConfig)
     rules: RulesSnapshot = Field(default_factory=RulesSnapshot)
 
 
@@ -83,7 +94,13 @@ class ShoutoutEventData(BaseModel):
     event_id: str
     seat: int
     display_name: str
-    preset: ShoutoutPreset
+    source: Literal["preset", "custom"] = "preset"
+    preset: ShoutoutPreset | None = None
+    text: str = ""
+    emoji: str = ""
+    accent_color: str = ""
+    duration_ms: int = 1500
+    history_eligible: bool = True
 
 
 class SessionSnapshotEvent(BaseModel):
@@ -148,6 +165,8 @@ class ActionRequest(BaseModel):
     choice: str = ""
     joker_rank: int | None = None
     shoutout_key: str = ""
+    shoutout_text: str = ""
+    shoutout_emoji: str = ""
 
 
 class SessionAuthResponse(BaseModel):

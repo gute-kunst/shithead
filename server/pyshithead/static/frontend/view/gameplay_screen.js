@@ -375,10 +375,13 @@ function renderSeatShoutouts({
     .map(
       (shoutout) => `
         <span
-          class="motion-shoutout motion-shoutout-${escapeHtml(shoutout.presetKey || "default")}"
+          class="motion-shoutout motion-shoutout-${escapeHtml(
+            shoutout.presetKey || shoutout.source || "default",
+          )}"
           data-shoutout-id="${escapeHtml(shoutout.id || "")}"
           data-shoutout-event-id="${escapeHtml(shoutout.eventId || "")}"
           data-shoutout-key="${escapeHtml(shoutout.presetKey || "")}"
+          data-shoutout-source="${escapeHtml(shoutout.source || "preset")}"
           style="
             left:50%;
             top:50%;
@@ -391,14 +394,36 @@ function renderSeatShoutouts({
           "
           aria-hidden="true"
         >
-          <span class="motion-shoutout-body">
-            <span class="motion-shoutout-emoji">${escapeHtml(shoutout.emoji || "✨")}</span>
+          <span class="motion-shoutout-body ${shoutout.emoji ? "" : "no-emoji"}">
+            <span class="motion-shoutout-emoji ${shoutout.source === "custom" ? "custom" : ""}">${escapeHtml(shoutout.emoji || "✨")}</span>
             <span class="motion-shoutout-label">${escapeHtml(shoutout.text || "Shoutout")}</span>
           </span>
         </span>
       `,
     )
     .join("");
+}
+
+function renderSeatShoutoutReplayBadge({ seat, shoutout = null }) {
+  if (!shoutout) {
+    return "";
+  }
+
+  return `
+    <button
+      class="seat-badge seat-badge-meta seat-shoutout-replay-badge"
+      type="button"
+      data-shoutout-history-seat="${seat}"
+      title="${escapeHtml(`Replay shoutout: ${shoutout.text || "Shoutout"}`)}"
+      aria-label="${escapeHtml(`Replay shoutout: ${shoutout.text || "Shoutout"}`)}"
+    >
+      ${
+        shoutout.emoji
+          ? `<span class="seat-shoutout-replay-emoji">${escapeHtml(shoutout.emoji)}</span>`
+          : '<span class="seat-shoutout-replay-dot" aria-hidden="true"></span>'
+      }
+    </button>
+  `;
 }
 
 function renderSeat({
@@ -410,6 +435,7 @@ function renderSeat({
   presenceNow,
   kickSeatArmed,
   visibleShoutoutsBySeat,
+  savedShoutoutsBySeat,
 }) {
   const isCurrentTurn = player.seat === snapshot.current_turn_seat;
   const isWinner = player.finished_position === 1;
@@ -454,7 +480,18 @@ function renderSeat({
 
   return `
     <div class="${seatClasses}" data-motion-anchor="seat-seat-${player.seat}">
-      ${seatBadges ? `<div class="seat-badge-rail">${seatBadges}</div>` : ""}
+      <div class="seat-badge-rail">
+        ${seatBadges}
+        <span
+          class="seat-badge-replay-region"
+          data-shoutout-badge-seat="${player.seat}"
+        >
+          ${renderSeatShoutoutReplayBadge({
+            seat: player.seat,
+            shoutout: savedShoutoutsBySeat?.[player.seat] || null,
+          })}
+        </span>
+      </div>
       <div class="seat-header">
         <div class="seat-title-row">
           <strong>${escapeHtml(player.display_name)}</strong>
@@ -706,14 +743,24 @@ export function renderRulesMenuView({ open, optionalTakePileEnabled }) {
 }
 
 export function renderShoutoutMenuView({
-  open,
-  canSendShoutouts,
-  onCooldown,
-  presets,
-}) {
+  open = false,
+  canSendShoutouts = false,
+  onCooldown = false,
+  presets = [],
+  composer = null,
+} = {}) {
   if (!open || !canSendShoutouts || onCooldown) {
     return "";
   }
+
+  const composerState = composer || {
+    open: false,
+    text: "",
+    emoji: "",
+    error: "",
+    maxTextLength: 50,
+    emojiOptions: [],
+  };
 
   return `
     <div class="shoutout-menu-layer">
@@ -730,24 +777,85 @@ export function renderShoutoutMenuView({
           </div>
           <button class="button secondary button-inline" id="close-shoutout-menu" type="button">Close</button>
         </div>
-        <div class="shoutout-grid">
-          ${presets
-            .map(
-              (preset) => `
+        ${
+          composerState.open
+            ? `
+          <form class="shoutout-composer" data-mode="custom-shoutout">
+            <div class="shoutout-composer-header">
+              <p class="shoutout-composer-title">Custom</p>
+              <button class="button secondary button-inline" id="close-custom-shoutout" type="button">Back</button>
+            </div>
+            <label class="shoutout-composer-field" for="custom-shoutout-text">
+              <span class="shoutout-composer-label">Message</span>
+              <input
+                id="custom-shoutout-text"
+                class="text-input shoutout-composer-input"
+                type="text"
+                maxlength="${Math.max(1, composerState.maxTextLength || 50)}"
+                placeholder="Short and sharp"
+                value="${escapeHtml(composerState.text || "")}"
+                autocomplete="off"
+                autocapitalize="sentences"
+                spellcheck="false"
+              />
+            </label>
+            <div class="shoutout-composer-copy">Up to ${Math.max(1, composerState.maxTextLength || 50)} characters. Emoji optional.</div>
+            <div class="shoutout-emoji-picker" role="group" aria-label="Choose one emoji">
+              ${(composerState.emojiOptions || [])
+                .map(
+                  (option) => `
+                <button
+                  class="shoutout-emoji-option ${composerState.emoji === option.value ? "selected" : ""}"
+                  type="button"
+                  data-shoutout-emoji="${escapeHtml(option.value)}"
+                  title="${escapeHtml(option.label)}"
+                  aria-pressed="${composerState.emoji === option.value ? "true" : "false"}"
+                >${escapeHtml(option.value)}</button>
+              `,
+                )
+                .join("")}
+            </div>
+            ${
+              composerState.error
+                ? `<div class="shoutout-composer-error">${escapeHtml(composerState.error)}</div>`
+                : ""
+            }
+            <div class="shoutout-composer-actions">
+              <button class="button accent" type="submit">Send</button>
+            </div>
+          </form>
+        `
+            : `
+          <div class="shoutout-grid">
             <button
-              class="shoutout-chip"
+              class="shoutout-chip shoutout-chip-custom"
+              id="open-custom-shoutout"
               type="button"
-              data-shoutout-key="${escapeHtml(preset.key)}"
-              style="--shoutout-accent:${escapeHtml(preset.color)};"
-              title="${escapeHtml(preset.label)}"
+              title="Custom"
+              style="--shoutout-accent:#d85b32;"
             >
-              <span class="shoutout-chip-emoji">${escapeHtml(preset.emoji)}</span>
-              <span class="shoutout-chip-label">${escapeHtml(preset.label)}</span>
+              <span class="shoutout-chip-emoji">+</span>
+              <span class="shoutout-chip-label">Custom</span>
             </button>
-          `,
-            )
-            .join("")}
-        </div>
+            ${presets
+              .map(
+                (preset) => `
+              <button
+                class="shoutout-chip"
+                type="button"
+                data-shoutout-key="${escapeHtml(preset.key)}"
+                style="--shoutout-accent:${escapeHtml(preset.color)};"
+                title="${escapeHtml(preset.label)}"
+              >
+                <span class="shoutout-chip-emoji">${escapeHtml(preset.emoji)}</span>
+                <span class="shoutout-chip-label">${escapeHtml(preset.label)}</span>
+              </button>
+            `,
+              )
+              .join("")}
+          </div>
+        `
+        }
       </section>
     </div>
   `;
@@ -980,6 +1088,7 @@ function renderTable({ snapshot, gameplayUi, viewState }) {
               presenceNow: viewState.presenceNow,
               kickSeatArmed: viewState.kickSeatArmed,
               visibleShoutoutsBySeat: viewState.visibleShoutoutsBySeat,
+              savedShoutoutsBySeat: viewState.savedShoutoutsBySeat,
             }),
           )
           .join("")}
@@ -1115,6 +1224,10 @@ export function syncGameplayShoutoutView({
       canSendShoutouts: Boolean(viewState.shoutoutMenu?.canSendShoutouts),
       onCooldown: Boolean(viewState.shoutoutMenu?.onCooldown),
       presets: (viewState.shoutoutMenu?.presets || []).map((preset) => preset.key),
+      composerOpen: Boolean(viewState.shoutoutMenu?.composer?.open),
+      composerEmoji: viewState.shoutoutMenu?.composer?.emoji || "",
+      composerText: viewState.shoutoutMenu?.composer?.text || "",
+      composerError: viewState.shoutoutMenu?.composer?.error || "",
     });
     if (menuRegion.dataset.shoutoutMenuSignature !== nextSignature) {
       menuRegion.innerHTML = nextMarkup;
@@ -1135,11 +1248,30 @@ export function syncGameplayShoutoutView({
         })
       : "";
     const nextSignature = shoutouts
-      .map((shoutout) => `${shoutout.id}:${shoutout.expiresAt}:${shoutout.text}`)
+      .map(
+        (shoutout) =>
+          `${shoutout.id}:${shoutout.expiresAt}:${shoutout.text}:${shoutout.emoji || ""}`,
+      )
       .join("|");
     if (region.dataset.shoutoutSignature !== nextSignature) {
       region.innerHTML = nextMarkup;
       region.dataset.shoutoutSignature = nextSignature;
+    }
+  });
+
+  root.querySelectorAll("[data-shoutout-badge-seat]").forEach((region) => {
+    const seat = Number(region.getAttribute("data-shoutout-badge-seat"));
+    const shoutout = viewState.savedShoutoutsBySeat?.[seat] || null;
+    const nextMarkup = renderSeatShoutoutReplayBadge({
+      seat,
+      shoutout,
+    });
+    const nextSignature = shoutout
+      ? `${shoutout.id}:${shoutout.text}:${shoutout.emoji || ""}`
+      : "";
+    if (region.dataset.shoutoutBadgeSignature !== nextSignature) {
+      region.innerHTML = nextMarkup;
+      region.dataset.shoutoutBadgeSignature = nextSignature;
     }
   });
 }

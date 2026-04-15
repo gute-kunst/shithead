@@ -53,6 +53,13 @@ def shoutout_signature(snapshot):
     ]
 
 
+def custom_shoutout_emoji_signature(snapshot):
+    return [
+        (option["value"], option["label"])
+        for option in snapshot["shoutout_custom_config"]["emoji_options"]
+    ]
+
+
 def start_game(client: TestClient, invite_code: str, player_token: str):
     response = client.post(
         f"/api/games/{invite_code}/start",
@@ -294,6 +301,124 @@ def test_lobby_shoutout_broadcasts_live_event_to_connected_players():
                 assert host_event["data"]["seat"] == 0
                 assert host_event["data"]["preset"]["key"] == "lets-gooo"
                 assert guest_event["data"]["preset"]["label"] == "Let's gooo!"
+                assert host_event["data"]["source"] == "preset"
+                assert host_event["data"]["text"] == "Let's gooo!"
+                assert host_event["data"]["duration_ms"] == 2400
+
+
+def test_custom_shoutout_config_is_included_in_snapshot():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+
+        snapshot = client.get(f"/api/games/{host['invite_code']}").json()["data"]
+        assert snapshot["shoutout_custom_config"]["max_text_length"] == 50
+        assert custom_shoutout_emoji_signature(snapshot) == [
+            ("😀", "Grinning"),
+            ("😎", "Cool"),
+            ("😂", "Laughing"),
+            ("😅", "Nervous laugh"),
+            ("😘", "Kiss"),
+            ("🥳", "Party"),
+            ("🤔", "Thinking"),
+            ("🤯", "Mind blown"),
+            ("🤡", "Clown"),
+            ("😮", "Surprised"),
+            ("😭", "Crying"),
+            ("😡", "Angry"),
+            ("😈", "Chaos"),
+            ("🔥", "Fire"),
+            ("💀", "Dead"),
+            ("👀", "Eyes"),
+            ("💪", "Strong"),
+            ("🙌", "Celebrate"),
+            ("👍", "Thumbs up"),
+            ("👎", "Thumbs down"),
+            ("💋", "Kiss mark"),
+            ("❤️", "Heart"),
+            ("💔", "Broken heart"),
+            ("🎉", "Confetti"),
+            ("🚀", "Rocket"),
+        ]
+
+
+def test_custom_shoutout_broadcasts_trimmed_text_and_duration_to_connected_players():
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        guest = join_game(client, host["invite_code"], "Guest")
+
+        host_path = f"/api/games/{host['invite_code']}/ws?token={host['player_token']}"
+        guest_path = f"/api/games/{host['invite_code']}/ws?token={guest['player_token']}"
+
+        with client.websocket_connect(host_path) as host_ws:
+            receive_until_types(host_ws, {"session_snapshot", "private_state"})
+
+            with client.websocket_connect(guest_path) as guest_ws:
+                receive_until_types(guest_ws, {"session_snapshot", "private_state"})
+                host_ws.receive_json()
+
+                host_ws.send_json(
+                    {
+                        "type": "send_shoutout",
+                        "shoutout_text": "  no mercy  ",
+                        "shoutout_emoji": "🔥",
+                    }
+                )
+
+                host_event = host_ws.receive_json()
+                guest_event = guest_ws.receive_json()
+                assert host_event["type"] == "shoutout"
+                assert guest_event["type"] == "shoutout"
+                assert host_event["data"]["source"] == "custom"
+                assert host_event["data"]["preset"] is None
+                assert host_event["data"]["text"] == "no mercy"
+                assert host_event["data"]["emoji"] == "🔥"
+                assert host_event["data"]["duration_ms"] == 2240
+                assert guest_event["data"]["event_id"] == host_event["data"]["event_id"]
+                assert guest_event["data"]["text"] == "no mercy"
+
+
+def test_custom_shoutout_validation_rejects_empty_text_invalid_emoji_and_over_limit(monkeypatch):
+    session_manager.sessions.clear()
+    with TestClient(app, base_url="http://localhost") as client:
+        host = create_game(client, "Host")
+        session = session_manager.get_session(host["invite_code"])
+        fixed_now = datetime(2026, 4, 3, 12, 0, 0, tzinfo=timezone.utc)
+        monkeypatch.setattr("pyshithead.models.session.manager._utc_now", lambda: fixed_now)
+
+        with pytest.raises(ValueError, match="Custom shoutout text is required."):
+            session.apply_action(
+                host["player_token"],
+                ActionRequest(type="send_shoutout", shoutout_text="   "),
+            )
+
+        assert session.get_player_by_seat(0).last_shoutout_at is None
+
+        with pytest.raises(ValueError, match="Choose a valid shoutout emoji."):
+            session.apply_action(
+                host["player_token"],
+                ActionRequest(type="send_shoutout", shoutout_text="Nope", shoutout_emoji="🙂"),
+            )
+
+        assert session.get_player_by_seat(0).last_shoutout_at is None
+
+        with pytest.raises(ValueError, match="50 characters or fewer."):
+            session.apply_action(
+                host["player_token"],
+                ActionRequest(type="send_shoutout", shoutout_text="x" * 51),
+            )
+
+        assert session.get_player_by_seat(0).last_shoutout_at is None
+
+        shoutout_event = session.apply_action(
+            host["player_token"],
+            ActionRequest(type="send_shoutout", shoutout_text="x" * 50, shoutout_emoji="🙌"),
+        )
+        assert shoutout_event is not None
+        assert shoutout_event.data.text == "x" * 50
+        assert shoutout_event.data.emoji == "🙌"
+        assert shoutout_event.data.duration_ms == 4550
 
 
 def test_in_game_shoutout_keys_are_phase_specific():

@@ -38,6 +38,10 @@ export const state = {
   shoutoutExpiryTimer: null,
   rulesMenuOpen: false,
   shoutoutMenuOpen: false,
+  shoutoutComposerOpen: false,
+  shoutoutComposerText: "",
+  shoutoutComposerEmoji: "",
+  shoutoutComposerError: "",
   animations: [],
   localMotionAnimations: [],
   animationCounter: 0,
@@ -149,6 +153,11 @@ export function clearShoutoutExpiryTimer() {
 export function clearShoutoutState() {
   clearShoutoutUnlockTimer();
   clearShoutoutExpiryTimer();
+  state.shoutoutMenuOpen = false;
+  state.shoutoutComposerOpen = false;
+  state.shoutoutComposerText = "";
+  state.shoutoutComposerEmoji = "";
+  state.shoutoutComposerError = "";
   state.shoutoutRecords = [];
   state.seenShoutoutEvents = [];
 }

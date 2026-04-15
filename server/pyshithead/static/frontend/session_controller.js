@@ -33,6 +33,10 @@ export function createSessionController({
     state.shouldReconnect = allowReconnect;
     state.wsReady = false;
     state.shoutoutMenuOpen = false;
+    state.shoutoutComposerOpen = false;
+    state.shoutoutComposerText = "";
+    state.shoutoutComposerEmoji = "";
+    state.shoutoutComposerError = "";
     const websocket = state.ws;
     state.ws = null;
     if (

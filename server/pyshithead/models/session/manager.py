@@ -44,6 +44,8 @@ from pyshithead.models.session.models import (
     SessionSnapshot,
     SessionSnapshotEvent,
     SessionStatus,
+    ShoutoutCustomConfig,
+    ShoutoutEmojiOption,
     ShoutoutEvent,
     ShoutoutEventData,
     ShoutoutPreset,
@@ -206,6 +208,36 @@ SHOUTOUT_PRESET_DATA_BY_STATUS = {
         },
     ),
 }
+
+CUSTOM_SHOUTOUT_MAX_TEXT_LENGTH = 50
+CUSTOM_SHOUTOUT_ACCENT_COLOR = "#D85B32"
+CUSTOM_SHOUTOUT_EMOJI_OPTIONS = (
+    {"value": "😀", "label": "Grinning"},
+    {"value": "😎", "label": "Cool"},
+    {"value": "😂", "label": "Laughing"},
+    {"value": "😅", "label": "Nervous laugh"},
+    {"value": "😘", "label": "Kiss"},
+    {"value": "🥳", "label": "Party"},
+    {"value": "🤔", "label": "Thinking"},
+    {"value": "🤯", "label": "Mind blown"},
+    {"value": "🤡", "label": "Clown"},
+    {"value": "😮", "label": "Surprised"},
+    {"value": "😭", "label": "Crying"},
+    {"value": "😡", "label": "Angry"},
+    {"value": "😈", "label": "Chaos"},
+    {"value": "🔥", "label": "Fire"},
+    {"value": "💀", "label": "Dead"},
+    {"value": "👀", "label": "Eyes"},
+    {"value": "💪", "label": "Strong"},
+    {"value": "🙌", "label": "Celebrate"},
+    {"value": "👍", "label": "Thumbs up"},
+    {"value": "👎", "label": "Thumbs down"},
+    {"value": "💋", "label": "Kiss mark"},
+    {"value": "❤️", "label": "Heart"},
+    {"value": "💔", "label": "Broken heart"},
+    {"value": "🎉", "label": "Confetti"},
+    {"value": "🚀", "label": "Rocket"},
+)
 
 
 @dataclass
@@ -412,6 +444,14 @@ class GameSession:
     def _shoutout_presets(self, status: SessionStatus | None = None) -> list[ShoutoutPreset]:
         return [ShoutoutPreset(**preset) for preset in self._shoutout_preset_data(status)]
 
+    def _shoutout_custom_config(self) -> ShoutoutCustomConfig:
+        return ShoutoutCustomConfig(
+            max_text_length=CUSTOM_SHOUTOUT_MAX_TEXT_LENGTH,
+            emoji_options=[
+                ShoutoutEmojiOption(**option) for option in CUSTOM_SHOUTOUT_EMOJI_OPTIONS
+            ],
+        )
+
     def _get_shoutout_preset(
         self, shoutout_key: str, status: SessionStatus | None = None
     ) -> ShoutoutPreset:
@@ -419,6 +459,28 @@ class GameSession:
             if preset["key"] == shoutout_key:
                 return ShoutoutPreset(**preset)
         raise ValueError("Unknown shoutout preset.")
+
+    def _normalize_custom_shoutout_text(self, text: str) -> str:
+        normalized = text.strip()
+        if not normalized:
+            raise ValueError("Custom shoutout text is required.")
+        if len(normalized) > CUSTOM_SHOUTOUT_MAX_TEXT_LENGTH:
+            raise ValueError(
+                f"Custom shoutout text must be {CUSTOM_SHOUTOUT_MAX_TEXT_LENGTH} characters or fewer."
+            )
+        return normalized
+
+    def _normalize_custom_shoutout_emoji(self, emoji: str) -> str:
+        normalized = emoji.strip()
+        if not normalized:
+            return ""
+        allowed = {option["value"] for option in CUSTOM_SHOUTOUT_EMOJI_OPTIONS}
+        if normalized not in allowed:
+            raise ValueError("Choose a valid shoutout emoji.")
+        return normalized
+
+    def _custom_shoutout_duration_ms(self, text: str) -> int:
+        return max(2200, min(4800, 1800 + len(text) * 55))
 
     def _effective_rank(self, card: Card) -> int:
         return card.effective_rank if card.effective_rank is not None else int(card.rank)
@@ -430,22 +492,44 @@ class GameSession:
     def _clear_pending_hidden_take(self):
         self.pending_hidden_take_seat = None
 
-    def _build_shoutout_event(self, player: SessionPlayer, shoutout_key: str) -> ShoutoutEvent:
-        preset = self._get_shoutout_preset(shoutout_key)
+    def _build_shoutout_event(self, player: SessionPlayer, action: ActionRequest) -> ShoutoutEvent:
         now = _utc_now()
         if player.last_shoutout_at is not None and now - player.last_shoutout_at < timedelta(
             seconds=self.SHOUTOUT_COOLDOWN_SECONDS
         ):
             raise ValueError("Please wait before sending another shoutout.")
-        player.last_shoutout_at = now
-        return ShoutoutEvent(
-            data=ShoutoutEventData(
+        if action.shoutout_key and action.shoutout_text.strip():
+            raise ValueError("Choose either a preset shoutout or a custom shoutout.")
+        if action.shoutout_key:
+            preset = self._get_shoutout_preset(action.shoutout_key)
+            data = ShoutoutEventData(
                 event_id=secrets.token_urlsafe(8),
                 seat=player.seat,
                 display_name=player.display_name,
+                source="preset",
                 preset=preset,
+                text=preset.label,
+                emoji=preset.emoji,
+                accent_color=preset.color,
+                duration_ms=2400,
+                history_eligible=True,
             )
-        )
+        else:
+            text = self._normalize_custom_shoutout_text(action.shoutout_text)
+            emoji = self._normalize_custom_shoutout_emoji(action.shoutout_emoji)
+            data = ShoutoutEventData(
+                event_id=secrets.token_urlsafe(8),
+                seat=player.seat,
+                display_name=player.display_name,
+                source="custom",
+                text=text,
+                emoji=emoji,
+                accent_color=CUSTOM_SHOUTOUT_ACCENT_COLOR,
+                duration_ms=self._custom_shoutout_duration_ms(text),
+                history_eligible=True,
+            )
+        player.last_shoutout_at = now
+        return ShoutoutEvent(data=data)
 
     def _get_player_entry(self, seat: int) -> SessionPlayer | None:
         return next((entry for entry in self.players if entry.seat == seat), None)
@@ -898,6 +982,7 @@ class GameSession:
                 status_message=self.last_status_message,
                 players=players,
                 shoutout_presets=self._shoutout_presets(),
+                shoutout_custom_config=self._shoutout_custom_config(),
                 rules=self._rules_snapshot(),
             )
 
@@ -919,6 +1004,7 @@ class GameSession:
             ],
             players=players,
             shoutout_presets=self._shoutout_presets(),
+            shoutout_custom_config=self._shoutout_custom_config(),
             rules=self._rules_snapshot(),
         )
 
@@ -1003,7 +1089,7 @@ class GameSession:
                 raise ValueError(
                     "Shoutouts are only available in the lobby, during a game, or after it ends."
                 )
-            shoutout_event = self._build_shoutout_event(player, action.shoutout_key)
+            shoutout_event = self._build_shoutout_event(player, action)
             self._finalize_state_change()
             return shoutout_event
 

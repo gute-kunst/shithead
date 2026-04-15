@@ -1,6 +1,7 @@
 import { state } from "./state.js";
 
 const shoutoutSeenWindowMs = 12000;
+const shoutoutHistoryLimitPerSeat = 1;
 
 export function applySessionSnapshot(payload, { touchPresence = false } = {}) {
   const previousSnapshot = state.snapshot?.data || null;
@@ -36,20 +37,55 @@ function pruneSeenShoutoutEvents(now = Date.now()) {
 }
 
 export function pruneExpiredShoutouts(now = Date.now()) {
-  const visibleRecords = state.shoutoutRecords.filter(
-    (record) => record.expiresAt > now,
-  );
-  if (visibleRecords.length === state.shoutoutRecords.length) {
+  const previousVisibleSignature = state.shoutoutRecords
+    .filter((record) => (record?.expiresAt || 0) > now)
+    .map((record) => record.id)
+    .join("|");
+  const historyRecordsBySeat = state.shoutoutRecords.reduce((recordsBySeat, record) => {
+    if (!record?.historyEligible || !Number.isInteger(record?.seat)) {
+      return recordsBySeat;
+    }
+    const seatRecords = recordsBySeat.get(record.seat) || [];
+    seatRecords.push(record);
+    recordsBySeat.set(record.seat, seatRecords);
+    return recordsBySeat;
+  }, new Map());
+
+  const retainedHistoryIds = new Set();
+  historyRecordsBySeat.forEach((records) => {
+    records
+      .slice()
+      .sort((left, right) => (right.createdAt || 0) - (left.createdAt || 0))
+      .slice(0, shoutoutHistoryLimitPerSeat)
+      .forEach((record) => {
+        retainedHistoryIds.add(record.id);
+      });
+  });
+
+  const retainedRecords = state.shoutoutRecords.filter((record) => {
+    if ((record?.expiresAt || 0) > now) {
+      return true;
+    }
+    if (!record?.historyEligible) {
+      return false;
+    }
+    return retainedHistoryIds.has(record.id);
+  });
+  const nextVisibleSignature = retainedRecords
+    .filter((record) => (record?.expiresAt || 0) > now)
+    .map((record) => record.id)
+    .join("|");
+  if (
+    retainedRecords.length === state.shoutoutRecords.length &&
+    previousVisibleSignature === nextVisibleSignature
+  ) {
     return false;
   }
-  state.shoutoutRecords = visibleRecords;
+  state.shoutoutRecords = retainedRecords;
   return true;
 }
 
-export function applyShoutoutEvent(
-  payload,
-  { durationMs = 1500, now = Date.now() } = {},
-) {
+export function applyShoutoutEvent(payload, { now = Date.now() } = {}) {
   pruneSeenShoutoutEvents(now);
   pruneExpiredShoutouts(now);
 
@@ -68,22 +104,27 @@ export function applyShoutoutEvent(
     ].slice(-24);
   }
 
-  const preset = payload?.data?.preset || {};
+  const data = payload?.data || {};
+  const preset = data.preset || {};
+  const source = data.source || (preset.key ? "preset" : "custom");
+  const durationMs = Math.max(0, Number(data.duration_ms) || 1500);
   const shoutoutRecord = {
     id: eventId || `local-${now}-${state.shoutoutRecords.length + 1}`,
     eventId,
-    seat: payload?.data?.seat,
-    source: "preset",
+    seat: data.seat,
+    source,
     presetKey: preset.key || "",
-    text: preset.label || "Shoutout",
-    emoji: preset.emoji || "✨",
-    accentColor: preset.color || "#f4b942",
+    text: data.text || preset.label || "Shoutout",
+    emoji: data.emoji || (source === "preset" ? preset.emoji || "✨" : ""),
+    accentColor: data.accent_color || preset.color || "#f4b942",
     durationMs,
     createdAt: now,
     expiresAt: now + durationMs,
+    historyEligible: data.history_eligible !== false,
   };
 
   state.shoutoutRecords = [...state.shoutoutRecords, shoutoutRecord];
+  pruneExpiredShoutouts(now);
   return {
     applied: true,
     shoutoutRecord,

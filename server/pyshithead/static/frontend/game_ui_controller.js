@@ -298,6 +298,47 @@ export function createGameUiController({
     return shoutoutCooldownState(privateState) !== null;
   }
 
+  function canSendShoutouts(snapshot = state.snapshot?.data) {
+    return Boolean(
+      snapshot &&
+        state.wsReady &&
+        (snapshot.status === "LOBBY" ||
+          snapshot.status === "IN_GAME" ||
+          snapshot.status === "GAME_OVER"),
+    );
+  }
+
+  function shoutoutPresets(snapshot = state.snapshot?.data) {
+    return snapshot?.shoutout_presets || [];
+  }
+
+  function shoutoutCustomConfig(snapshot = state.snapshot?.data) {
+    return (
+      snapshot?.shoutout_custom_config || {
+        max_text_length: 50,
+        emoji_options: [],
+      }
+    );
+  }
+
+  function resetShoutoutComposer() {
+    state.shoutoutComposerOpen = false;
+    state.shoutoutComposerText = "";
+    state.shoutoutComposerEmoji = "";
+    state.shoutoutComposerError = "";
+  }
+
+  function closeManagedShoutoutMenu({ rerender = false } = {}) {
+    resetShoutoutComposer();
+    closeShoutoutMenu({ rerender });
+  }
+
+  function focusCustomShoutoutComposer() {
+    window.setTimeout(() => {
+      document.getElementById("custom-shoutout-text")?.focus();
+    }, 0);
+  }
+
   function syncShoutoutTriggerState() {
     const shoutoutButton = document.getElementById("open-shoutout-menu");
     if (!shoutoutButton) {
@@ -340,21 +381,23 @@ export function createGameUiController({
 
   function syncVisibleShoutoutTimer() {
     clearShoutoutExpiryTimer();
-    if (state.shoutoutRecords.length === 0) {
+    const now = Date.now();
+    const activeShoutouts = state.shoutoutRecords.filter(
+      (record) => (record.expiresAt || 0) > now,
+    );
+    if (activeShoutouts.length === 0) {
       return;
     }
     const nextExpiryAt = Math.min(
-      ...state.shoutoutRecords.map((record) => record.expiresAt || 0),
+      ...activeShoutouts.map((record) => record.expiresAt || 0),
     );
     if (!Number.isFinite(nextExpiryAt) || nextExpiryAt <= 0) {
       return;
     }
     state.shoutoutExpiryTimer = window.setTimeout(() => {
       state.shoutoutExpiryTimer = null;
-      const removedExpiredShoutouts = pruneExpiredShoutouts();
-      if (removedExpiredShoutouts) {
-        syncShoutoutView();
-      }
+      pruneExpiredShoutouts();
+      syncShoutoutView();
       syncVisibleShoutoutTimer();
     }, Math.max(0, nextExpiryAt - Date.now()) + 30);
   }
@@ -363,13 +406,7 @@ export function createGameUiController({
     snapshot = state.snapshot?.data,
     privateState = state.privateState?.data,
   ) {
-    const shoutoutReady = Boolean(
-      snapshot &&
-        state.wsReady &&
-        (snapshot.status === "LOBBY" ||
-          snapshot.status === "IN_GAME" ||
-          snapshot.status === "GAME_OVER"),
-    );
+    const shoutoutReady = canSendShoutouts(snapshot);
     const shoutoutCooldown = shoutoutCooldownState(privateState);
     const shoutoutLocked = shoutoutCooldown !== null;
     const shoutoutEnabled = shoutoutReady && !shoutoutLocked;
@@ -388,6 +425,163 @@ export function createGameUiController({
       shoutoutEnabled,
       shoutoutFillStyle,
     };
+  }
+
+  function buildVisibleShoutoutsBySeat(
+    snapshot = state.snapshot?.data,
+    now = Date.now(),
+  ) {
+    pruneExpiredShoutouts(now);
+    const validSeats = new Set((snapshot?.players || []).map((player) => player.seat));
+    return state.shoutoutRecords.reduce((recordsBySeat, record) => {
+      if (!validSeats.has(record.seat) || (record.expiresAt || 0) <= now) {
+        return recordsBySeat;
+      }
+      const currentSeatRecords = recordsBySeat[record.seat] || [];
+      recordsBySeat[record.seat] = [...currentSeatRecords, record];
+      return recordsBySeat;
+    }, {});
+  }
+
+  function buildSavedShoutoutsBySeat(
+    snapshot = state.snapshot?.data,
+    now = Date.now(),
+  ) {
+    pruneExpiredShoutouts(now);
+    const validSeats = new Set((snapshot?.players || []).map((player) => player.seat));
+    return state.shoutoutRecords.reduce((recordsBySeat, record) => {
+      if (
+        !validSeats.has(record.seat) ||
+        !record.historyEligible ||
+        (record.expiresAt || 0) > now
+      ) {
+        return recordsBySeat;
+      }
+      const currentSeatRecord = recordsBySeat[record.seat] || null;
+      if (!currentSeatRecord || (record.createdAt || 0) > (currentSeatRecord.createdAt || 0)) {
+        recordsBySeat[record.seat] = record;
+      }
+      return recordsBySeat;
+    }, {});
+  }
+
+  function buildShoutoutMenuViewState(snapshot = state.snapshot?.data) {
+    const customConfig = shoutoutCustomConfig(snapshot);
+    return {
+      open: state.shoutoutMenuOpen,
+      canSendShoutouts: canSendShoutouts(snapshot),
+      onCooldown: isShoutoutOnCooldown(),
+      presets: shoutoutPresets(snapshot),
+      composer: {
+        open: state.shoutoutComposerOpen,
+        text: state.shoutoutComposerText,
+        emoji: state.shoutoutComposerEmoji,
+        error: state.shoutoutComposerError,
+        maxTextLength: customConfig.max_text_length || 50,
+        emojiOptions: customConfig.emoji_options || [],
+      },
+    };
+  }
+
+  function buildShoutoutRenderViewState(snapshot = state.snapshot?.data) {
+    if (!snapshot) {
+      return null;
+    }
+    const now = Date.now();
+    return {
+      localSeat: state.seat,
+      shoutoutMenu: buildShoutoutMenuViewState(snapshot),
+      visibleShoutoutsBySeat: buildVisibleShoutoutsBySeat(snapshot, now),
+      savedShoutoutsBySeat: buildSavedShoutoutsBySeat(snapshot, now),
+    };
+  }
+
+  function openCustomShoutoutComposer() {
+    state.shoutoutComposerOpen = true;
+    state.shoutoutComposerError = "";
+    syncShoutoutView();
+    focusCustomShoutoutComposer();
+  }
+
+  function closeCustomShoutoutComposer() {
+    resetShoutoutComposer();
+    syncShoutoutView();
+  }
+
+  function setCustomShoutoutText(text) {
+    const maxTextLength = Math.max(
+      1,
+      Number(shoutoutCustomConfig().max_text_length) || 50,
+    );
+    state.shoutoutComposerText = String(text || "").slice(0, maxTextLength);
+    if (state.shoutoutComposerError) {
+      state.shoutoutComposerError = "";
+      syncShoutoutView();
+      focusCustomShoutoutComposer();
+    }
+  }
+
+  function toggleCustomShoutoutEmoji(emoji) {
+    const options = new Set(
+      (shoutoutCustomConfig().emoji_options || []).map((option) => option.value),
+    );
+    if (!options.has(emoji)) {
+      return;
+    }
+    state.shoutoutComposerEmoji =
+      state.shoutoutComposerEmoji === emoji ? "" : emoji;
+    state.shoutoutComposerError = "";
+    syncShoutoutView();
+    focusCustomShoutoutComposer();
+  }
+
+  function submitCustomShoutout() {
+    const text = state.shoutoutComposerText.trim();
+    const emoji = state.shoutoutComposerEmoji || "";
+    if (!text) {
+      state.shoutoutComposerError = "Enter a short shoutout first.";
+      syncShoutoutView();
+      focusCustomShoutoutComposer();
+      return;
+    }
+    state.error = "";
+    const sent = sendAction({
+      type: "send_shoutout",
+      shoutout_text: text,
+      shoutout_emoji: emoji,
+    });
+    if (!sent) {
+      return;
+    }
+    resetShoutoutComposer();
+    closeShoutoutMenu({ rerender: false });
+    primeLocalShoutoutCooldown();
+    syncShoutoutTriggerState();
+    syncShoutoutUnlockTimer();
+  }
+
+  function replaySavedShoutout(seat) {
+    const savedShoutout = buildSavedShoutoutsBySeat()[seat] || null;
+    if (!savedShoutout) {
+      return;
+    }
+    state.shoutoutMenuOpen = false;
+    resetShoutoutComposer();
+    const now = Date.now();
+    state.shoutoutRecords = [
+      ...state.shoutoutRecords,
+      {
+        ...savedShoutout,
+        id: `replay-${seat}-${now}`,
+        eventId: "",
+        createdAt: now,
+        expiresAt: now + Math.max(0, savedShoutout.durationMs || 1500),
+        historyEligible: false,
+      },
+    ];
+    pruneExpiredShoutouts(now);
+    syncVisibleShoutoutTimer();
+    syncShoutoutView();
   }
 
   function clearGameStateForLobby() {
@@ -622,7 +816,7 @@ export function createGameUiController({
     if (!shoutoutKey) {
       return;
     }
-    closeShoutoutMenu({ rerender: false });
+    closeManagedShoutoutMenu({ rerender: false });
     state.error = "";
     const sent = sendAction({
       type: "send_shoutout",
@@ -637,14 +831,18 @@ export function createGameUiController({
   }
 
   function applyRealtimeShoutout(payload) {
-    const outcome = applyShoutoutEvent(payload, {
-      durationMs: shoutoutDisplayDurationMs(),
-    });
+    const outcome = applyShoutoutEvent(payload);
     if (!outcome.applied) {
       return;
     }
     syncVisibleShoutoutTimer();
     syncShoutoutView();
+  }
+
+  function expireVisibleShoutouts() {
+    pruneExpiredShoutouts(Date.now());
+    syncShoutoutView();
+    syncVisibleShoutoutTimer();
   }
 
   function submitHiddenCard() {
@@ -735,7 +933,7 @@ export function createGameUiController({
     state.hiddenLocalHandCardIds = [];
     state.pendingLocalPlay = null;
     if (isShoutoutOnCooldown(privateState)) {
-      closeShoutoutMenu({ rerender: false });
+      closeManagedShoutoutMenu({ rerender: false });
     }
     if (isShoutoutCooldownOnlyUpdate(previousPrivateState, privateState)) {
       syncShoutoutTriggerState();
@@ -768,10 +966,14 @@ export function createGameUiController({
   return {
     applyRealtimeShoutout,
     bindSessionController,
+    buildShoutoutRenderViewState,
     canChoosePublicCards,
+    canSendShoutouts,
     clearGameStateForLobby,
+    closeCustomShoutoutComposer,
     clearTurnNoticeState,
     currentGameState,
+    expireVisibleShoutouts,
     hasPendingJokerSelection,
     isMyTurn,
     isShoutoutOnCooldown,
@@ -784,11 +986,15 @@ export function createGameUiController({
     pendingJokerCard,
     playRank,
     privateCards,
+    replaySavedShoutout,
     resetKickSeatConfirmation,
     selectedHasJoker,
+    setCustomShoutoutText,
     setHighLowChoice,
     setJokerRank,
+    openCustomShoutoutComposer,
     shoutoutTriggerState,
+    submitCustomShoutout,
     submitChoosePublicCards,
     submitHiddenCard,
     submitPlayCards,
@@ -801,6 +1007,7 @@ export function createGameUiController({
     syncShoutoutUnlockTimer,
     syncVisibleShoutoutTimer,
     syncTurnNotice,
+    toggleCustomShoutoutEmoji,
     toggleCard,
   };
 }
