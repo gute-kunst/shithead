@@ -922,16 +922,7 @@ export function deriveHandLayout({
 }
 
 function renderTurnToast(turnNotice) {
-  if (!turnNotice.visible) {
-    return "";
-  }
-
-  return `
-    <div class="turn-toast" aria-live="polite">
-      <strong>${escapeHtml(turnNotice.headline)}</strong>
-      <span>${escapeHtml(turnNotice.copy)}</span>
-    </div>
-  `;
+  return "";
 }
 
 function renderPileAction(gameplayUi) {
