@@ -996,6 +996,10 @@ export function renderRulesMenuView({ open, optionalTakePileEnabled }) {
             <strong>Burn rule</strong>
             <p>Four cards of the same rank burn the pile, and yes, a sneaky invisible 5 can interrupt them and it still totally counts.</p>
           </div>
+          <div class="rules-block">
+            <strong>Feedback</strong>
+            <p>If you have feedback or recommendations, please send them to <a href="mailto:ideas@shit.bond">ideas@shit.bond</a>.</p>
+          </div>
         </div>
       </section>
     </div>
