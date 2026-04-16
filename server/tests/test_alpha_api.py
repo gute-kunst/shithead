@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import tempfile
 from datetime import datetime, timedelta, timezone
@@ -231,6 +232,23 @@ def test_public_pages_publish_metadata_and_crawl_plumbing():
         assert "<loc>http://localhost/</loc>" in sitemap.text
         assert "<loc>http://localhost/rules</loc>" in sitemap.text
         assert "/play" not in sitemap.text
+
+        manifest = client.get("/static/manifest.webmanifest")
+        assert manifest.status_code == 200
+        manifest_data = json.loads(manifest.text)
+        assert manifest_data["id"] == "/play"
+        assert manifest_data["start_url"] == "/play"
+        assert manifest_data["scope"] == "/play"
+
+        app_script = client.get("/static/app.js")
+        assert app_script.status_code == 200
+        assert '.register("/sw.js?v=20260416a", { scope: "/" })' in app_script.text
+
+        sw = client.get("/sw.js")
+        assert sw.status_code == 200
+        assert sw.headers["content-type"].startswith("application/javascript")
+        assert '"/play"' in sw.text
+        assert 'caches.match("/play")' in sw.text
 
 
 def test_stats_endpoint_reports_public_rollups_and_zero_fills(monkeypatch):

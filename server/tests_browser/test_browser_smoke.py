@@ -12,7 +12,7 @@ from pyshithead.models.session.models import ActionRequest
 pytestmark = pytest.mark.browser
 
 
-def open_page(context, base_url: str, path: str = "/"):
+def open_page(context, base_url: str, path: str = "/play"):
     page = context.new_page()
     page.goto(f"{base_url}{path}", wait_until="networkidle")
     return page
@@ -359,7 +359,7 @@ def test_landing_shows_folded_buckets_and_rules_menu(live_server, browser_factor
 
 
 def test_invite_link_prefills_and_prioritizes_join(live_server, browser_factory):
-    page = open_page(browser_factory(), live_server, "/?invite=ABC123")
+    page = open_page(browser_factory(), live_server, "/play?invite=ABC123")
 
     expect(page.locator("[data-landing-bucket='join']")).to_have_attribute("aria-expanded", "true")
     expect(page.locator("#join-code")).to_have_value("ABC123")

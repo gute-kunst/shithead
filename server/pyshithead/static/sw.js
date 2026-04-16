@@ -1,12 +1,12 @@
-const CACHE_NAME = "shithead-alpha-v33";
+const CACHE_NAME = "shithead-alpha-v34";
 const APP_SHELL = [
-  "/",
-  "/static/styles.css?v=20260405b",
-  "/static/app.js?v=20260405b",
-  "/static/manifest.webmanifest?v=20260405b",
-  "/static/icons/icon-180.png?v=20260405b",
-  "/static/icons/icon-192.png?v=20260405b",
-  "/static/icons/icon-512.png?v=20260405b",
+  "/play",
+  "/static/styles.css?v=20260416a",
+  "/static/app.js?v=20260416a",
+  "/static/manifest.webmanifest?v=20260416a",
+  "/static/icons/icon-180.png?v=20260416a",
+  "/static/icons/icon-192.png?v=20260416a",
+  "/static/icons/icon-512.png?v=20260416a",
 ];
 
 function isSameOrigin(url) {
@@ -25,6 +25,10 @@ function isStaticAssetRequest(url) {
   return isSameOrigin(url) && url.pathname.startsWith("/static/");
 }
 
+function isPlayableRoute(url) {
+  return url.pathname === "/play" || url.pathname === "/play/";
+}
+
 async function putIfOk(request, response) {
   if (!response || !response.ok) {
     return response;
@@ -34,13 +38,20 @@ async function putIfOk(request, response) {
   return response;
 }
 
-async function navigationStrategy(request) {
+async function navigationStrategy(request, url) {
   try {
     const response = await fetch(request);
     await putIfOk(request, response);
     return response;
   } catch {
-    return (await caches.match(request)) || (await caches.match("/"));
+    const cached = await caches.match(request);
+    if (cached) {
+      return cached;
+    }
+    if (isPlayableRoute(url)) {
+      return (await caches.match("/play")) || Response.error();
+    }
+    return Response.error();
   }
 }
 
@@ -79,7 +90,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (isNavigationRequest(event.request)) {
-    event.respondWith(navigationStrategy(event.request));
+    event.respondWith(navigationStrategy(event.request, url));
     return;
   }
 

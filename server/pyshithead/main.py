@@ -38,7 +38,7 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 STATS_UI_DIR = Path(__file__).resolve().parent / "stats_ui"
 SESSION_STORAGE_KEY = "shithead.alpha.session"
 ANONYMOUS_USER_COOKIE = "shithead.alpha.user"
-STATIC_ASSET_VERSION = "20260405b"
+STATIC_ASSET_VERSION = "20260416a"
 SITE_THEME_COLOR = "#11231f"
 HOME_TITLE = "Play Shithead Online | Multiplayer Card Game"
 HOME_DESCRIPTION = (
@@ -419,6 +419,10 @@ def create_app(
     app.state.session_manager = managed_sessions
     app.state.debug_bootstrap_enabled = enable_debug_bootstrap
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+    @app.get("/sw.js", include_in_schema=False)
+    async def read_service_worker():
+        return FileResponse(STATIC_DIR / "sw.js", media_type="application/javascript")
 
     @app.get("/", response_class=HTMLResponse)
     async def read_homepage(request: Request):

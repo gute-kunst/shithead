@@ -2299,7 +2299,7 @@ window.visualViewport?.addEventListener("resize", () => {
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker
-    .register("/static/sw.js?v=20260405b")
+    .register("/sw.js?v=20260416a", { scope: "/" })
     .then(() => {
       if (navigator.serviceWorker.controller) {
         navigator.serviceWorker.addEventListener("controllerchange", () => {
