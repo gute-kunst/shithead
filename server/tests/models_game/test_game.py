@@ -135,10 +135,3 @@ def test_game_hidden_move(game_hidden_move: Game):
     assert revealed_card == next(iter(req.cards.cards))
     assert game_hidden_move.state is GameState.DURING_GAME
 
-
-@pytest.mark.skip(reason="mock example")
-def test_game_mocked(game_with_two_players_during_game_empty_playpile: Game, mocker):
-    game = game_with_two_players_during_game_empty_playpile
-    assert game.game_id == 1
-    mocker.patch.object(game, "game_id", 2)
-    assert game.game_id == 2

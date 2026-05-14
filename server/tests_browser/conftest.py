@@ -39,6 +39,19 @@ BROWSER_PROFILES_BY_BROWSER = {
 }
 
 
+def _selected_browsers(config) -> tuple[str, ...]:
+    return tuple(config.getoption("browser") or list(BROWSER_TYPES))
+
+
+def _supported_browser_profile_pairs(selected_browsers: tuple[str, ...]) -> list[tuple[str, str]]:
+    return [
+        (browser_name, profile_name)
+        for browser_name in selected_browsers
+        for profile_name in BROWSER_PROFILES
+        if profile_name in BROWSER_PROFILES_BY_BROWSER[browser_name]
+    ]
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--browser",
@@ -49,11 +62,73 @@ def pytest_addoption(parser):
 
 
 def pytest_generate_tests(metafunc):
-    if "browser_name" not in metafunc.fixturenames:
+    selected_browsers = _selected_browsers(metafunc.config)
+    fixture_names = set(metafunc.fixturenames)
+
+    if "browser_factory" in fixture_names:
+        pairs = _supported_browser_profile_pairs(selected_browsers)
+        metafunc.parametrize(
+            ("browser_name", "browser_profile_name"),
+            pairs,
+            scope="session",
+            ids=[f"{profile_name}-{browser_name}" for browser_name, profile_name in pairs],
+        )
         return
 
-    selected_browsers = metafunc.config.getoption("browser") or list(BROWSER_TYPES)
-    metafunc.parametrize("browser_name", selected_browsers, scope="session", ids=selected_browsers)
+    if "desktop_browser_factory" in fixture_names:
+        metafunc.parametrize("browser_name", selected_browsers, scope="session", ids=selected_browsers)
+        return
+
+    if "touch_browser_factory" in fixture_names:
+        touch_browsers = [
+            browser_name
+            for browser_name in selected_browsers
+            if "mobile_portrait" in BROWSER_PROFILES_BY_BROWSER[browser_name]
+        ]
+        metafunc.parametrize("browser_name", touch_browsers, scope="session", ids=touch_browsers)
+        return
+
+    if "mobile_landscape_browser_factory" in fixture_names:
+        landscape_browsers = [
+            browser_name
+            for browser_name in selected_browsers
+            if "mobile_landscape" in BROWSER_PROFILES_BY_BROWSER[browser_name]
+        ]
+        metafunc.parametrize(
+            "browser_name",
+            landscape_browsers,
+            scope="session",
+            ids=landscape_browsers,
+        )
+
+
+def pytest_collection_modifyitems(config, items):
+    selected_browsers = set(_selected_browsers(config))
+    selected_items = []
+    deselected_items = []
+    supports_touch = any(
+        "mobile_portrait" in BROWSER_PROFILES_BY_BROWSER[browser_name]
+        for browser_name in selected_browsers
+    )
+    supports_mobile_landscape = any(
+        "mobile_landscape" in BROWSER_PROFILES_BY_BROWSER[browser_name]
+        for browser_name in selected_browsers
+    )
+    for item in items:
+        if item.get_closest_marker("chromium_only") and "chromium" not in selected_browsers:
+            deselected_items.append(item)
+        elif "touch_browser_factory" in item.fixturenames and not supports_touch:
+            deselected_items.append(item)
+        elif (
+            "mobile_landscape_browser_factory" in item.fixturenames
+            and not supports_mobile_landscape
+        ):
+            deselected_items.append(item)
+        else:
+            selected_items.append(item)
+    if deselected_items:
+        config.hook.pytest_deselected(items=deselected_items)
+        items[:] = selected_items
 
 
 def _browser_launch(browser_type, *, browser_name: str):
@@ -173,17 +248,9 @@ def browser(playwright_instance, browser_name):
     browser.close()
 
 
-@pytest.fixture(params=tuple(BROWSER_PROFILES), ids=tuple(BROWSER_PROFILES))
+@pytest.fixture(scope="session")
 def browser_profile_name(request):
     return request.param
-
-
-@pytest.fixture(autouse=True)
-def skip_unsupported_browser_profile(browser_name, browser_profile_name):
-    if browser_profile_name not in BROWSER_PROFILES_BY_BROWSER[browser_name]:
-        pytest.skip(
-            f"Playwright browser '{browser_name}' does not support the '{browser_profile_name}' profile."
-        )
 
 
 def _context_factory(browser, *, profile_name: str):
@@ -216,11 +283,7 @@ def desktop_browser_factory(browser):
 
 
 @pytest.fixture
-def touch_browser_factory(browser, browser_name):
-    if "mobile_portrait" not in BROWSER_PROFILES_BY_BROWSER[browser_name]:
-        pytest.skip(
-            f"Playwright browser '{browser_name}' does not support the 'mobile_portrait' profile."
-        )
+def touch_browser_factory(browser):
     factory, contexts = _context_factory(browser, profile_name="mobile_portrait")
     yield factory
 
@@ -229,13 +292,16 @@ def touch_browser_factory(browser, browser_name):
 
 
 @pytest.fixture
-def mobile_landscape_browser_factory(browser, browser_name):
-    if "mobile_landscape" not in BROWSER_PROFILES_BY_BROWSER[browser_name]:
-        pytest.skip(
-            f"Playwright browser '{browser_name}' does not support the 'mobile_landscape' profile."
-        )
+def mobile_landscape_browser_factory(browser):
     factory, contexts = _context_factory(browser, profile_name="mobile_landscape")
     yield factory
 
     for context in contexts:
         context.close()
+
+
+@pytest.fixture
+def chromium_browser(playwright_instance):
+    browser = playwright_instance.chromium.launch(headless=True)
+    yield browser
+    browser.close()

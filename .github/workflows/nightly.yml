@@ -5,9 +5,77 @@ on:
     - cron: "0 2 * * *"
   workflow_dispatch:
 
+permissions:
+  actions: read
+  contents: read
+
 jobs:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.diff.outputs.should_run || steps.manual.outputs.should_run }}
+    steps:
+    - name: Always run manual dispatches
+      id: manual
+      if: ${{ github.event_name == 'workflow_dispatch' }}
+      run: echo "should_run=true" >> "$GITHUB_OUTPUT"
+
+    - uses: actions/checkout@v4
+      if: ${{ github.event_name == 'schedule' }}
+      with:
+        fetch-depth: 0
+
+    - name: Find previous completed nightly
+      id: previous
+      if: ${{ github.event_name == 'schedule' }}
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const branch = context.ref.replace('refs/heads/', '');
+          const { owner, repo } = context.repo;
+          const { data } = await github.rest.actions.listWorkflowRuns({
+            owner,
+            repo,
+            workflow_id: 'nightly.yml',
+            branch,
+            status: 'completed',
+            per_page: 1,
+          });
+
+          const previous = data.workflow_runs.find((run) => run.id !== context.runId);
+          if (!previous) {
+            core.info('No previous completed nightly run found; tests will run.');
+            core.setOutput('previous_sha', '');
+            return;
+          }
+
+          core.info(`Previous completed nightly run: ${previous.id} at ${previous.head_sha}`);
+          core.setOutput('previous_sha', previous.head_sha);
+
+    - name: Decide whether nightly tests should run
+      id: diff
+      if: ${{ github.event_name == 'schedule' }}
+      shell: bash
+      run: |
+        if [[ -z "${{ steps.previous.outputs.previous_sha }}" ]]; then
+          echo "should_run=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        changed_files="$(git diff --name-only "${{ steps.previous.outputs.previous_sha }}" HEAD -- server .github/workflows/nightly.yml .github/workflows/server.yml)"
+        if [[ -n "$changed_files" ]]; then
+          echo "$changed_files"
+          echo "should_run=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "No relevant files changed since the previous completed nightly run."
+          echo "should_run=false" >> "$GITHUB_OUTPUT"
+        fi
+
   tests:
     name: "Nightly Python ${{ matrix.python-version }} on ${{ matrix.os }}"
+    needs: changes
+    if: ${{ needs.changes.outputs.should_run == 'true' }}
     runs-on: "${{ matrix.os }}"
     strategy:
       fail-fast: false

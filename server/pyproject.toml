@@ -54,6 +54,7 @@ testpaths = ["tests", "pyshithead"]
 addopts = "--cov=pyshithead/ --cov-report=xml"
 markers = [
 	"browser: browser smoke tests for the web alpha",
+	"chromium_only: browser test that only runs for Chromium coverage",
 ]
 
 [tool.black]

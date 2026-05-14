@@ -705,13 +705,11 @@ def test_mobile_tapping_a_hand_card_selects_it(live_server, touch_browser_factor
     expect(host_page.locator(".hand-fan .card.selected")).to_have_count(1)
 
 
+@pytest.mark.chromium_only
 def test_chromium_mobile_hand_fan_real_touch_scrolls_three_cards_and_still_allows_selection(
-    live_server, browser_name, playwright_instance
+    live_server, chromium_browser
 ):
-    if browser_name != "chromium":
-        pytest.skip("Chromium-only mobile touch regression.")
-
-    browser = playwright_instance.chromium.launch(headless=True)
+    browser = chromium_browser
     host_context = browser.new_context(
         viewport={"width": 390, "height": 844},
         is_mobile=True,
@@ -795,16 +793,13 @@ def test_chromium_mobile_hand_fan_real_touch_scrolls_three_cards_and_still_allow
     finally:
         guest_context.close()
         host_context.close()
-        browser.close()
 
 
+@pytest.mark.chromium_only
 def test_chromium_mobile_hand_fan_long_touch_resize_keeps_scroll_position_and_allows_selection(
-    live_server, browser_name, playwright_instance
+    live_server, chromium_browser
 ):
-    if browser_name != "chromium":
-        pytest.skip("Chromium-only mobile touch regression.")
-
-    browser = playwright_instance.chromium.launch(headless=True)
+    browser = chromium_browser
     host_context = browser.new_context(
         viewport={"width": 390, "height": 844},
         is_mobile=True,
@@ -914,7 +909,6 @@ def test_chromium_mobile_hand_fan_long_touch_resize_keeps_scroll_position_and_al
     finally:
         guest_context.close()
         host_context.close()
-        browser.close()
 
 
 def test_lobby_shoutout_renders_above_seat_badges(live_server, browser_factory):
