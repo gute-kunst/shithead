@@ -134,4 +134,3 @@ def test_game_hidden_move(game_hidden_move: Game):
     assert req.cards not in game_hidden_move.get_player().private_cards
     assert revealed_card == next(iter(req.cards.cards))
     assert game_hidden_move.state is GameState.DURING_GAME
-

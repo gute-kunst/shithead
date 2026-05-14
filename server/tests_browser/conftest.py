@@ -76,7 +76,9 @@ def pytest_generate_tests(metafunc):
         return
 
     if "desktop_browser_factory" in fixture_names:
-        metafunc.parametrize("browser_name", selected_browsers, scope="session", ids=selected_browsers)
+        metafunc.parametrize(
+            "browser_name", selected_browsers, scope="session", ids=selected_browsers
+        )
         return
 
     if "touch_browser_factory" in fixture_names:
